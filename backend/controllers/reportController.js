@@ -86,7 +86,7 @@ const getBKU = async (req, res) => {
         UNION ALL
         SELECT d.id::TEXT FROM detail_sp2d d JOIN data_sp2d h ON d.id_sp2d = h.id WHERE COALESCE(h.tanggal_pencairan, h.tanggal) BETWEEN ${startDateObj} AND ${endDateObj}
         UNION ALL
-        SELECT p.id::TEXT FROM data_sp2d_potongan p LEFT JOIN data_sp2d s ON p.id_sp2d = s.id WHERE COALESCE(p.tanggal_pencairan, s.tanggal) BETWEEN ${startDateObj} AND ${endDateObj} AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER') AND (s.id IS NULL OR s.status_rekon != 'SUDAH_BRUTO')
+        SELECT p.id::TEXT FROM data_sp2d_potongan p LEFT JOIN data_sp2d s ON p.id_sp2d = s.id WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) BETWEEN ${startDateObj} AND ${endDateObj} AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER') AND (s.id IS NULL OR s.status_rekon != 'SUDAH_BRUTO')
         UNION ALL
         SELECT id::TEXT FROM setoran_pajak WHERE tanggal BETWEEN ${startDateObj} AND ${endDateObj}
         AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = nomor_bukti)
@@ -231,7 +231,7 @@ const getBKU = async (req, res) => {
         UNION ALL
         SELECT 0::NUMERIC as penerimaan, (CASE WHEN h.status_rekon = 'SUDAH_BRUTO' THEN d.nilai_bruto ELSE (d.nilai_bruto - (COALESCE((SELECT SUM(p.nilai) FROM data_sp2d_potongan p WHERE p.id_sp2d = h.id AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER')), CAST(h.nilai_potongan AS DECIMAL)) * (d.nilai_bruto / NULLIF(h.nilai_bruto, 0)))) END)::NUMERIC as pengeluaran FROM detail_sp2d d JOIN data_sp2d h ON d.id_sp2d = h.id WHERE COALESCE(h.tanggal_pencairan, h.tanggal) BETWEEN ${startDateObj} AND ${endDateObj}
         UNION ALL
-        SELECT 0::NUMERIC as penerimaan, p2.nilai::NUMERIC as pengeluaran FROM data_sp2d_potongan p2 LEFT JOIN data_sp2d s2 ON p2.id_sp2d = s2.id WHERE p2.tanggal_pencairan BETWEEN ${startDateObj} AND ${endDateObj} AND (p2.keterangan IS NULL OR p2.keterangan != 'AUTO_HEADER') AND (s2.id IS NULL OR s2.status_rekon != 'SUDAH_BRUTO')
+        SELECT 0::NUMERIC as penerimaan, p2.nilai::NUMERIC as pengeluaran FROM data_sp2d_potongan p2 LEFT JOIN data_sp2d s2 ON p2.id_sp2d = s2.id WHERE COALESCE(p2.tanggal_pencairan, s2.tanggal_pencairan, s2.tanggal) BETWEEN ${startDateObj} AND ${endDateObj} AND (p2.keterangan IS NULL OR p2.keterangan != 'AUTO_HEADER') AND (s2.id IS NULL OR s2.status_rekon != 'SUDAH_BRUTO')
         UNION ALL
         SELECT 0::NUMERIC as penerimaan, nilai::NUMERIC as pengeluaran FROM setoran_pajak WHERE tanggal BETWEEN ${startDateObj} AND ${endDateObj} AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = nomor_bukti)
         UNION ALL
