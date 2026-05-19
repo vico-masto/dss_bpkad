@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(\"--CONTROLLERS--\")",
+      "PowerShell(\"--ROUTES--\")",
+      "PowerShell(\"--SERVICES--\")",
+      "PowerShell(\"--MIDDLEWARE--\")",
+      "PowerShell(\"--UTILS--\")",
+      "PowerShell(\"--CONFIG--\")",
+      "PowerShell(\"--DATABASE--\")",
+      "PowerShell(\"--PRISMA--\")",
+      "PowerShell(\"--SCRIPTS--\")",
+      "PowerShell(Get-Process -Name \"node\" -ErrorAction SilentlyContinue | Select-Object Id, CPU, @{N='MB';E={[Math]::Round\\($_.WorkingSet/1MB,1\\)}}, CommandLine)",
+      "PowerShell(cd \"d:\\\\Antigravity\\\\DSS_BPKAD\\\\backend\"; $job = Start-Job -ScriptBlock { cd \"d:\\\\Antigravity\\\\DSS_BPKAD\\\\backend\"; node server.js 2>&1 }; Start-Sleep -Seconds 5; Receive-Job $job)",
+      "Bash(cd /d \"D:\\\\Antigravity\\\\DSS_BPKAD\\\\backend\")",
+      "Bash(node -e ' *)",
+      "Bash(node --check controllers/pendapatanController.js)",
+      "Bash(node --check controllers/reconciliationController.js)",
+      "Bash(node --check utils/dateUtils.js)",
+      "Bash(node --check controllers/sp2dController.js)",
+      "Bash(node --check controllers/reconciliationController.js controllers/pendapatanController.js controllers/sp2dController.js utils/dateUtils.js)",
+      "Bash(node -e \"const g = require\\('./utils/kritisGuard'\\); console.log\\('kritisGuard OK:', Object.keys\\(g\\)\\)\")",
+      "Bash(node diag_bank_anomali.js)",
+      "Bash(node diag_bank_anomali2.js)",
+      "Bash(node diag_bank_anomali3.js)",
+      "Bash(del diag_bank_anomali.js diag_bank_anomali2.js diag_bank_anomali3.js)",
+      "Bash(node fix_sudah_to_sudahbruto.js)",
+      "Bash(node -e \"const os = require\\('os'\\); console.log\\('Total RAM:', Math.round\\(os.totalmem\\(\\)/1024/1024\\), 'MB'\\); console.log\\('Free RAM:', Math.round\\(os.freemem\\(\\)/1024/1024\\), 'MB'\\); console.log\\('Used RAM:', Math.round\\(\\(os.totalmem\\(\\)-os.freemem\\(\\)\\)/1024/1024\\), 'MB'\\);\")",
+      "PowerShell(Get-Process *)",
+      "Bash(node fix_potongan_date_sync.js)",
+      "Bash(node diagnose_anomaly_2725277.js)",
+      "Bash(node diagnose_selisih_bku.js)",
+      "Bash(node diagnose_belum_rekon_detail.js)",
+      "Bash(node *)",
+      "Bash(Get-Content \"backend\\\\.env\")",
+      "Bash(Select-String \"DATABASE_URL\")"
+    ]
+  }
+}

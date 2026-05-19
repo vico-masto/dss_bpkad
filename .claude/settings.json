@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem \"d:\\\\Antigravity\\\\DSS_BPKAD\\\\frontend\\\\src\" -Recurse -Directory | Select-Object -ExpandProperty FullName | ForEach-Object { $_.Replace\\(\"d:\\\\Antigravity\\\\DSS_BPKAD\\\\frontend\\\\\",\"\"\\) })",
+      "Read(//d/Antigravity/DSS_BPKAD/backend/routes/**)"
+    ]
+  }
+}

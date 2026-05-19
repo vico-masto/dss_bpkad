@@ -1,0 +1,490 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-plus-jakarta), var(--font-inter), system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular;
+
+  /* ═══ FINANCIAL ENTERPRISE DESIGN TOKENS ═══ */
+  --fin-page: #F8F9FA;
+  --fin-surface: #FFFFFF;
+  --fin-subtle: #F1F3F5;
+  --fin-border: #E9ECEF;
+  --fin-border-strong: #DEE2E6;
+  --fin-text-primary: #101828;
+  --fin-text-secondary: #475467;
+  --fin-text-muted: #98A2B3;
+  --fin-income: #12B76A;
+  --fin-income-bg: #ECFDF3;
+  --fin-income-text: #027A48;
+  --fin-expense: #F04438;
+  --fin-expense-bg: #FEF3F2;
+  --fin-expense-text: #B42318;
+  --fin-info: #2E90FA;
+  --fin-info-bg: #EFF8FF;
+  --fin-info-text: #175CD3;
+  --fin-warning: #F79009;
+  --fin-warning-bg: #FFFAEB;
+  --fin-warning-text: #B54708;
+  --fin-surplus: #6941C6;
+  --fin-surplus-bg: #F4F3FF;
+  --fin-surplus-text: #5925DC;
+
+  --color-fin-page: var(--fin-page);
+  --color-fin-surface: var(--fin-surface);
+  --color-fin-subtle: var(--fin-subtle);
+  --color-fin-border: var(--fin-border);
+  --color-fin-border-strong: var(--fin-border-strong);
+  --color-fin-text-primary: var(--fin-text-primary);
+  --color-fin-text-secondary: var(--fin-text-secondary);
+  --color-fin-text-muted: var(--fin-text-muted);
+  --color-fin-income: var(--fin-income);
+  --color-fin-income-bg: var(--fin-income-bg);
+  --color-fin-income-text: var(--fin-income-text);
+  --color-fin-expense: var(--fin-expense);
+  --color-fin-expense-bg: var(--fin-expense-bg);
+  --color-fin-expense-text: var(--fin-expense-text);
+  --color-fin-info: var(--fin-info);
+  --color-fin-info-bg: var(--fin-info-bg);
+  --color-fin-info-text: var(--fin-info-text);
+  --color-fin-warning: var(--fin-warning);
+  --color-fin-warning-bg: var(--fin-warning-bg);
+  --color-fin-warning-text: var(--fin-warning-text);
+  --color-fin-surplus: var(--fin-surplus);
+  --color-fin-surplus-bg: var(--fin-surplus-bg);
+  --color-fin-surplus-text: var(--fin-surplus-text);
+
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* ═══════════════════════════════════════════════════════
+     DESIGN SYSTEM SEMANTIC TOKENS — single source of truth
+     Gunakan token ini di komponen baru, bukan hardcoded hex
+     ═══════════════════════════════════════════════════════ */
+
+  /* Primary action: navy (#101828) — "Simpan", "Konfirmasi", "Cetak" */
+  --ds-primary:            var(--fin-text-primary);
+  --ds-primary-hover:      #1D2939;
+  --ds-primary-fg:         #FFFFFF;
+  /* Accent: info-blue (#2E90FA) — link, focus ring, "Generate", interactive CTA */
+  --ds-accent:             var(--fin-info);
+  --ds-accent-hover:       var(--fin-info-text);
+  --ds-accent-fg:          #FFFFFF;
+  /* Focus ring: selalu info-blue */
+  --ds-focus-ring:         var(--fin-info);
+
+  /* Tailwind color mappings (for bg-ds-primary, text-ds-accent, etc.) */
+  --color-ds-primary:      var(--ds-primary);
+  --color-ds-primary-hover: var(--ds-primary-hover);
+  --color-ds-primary-fg:   var(--ds-primary-fg);
+  --color-ds-accent:       var(--ds-accent);
+  --color-ds-accent-hover: var(--ds-accent-hover);
+  --color-ds-accent-fg:    var(--ds-accent-fg);
+  --color-ds-focus-ring:   var(--ds-focus-ring);
+
+  /* Component Height Scale — pakai h-btn-sm / h-btn-md / h-btn-lg di komponen baru */
+  --height-btn-sm:  2rem;     /* 32px — icon buttons, compact */
+  --height-btn-md:  2.5rem;   /* 40px — standard */
+  --height-btn-lg:  2.75rem;  /* 44px — prominent CTAs */
+  --height-input:   2.5rem;   /* 40px — semua text input */
+
+  /* Modal Max-Width Scale — pakai max-w-modal-* di DialogContent */
+  --max-width-modal-sm: 24rem;   /* 384px — konfirmasi */
+  --max-width-modal-md: 28rem;   /* 448px — form sederhana */
+  --max-width-modal-lg: 42rem;   /* 672px — form kompleks */
+  --max-width-modal-xl: 64rem;   /* 1024px — tabel / PDF preview */
+
+  /* Typography Micro Scale — pakai text-micro / text-mini / text-caption */
+  --text-micro:               10px;
+  --text-micro--line-height:  1.4;
+  --text-mini:                11px;
+  --text-mini--line-height:   1.4;
+  --text-caption:             13px;
+  --text-caption--line-height: 1.5;
+}
+
+@layer base {
+  body {
+    @apply selection:bg-[#EFF8FF] selection:text-[#175CD3] bg-background text-foreground;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: font-family 0.4s ease, color 0.4s ease, background-color 0.4s ease;
+  }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans scroll-smooth;
+  }
+}
+
+@keyframes soft-entry {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes bounce-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
+.animate-bounce-slow {
+  animation: bounce-slow 3s ease-in-out infinite;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.login-theme {
+  --fin-page: #030712 !important;
+  --fin-surface: #111827 !important;
+  --fin-text-primary: #FFFFFF !important;
+  --fin-text-secondary: #D1D5DB !important;
+  --fin-text-muted: #9CA3AF !important;
+  --fin-border: rgba(255, 255, 255, 0.1) !important;
+  background-color: #030712 !important;
+  color: #FFFFFF !important;
+}
+
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
+
+.animate-soft-entry {
+  animation: soft-entry 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.font-transition {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@layer utilities {
+  /* ═══ Financial Layout Utilities ═══ */
+  .fin-page {
+    @apply bg-fin-page min-h-screen;
+  }
+
+  .fin-surface {
+    @apply bg-fin-surface border border-fin-border rounded-xl;
+  }
+
+  .fin-card {
+    @apply bg-fin-surface border border-fin-border rounded-xl p-5 transition-shadow hover:shadow-sm;
+  }
+
+  .fin-card-flat {
+    @apply bg-fin-surface border border-fin-border rounded-xl;
+  }
+
+  /* ═══ Financial Typography ═══ */
+  .fin-h1 {
+    @apply text-2xl font-semibold tracking-tight text-fin-text-primary;
+  }
+
+  .fin-h2 {
+    @apply text-lg font-semibold text-fin-text-primary;
+  }
+
+  .fin-h3 {
+    @apply text-sm font-semibold text-fin-text-primary;
+  }
+
+  .fin-label {
+    @apply text-xs font-medium text-fin-text-secondary uppercase tracking-wide;
+  }
+
+  .fin-body {
+    @apply text-sm text-fin-text-secondary leading-relaxed;
+  }
+
+  .fin-data {
+    @apply text-sm font-medium text-fin-text-primary;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .fin-data-lg {
+    @apply text-2xl font-bold text-fin-text-primary;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .fin-caption {
+    @apply text-xs text-fin-text-muted;
+  }
+
+  /* ═══ Financial Badge Statuses ═══ */
+  .fin-badge-success {
+    @apply bg-fin-income-bg text-fin-income-text rounded-full px-2.5 py-0.5 text-xs font-medium inline-flex items-center;
+  }
+
+  .fin-badge-warning {
+    @apply bg-fin-warning-bg text-fin-warning-text rounded-full px-2.5 py-0.5 text-xs font-medium inline-flex items-center;
+  }
+
+  .fin-badge-danger {
+    @apply bg-fin-expense-bg text-fin-expense-text rounded-full px-2.5 py-0.5 text-xs font-medium inline-flex items-center;
+  }
+
+  .fin-badge-neutral {
+    @apply bg-fin-subtle text-fin-text-secondary rounded-full px-2.5 py-0.5 text-xs font-medium inline-flex items-center;
+  }
+
+  .fin-badge-info {
+    @apply bg-fin-info-bg text-fin-info-text rounded-full px-2.5 py-0.5 text-xs font-medium inline-flex items-center;
+  }
+
+  /* ═══ Table Utilities ═══ */
+  .fin-table-header {
+    @apply bg-fin-page text-xs font-medium text-fin-text-secondary uppercase tracking-wider;
+  }
+
+  .fin-table-row {
+    @apply border-b border-fin-subtle hover:bg-fin-page transition-colors;
+  }
+
+  /* ═══ Legacy Utilities (preserved) ═══ */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Official Print Area Configuration */
+  .print-area {
+    font-family: 'Times New Roman', Times, serif !important;
+    color: black !important;
+    background: white !important;
+  }
+
+  .print-area table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  .print-area th, .print-area td {
+    border: 1px solid black !important;
+    color: black !important;
+    padding: 8px !important;
+  }
+}
+
+/* Custom Scrollbar — Subtle */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #DEE2E6;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #98A2B3;
+}
+
+/* Media Query Khusus Cetak Resmi */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* Sembunyikan elemen UI Dashboard */
+  header, 
+  nav, 
+  aside, 
+  #sidebar,
+  button, 
+  .no-print,
+  [role="navigation"] {
+    display: none !important;
+  }
+
+  /* Sembunyikan Scrollbar saat cetak */
+  * {
+    scrollbar-width: none !important;
+  }
+  ::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  /* Paksa layout agar maksimal di kertas */
+  main, .container {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Standardisasi Tabel Tata Naskah Dinas */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  th, td {
+    border: 1px solid black !important;
+    color: black !important;
+  }
+
+  .print-area {
+    display: block !important;
+  }
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: #0B0F1A;
+  --foreground: #F8F9FA;
+  --card: #111827;
+  --card-foreground: #F3F4F6;
+  --popover: #111827;
+  --popover-foreground: #F3F4F6;
+  --primary: #3B82F6;
+  --primary-foreground: #FFFFFF;
+  --secondary: #1F2937;
+  --secondary-foreground: #F3F4F6;
+  --muted: #1F2937;
+  --muted-foreground: #9CA3AF;
+  --accent: #1F2937;
+  --accent-foreground: #F3F4F6;
+  --destructive: #EF4444;
+  --border: #1F2937;
+  --input: #1F2937;
+  --ring: #3B82F6;
+  
+  /* Financial Tokens Override for Dark Mode */
+  --fin-page: #0B0F1A;
+  --fin-surface: #111827;
+  --fin-subtle: #1F2937;
+  --fin-border: #374151;
+  --fin-border-strong: #4B5563;
+  --fin-text-primary: #F9FAFB;
+  --fin-text-secondary: #D1D5DB;
+  --fin-text-muted: #9CA3AF;
+  --fin-income-bg: #064E3B;
+  --fin-income-text: #6EE7B7;
+  --fin-expense-bg: #7F1D1D;
+  --fin-expense-text: #FCA5A5;
+  --fin-info-bg: #1E3A8A;
+  --fin-info-text: #93C5FD;
+  --fin-warning-bg: #78350F;
+  --fin-warning-text: #FDE68A;
+  --fin-surplus-bg: #4C1D95;
+  --fin-surplus-text: #C4B5FD;
+
+  --sidebar: #0B0F1A;
+  --sidebar-foreground: #F9FAFB;
+  --sidebar-primary: #3B82F6;
+  --sidebar-border: #1F2937;
+}
+
+/* Smooth Theme Transitions */
+* {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}

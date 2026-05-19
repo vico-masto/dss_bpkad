@@ -1,0 +1,260 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model users {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username      String  @unique @db.VarChar(100)
+  password_hash String  @db.VarChar(255)
+  role          String? @db.VarChar(50)
+  special_pin   String? @default("1234") @db.VarChar(10)
+
+  @@map("users")
+}
+
+model master_sumber_dana {
+  id                  String                @id @db.VarChar(50)
+  nama                String                @db.VarChar(255)
+  kategori            String?               @db.VarChar(50)
+  nomor_rekening      String?               @db.VarChar(50)
+  data_pendapatan     data_pendapatan[]
+  data_penyesuaian    data_penyesuaian[]
+  detail_sp2d         detail_sp2d[]
+  jurnalAsli          jurnal_talangan[]     @relation("SumberAsli")
+  jurnalTalangan      jurnal_talangan[]     @relation("SumberTalangan")
+  master_pagu         master_pagu[]
+  proyeksi_pendapatan proyeksi_pendapatan[]
+  saldo_awal          saldo_awal[]
+  setoran_pajak       setoran_pajak[]
+
+  @@map("master_sumber_dana")
+}
+
+model data_pendapatan {
+  id             String              @id @db.VarChar(100)
+  tanggal        DateTime            @db.Date
+  tahun          Int
+  nomor_bukti    String              @db.VarChar(100)
+  uraian         String?
+  id_sumber_dana String?             @db.VarChar(50)
+  nilai          Decimal             @db.Decimal(20, 2)
+  created_at     DateTime?           @default(now()) @db.Timestamp(6)
+  updated_at     DateTime?           @db.Timestamp(6)
+  status_rekon   String?             @default("BELUM") @db.VarChar(50)
+  file_url       String?
+  sumber_dana    master_sumber_dana? @relation(fields: [id_sumber_dana], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tanggal, nomor_bukti])
+  @@index([tanggal])
+  @@index([status_rekon])
+  @@map("data_pendapatan")
+}
+
+model data_sp2d {
+  id                String        @id @db.VarChar(100)
+  nomor             String        @unique @db.VarChar(100)
+  tanggal           DateTime      @db.Date
+  tanggal_pencairan DateTime?     @db.Date
+  tahun             Int
+  opd               String        @db.VarChar(255)
+  jenis             String        @db.VarChar(50)
+  uraian            String?
+  penerima          String        @db.VarChar(255)
+  nilai_bruto       Decimal       @db.Decimal(20, 2)
+  nilai_potongan    Decimal?      @default(0) @db.Decimal(20, 2)
+  jenis_potongan    String?       @db.VarChar(100)
+  status_dana       String?       @db.VarChar(50)
+  status_rekon      String?       @default("BELUM") @db.VarChar(50)
+  file_url          String?
+  created_at        DateTime?     @default(now()) @db.Timestamp(6)
+  updated_at        DateTime?     @updatedAt @db.Timestamp(6)
+  selisih_rekon     Decimal?      @default(0) @db.Decimal(15, 2)
+  keterangan_rekon  String?
+  nilai_neto        Decimal?      @default(dbgenerated("(nilai_bruto - nilai_potongan)")) @db.Decimal(20, 2)
+  details           detail_sp2d[]
+  potongan          data_sp2d_potongan[]
+
+  @@index([tanggal])
+  @@index([status_rekon])
+  @@index([opd])
+  @@map("data_sp2d")
+}
+
+model detail_sp2d {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id_sp2d        String?             @db.VarChar(100)
+  id_sumber_dana String?             @db.VarChar(50)
+  nilai_bruto    Decimal             @db.Decimal(20, 2)
+  nilai_neto     Decimal             @db.Decimal(20, 2)
+  sp2d           data_sp2d?          @relation(fields: [id_sp2d], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sumber_dana    master_sumber_dana? @relation(fields: [id_sumber_dana], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("detail_sp2d")
+}
+
+model jurnal_talangan {
+  id                 String              @id @db.VarChar(100)
+  tanggal            DateTime            @db.Date
+  no_referensi       String?             @db.VarChar(100)
+  uraian             String?
+  id_sumber_asli     String?             @db.VarChar(50)
+  id_sumber_talangan String?             @db.VarChar(50)
+  nilai              Decimal             @db.Decimal(20, 2)
+  status             String?             @default("BELUM") @db.VarChar(50)
+  tanggal_selesai    DateTime?           @db.Timestamp(6)
+  created_at         DateTime?           @default(now()) @db.Timestamp(6)
+  sumber_asli        master_sumber_dana? @relation("SumberAsli", fields: [id_sumber_asli], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sumber_talangan    master_sumber_dana? @relation("SumberTalangan", fields: [id_sumber_talangan], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("jurnal_talangan")
+}
+
+model bank_statement {
+  id          Int       @id @default(autoincrement())
+  tanggal     DateTime  @db.Date
+  deskripsi   String?
+  debet       Decimal?  @default(0) @db.Decimal
+  kredit      Decimal?  @default(0) @db.Decimal
+  saldo_akhir Decimal?  @default(0) @db.Decimal
+  is_matched  Boolean?  @default(false)
+  ref_bku_id  String?   @db.VarChar(100)
+  created_at  DateTime? @default(now()) @db.Timestamp(6)
+  @@index([tanggal])
+  @@index([is_matched])
+}
+
+model data_penyesuaian {
+  id                 String              @id @db.VarChar(100)
+  tanggal            DateTime            @db.Date
+  jenis              String?             @db.VarChar(50)
+  sisi_pengaruh      String?             @default("BUKU") @db.VarChar(50)
+  uraian             String?
+  id_sumber_dana     String?             @db.VarChar(50)
+  nilai              Decimal             @db.Decimal(20, 2)
+  user_pelaksana     String?             @db.VarChar(100)
+  created_at         DateTime?           @default(now()) @db.Timestamp(6)
+  master_sumber_dana master_sumber_dana? @relation(fields: [id_sumber_dana], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model data_sp2d_potongan {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tanggal_pencairan DateTime? @db.Date
+  nomor_sp2d        String?   @db.VarChar
+  opd               String?   @db.VarChar
+  jenis_potongan    String?   @db.VarChar
+  nilai             Decimal?  @db.Decimal
+  uraian            String?
+  id_billing        String?   @db.VarChar
+  id_sp2d           String?   @db.VarChar
+  keterangan        String?
+  status_rekon      String?   @default("BELUM") @db.VarChar(50)
+  created_at        DateTime? @default(now()) @db.Timestamp(6)
+  id_sumber_dana    String?   @db.VarChar
+
+  sp2d              data_sp2d? @relation(fields: [id_sp2d], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([tanggal_pencairan])
+  @@index([status_rekon])
+  @@map("data_sp2d_potongan")
+}
+
+model jurnal_umum {
+  id             Int       @id @default(autoincrement())
+  tanggal        DateTime  @db.Date
+  kode_akun      String?   @db.VarChar(50)
+  nama_akun      String?   @db.VarChar(100)
+  debet          Decimal?  @default(0) @db.Decimal
+  kredit         Decimal?  @default(0) @db.Decimal
+  keterangan     String?
+  ref_id         String?   @db.VarChar(100)
+  created_at     DateTime? @default(now()) @db.Timestamp(6)
+  id_sumber_dana String?   @db.VarChar(255)
+}
+
+model log_aktivitas {
+  id             Int       @id @default(autoincrement())
+  user_pelaksana String?   @db.VarChar(100)
+  aksi           String?   @db.VarChar(100)
+  detail         String?
+  created_at     DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model master_jenis_belanja {
+  id     Int    @id @default(autoincrement())
+  nama   String @unique @db.VarChar(50)
+  urutan Int
+}
+
+model master_opd {
+  id     Int    @id @default(autoincrement())
+  nama   String @unique @db.VarChar(255)
+  urutan Int
+}
+
+model master_pagu {
+  id                 Int                 @id @default(autoincrement())
+  tahun              Int
+  opd                String              @db.VarChar(255)
+  id_sumber_dana     String?             @db.VarChar(50)
+  nilai              Decimal             @db.Decimal(20, 2)
+  jenis              String?             @default("MURNI") @db.VarChar(20)
+  master_sumber_dana master_sumber_dana? @relation(fields: [id_sumber_dana], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tahun, opd, id_sumber_dana, jenis], map: "master_pagu_unique_v2")
+}
+
+model proyeksi_pendapatan {
+  id                 Int                 @id @default(autoincrement())
+  bulan              Int
+  tahun              Int
+  id_sumber_dana     String?
+  nilai              Decimal             @db.Decimal(15, 2)
+  keterangan         String?
+  master_sumber_dana master_sumber_dana? @relation(fields: [id_sumber_dana], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model saldo_awal {
+  id                 String              @id @db.VarChar(100)
+  tahun              Int
+  id_sumber_dana     String?             @db.VarChar(50)
+  nilai              Decimal             @db.Decimal(20, 2)
+  keterangan         String?
+  created_at         DateTime?           @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?           @default(now()) @db.Timestamp(6)
+  master_sumber_dana master_sumber_dana? @relation(fields: [id_sumber_dana], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tahun, id_sumber_dana])
+}
+
+model setoran_pajak {
+  id                 String              @id @db.VarChar(100)
+  tanggal            DateTime            @db.Date
+  id_sumber_dana     String?             @db.VarChar(50)
+  nomor_bukti        String              @unique @db.VarChar(100)
+  uraian             String?             @db.VarChar
+  nilai              Decimal             @db.Decimal(20, 2)
+  user_pelaksana     String?             @db.VarChar(100)
+  created_at         DateTime?           @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?           @db.Timestamp(6)
+  status_rekon       String?             @default("BELUM") @db.VarChar(50)
+  opd                String?             @db.VarChar
+  jenis_pajak        String?             @default("PPN") @db.VarChar(50)
+  master_sumber_dana master_sumber_dana? @relation(fields: [id_sumber_dana], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@index([tanggal])
+  @@index([status_rekon])
+}
+
+model simulator_scenarios {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  items      Json
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+}
+
+

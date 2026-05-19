@@ -1,0 +1,1011 @@
+◇ injected env (6) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+◇ injected env (0) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+[DEBUG] Route /reconciliation/anomalies & /reconciliation/smart-progress registered
+[DEBUG] Reconciliation routes registered in reportRoutes
+[SUCCESS] Server is running on http://127.0.0.1:5000
+2026-05-17T01:36:08.090Z - GET /api/reports/health
+[DEBUG REPORT ROUTER] Request received: GET /health
+2026-05-17T01:39:00.944Z - OPTIONS /api/reports/reconciliation/data?search=&startDate=2026-05-01&endDate=2026-05-17&status=BELUM&page=1&limit=1000
+2026-05-17T01:39:00.969Z - GET /api/reports/reconciliation/data?search=&startDate=2026-05-01&endDate=2026-05-17&status=BELUM&page=1&limit=1000
+[DEBUG REPORT ROUTER] Request received: GET /reconciliation/data?search=&startDate=2026-05-01&endDate=2026-05-17&status=BELUM&page=1&limit=1000
+prisma:info Starting a postgresql pool with 9 connections.
+prisma:query BEGIN
+prisma:query SELECT "public"."bank_statement"."id", "public"."bank_statement"."tanggal", "public"."bank_statement"."deskripsi", "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."saldo_akhir", "public"."bank_statement"."is_matched", "public"."bank_statement"."ref_bku_id", "public"."bank_statement"."created_at", "public"."bank_statement"."catatan_selisih", "public"."bank_statement"."match_type", "public"."bank_statement"."selisih_nilai" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) ORDER BY "public"."bank_statement"."tanggal" ASC LIMIT $4 OFFSET $5
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query SELECT SUM("debet") AS "_sum$debet", SUM("kredit") AS "_sum$kredit", COUNT("id") AS "_count$id" FROM (SELECT "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2) OFFSET $3) AS "sub"
+prisma:query COMMIT
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query 
+      SELECT 
+        SUM(CASE WHEN tipe = 'KELUAR' THEN nilai ELSE 0 END) as total_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' THEN nilai ELSE 0 END) as total_masuk,
+        SUM(CASE WHEN tipe = 'KELUAR' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_masuk,
+        COUNT(*) as total_count
+      FROM (
+        SELECT (nilai_bruto - COALESCE(pot.total, 0)) as nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE ((s.tanggal_pencairan::DATE >= '2026-05-01' AND s.tanggal_pencairan::DATE <= '2026-05-17')
+           OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE >= '2026-05-01' AND s.tanggal::DATE <= '2026-05-17'))
+
+        UNION ALL
+        SELECT p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-05-01' AND '2026-05-17'
+
+        UNION ALL
+        SELECT p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-05-01' AND '2026-05-17'
+
+        UNION ALL
+        SELECT s.nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM setoran_pajak s
+        WHERE s.tanggal::DATE BETWEEN '2026-05-01' AND '2026-05-17'
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
+      ) as global_bku
+    
+prisma:query 
+      SELECT
+        id, tanggal, bukti, uraian, nilai, tipe, status_rekon, source, opd, selisih_rekon,
+        COUNT(*) OVER()::int                                               AS _total_bku,
+        COUNT(*) FILTER (WHERE source = 'SP2D') OVER()::int               AS _count_sp2d,
+        COUNT(*) FILTER (WHERE source = 'PENDAPATAN') OVER()::int         AS _count_pendapatan,
+        COUNT(*) FILTER (WHERE source IN ('POTONGAN','SETORAN')) OVER()::int AS _count_potongan
+      FROM (
+        SELECT s.id::text, COALESCE(s.tanggal_pencairan, s.tanggal) as tanggal, s.nomor as bukti, s.uraian,
+               CAST(CASE WHEN s.status_rekon = 'SUDAH_BRUTO' THEN s.nilai_bruto ELSE (s.nilai_bruto - COALESCE(pot.total_nilai, 0)) END AS DECIMAL) as nilai,
+               'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon, 'SP2D' as source, s.opd,
+               COALESCE(s.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total_nilai FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE (
+               (s.tanggal_pencairan::DATE BETWEEN '2026-05-01' AND '2026-05-17')
+            OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE BETWEEN '2026-05-01' AND '2026-05-17')
+          ) AND (s.status_rekon = 'BELUM' OR s.status_rekon IS NULL OR s.status_rekon = '') 
+
+        UNION ALL
+        SELECT p.id::text, p.tanggal, p.nomor_bukti as bukti, p.uraian, p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'PENDAPATAN' as source, 'BENDAHARA' as opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-05-01' AND '2026-05-17' AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+
+        UNION ALL
+        SELECT tx.id::text, tx.tanggal, tx.nomor_bukti as bukti, tx.uraian, tx.nilai, 'KELUAR' as tipe, COALESCE(tx.status_rekon, 'BELUM') as status_rekon, 'SETORAN' as source, tx.opd,
+               COALESCE(tx.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM setoran_pajak tx
+        WHERE tx.tanggal::DATE BETWEEN '2026-05-01' AND '2026-05-17' AND (tx.status_rekon = 'BELUM' OR tx.status_rekon IS NULL OR tx.status_rekon = '') 
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = tx.nomor_bukti)
+
+        UNION ALL
+        SELECT p.id::text, COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal, p.nomor_sp2d as bukti, p.uraian, p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'POTONGAN' as source, p.opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE (
+               (p.tanggal_pencairan::DATE BETWEEN '2026-05-01' AND '2026-05-17')
+            OR (p.tanggal_pencairan IS NULL AND COALESCE(s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-05-01' AND '2026-05-17')
+          ) AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+      ) combined
+      ORDER BY tanggal ASC
+      LIMIT 1000 OFFSET 0
+    
+2026-05-17T01:39:21.578Z - OPTIONS /api/reports/reconciliation/data?search=&startDate=2026-05-01&endDate=2026-05-17&status=BELUM&page=1&limit=1000
+2026-05-17T01:39:21.583Z - GET /api/reports/reconciliation/data?search=&startDate=2026-05-01&endDate=2026-05-17&status=BELUM&page=1&limit=1000
+[DEBUG REPORT ROUTER] Request received: GET /reconciliation/data?search=&startDate=2026-05-01&endDate=2026-05-17&status=BELUM&page=1&limit=1000
+prisma:query SELECT 1
+prisma:query BEGIN
+prisma:query SELECT "public"."bank_statement"."id", "public"."bank_statement"."tanggal", "public"."bank_statement"."deskripsi", "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."saldo_akhir", "public"."bank_statement"."is_matched", "public"."bank_statement"."ref_bku_id", "public"."bank_statement"."created_at", "public"."bank_statement"."catatan_selisih", "public"."bank_statement"."match_type", "public"."bank_statement"."selisih_nilai" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) ORDER BY "public"."bank_statement"."tanggal" ASC LIMIT $4 OFFSET $5
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query SELECT SUM("debet") AS "_sum$debet", SUM("kredit") AS "_sum$kredit", COUNT("id") AS "_count$id" FROM (SELECT "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2) OFFSET $3) AS "sub"
+prisma:query COMMIT
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query 
+      SELECT 
+        SUM(CASE WHEN tipe = 'KELUAR' THEN nilai ELSE 0 END) as total_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' THEN nilai ELSE 0 END) as total_masuk,
+        SUM(CASE WHEN tipe = 'KELUAR' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_masuk,
+        COUNT(*) as total_count
+      FROM (
+        SELECT (nilai_bruto - COALESCE(pot.total, 0)) as nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE ((s.tanggal_pencairan::DATE >= '2026-05-01' AND s.tanggal_pencairan::DATE <= '2026-05-17')
+           OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE >= '2026-05-01' AND s.tanggal::DATE <= '2026-05-17'))
+
+        UNION ALL
+        SELECT p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-05-01' AND '2026-05-17'
+
+        UNION ALL
+        SELECT p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-05-01' AND '2026-05-17'
+
+        UNION ALL
+        SELECT s.nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM setoran_pajak s
+        WHERE s.tanggal::DATE BETWEEN '2026-05-01' AND '2026-05-17'
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
+      ) as global_bku
+    
+prisma:query 
+      SELECT
+        id, tanggal, bukti, uraian, nilai, tipe, status_rekon, source, opd, selisih_rekon,
+        COUNT(*) OVER()::int                                               AS _total_bku,
+        COUNT(*) FILTER (WHERE source = 'SP2D') OVER()::int               AS _count_sp2d,
+        COUNT(*) FILTER (WHERE source = 'PENDAPATAN') OVER()::int         AS _count_pendapatan,
+        COUNT(*) FILTER (WHERE source IN ('POTONGAN','SETORAN')) OVER()::int AS _count_potongan
+      FROM (
+        SELECT s.id::text, COALESCE(s.tanggal_pencairan, s.tanggal) as tanggal, s.nomor as bukti, s.uraian,
+               CAST(CASE WHEN s.status_rekon = 'SUDAH_BRUTO' THEN s.nilai_bruto ELSE (s.nilai_bruto - COALESCE(pot.total_nilai, 0)) END AS DECIMAL) as nilai,
+               'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon, 'SP2D' as source, s.opd,
+               COALESCE(s.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total_nilai FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE (
+               (s.tanggal_pencairan::DATE BETWEEN '2026-05-01' AND '2026-05-17')
+            OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE BETWEEN '2026-05-01' AND '2026-05-17')
+          ) AND (s.status_rekon = 'BELUM' OR s.status_rekon IS NULL OR s.status_rekon = '') 
+
+        UNION ALL
+        SELECT p.id::text, p.tanggal, p.nomor_bukti as bukti, p.uraian, p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'PENDAPATAN' as source, 'BENDAHARA' as opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-05-01' AND '2026-05-17' AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+
+        UNION ALL
+        SELECT tx.id::text, tx.tanggal, tx.nomor_bukti as bukti, tx.uraian, tx.nilai, 'KELUAR' as tipe, COALESCE(tx.status_rekon, 'BELUM') as status_rekon, 'SETORAN' as source, tx.opd,
+               COALESCE(tx.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM setoran_pajak tx
+        WHERE tx.tanggal::DATE BETWEEN '2026-05-01' AND '2026-05-17' AND (tx.status_rekon = 'BELUM' OR tx.status_rekon IS NULL OR tx.status_rekon = '') 
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = tx.nomor_bukti)
+
+        UNION ALL
+        SELECT p.id::text, COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal, p.nomor_sp2d as bukti, p.uraian, p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'POTONGAN' as source, p.opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE (
+               (p.tanggal_pencairan::DATE BETWEEN '2026-05-01' AND '2026-05-17')
+            OR (p.tanggal_pencairan IS NULL AND COALESCE(s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-05-01' AND '2026-05-17')
+          ) AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+      ) combined
+      ORDER BY tanggal ASC
+      LIMIT 1000 OFFSET 0
+    
+2026-05-17T01:39:32.965Z - OPTIONS /api/reports/reconciliation/data?search=&startDate=2026-02-01&endDate=2026-05-17&status=BELUM&page=1&limit=1000
+2026-05-17T01:39:32.968Z - GET /api/reports/reconciliation/data?search=&startDate=2026-02-01&endDate=2026-05-17&status=BELUM&page=1&limit=1000
+[DEBUG REPORT ROUTER] Request received: GET /reconciliation/data?search=&startDate=2026-02-01&endDate=2026-05-17&status=BELUM&page=1&limit=1000
+prisma:query BEGIN
+prisma:query SELECT "public"."bank_statement"."id", "public"."bank_statement"."tanggal", "public"."bank_statement"."deskripsi", "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."saldo_akhir", "public"."bank_statement"."is_matched", "public"."bank_statement"."ref_bku_id", "public"."bank_statement"."created_at", "public"."bank_statement"."catatan_selisih", "public"."bank_statement"."match_type", "public"."bank_statement"."selisih_nilai" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) ORDER BY "public"."bank_statement"."tanggal" ASC LIMIT $4 OFFSET $5
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query SELECT SUM("debet") AS "_sum$debet", SUM("kredit") AS "_sum$kredit", COUNT("id") AS "_count$id" FROM (SELECT "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2) OFFSET $3) AS "sub"
+prisma:query COMMIT
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query 
+      SELECT 
+        SUM(CASE WHEN tipe = 'KELUAR' THEN nilai ELSE 0 END) as total_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' THEN nilai ELSE 0 END) as total_masuk,
+        SUM(CASE WHEN tipe = 'KELUAR' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_masuk,
+        COUNT(*) as total_count
+      FROM (
+        SELECT (nilai_bruto - COALESCE(pot.total, 0)) as nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE ((s.tanggal_pencairan::DATE >= '2026-02-01' AND s.tanggal_pencairan::DATE <= '2026-05-17')
+           OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE >= '2026-02-01' AND s.tanggal::DATE <= '2026-05-17'))
+
+        UNION ALL
+        SELECT p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-02-01' AND '2026-05-17'
+
+        UNION ALL
+        SELECT p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-02-01' AND '2026-05-17'
+
+        UNION ALL
+        SELECT s.nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM setoran_pajak s
+        WHERE s.tanggal::DATE BETWEEN '2026-02-01' AND '2026-05-17'
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
+      ) as global_bku
+    
+prisma:query 
+      SELECT
+        id, tanggal, bukti, uraian, nilai, tipe, status_rekon, source, opd, selisih_rekon,
+        COUNT(*) OVER()::int                                               AS _total_bku,
+        COUNT(*) FILTER (WHERE source = 'SP2D') OVER()::int               AS _count_sp2d,
+        COUNT(*) FILTER (WHERE source = 'PENDAPATAN') OVER()::int         AS _count_pendapatan,
+        COUNT(*) FILTER (WHERE source IN ('POTONGAN','SETORAN')) OVER()::int AS _count_potongan
+      FROM (
+        SELECT s.id::text, COALESCE(s.tanggal_pencairan, s.tanggal) as tanggal, s.nomor as bukti, s.uraian,
+               CAST(CASE WHEN s.status_rekon = 'SUDAH_BRUTO' THEN s.nilai_bruto ELSE (s.nilai_bruto - COALESCE(pot.total_nilai, 0)) END AS DECIMAL) as nilai,
+               'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon, 'SP2D' as source, s.opd,
+               COALESCE(s.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total_nilai FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE (
+               (s.tanggal_pencairan::DATE BETWEEN '2026-02-01' AND '2026-05-17')
+            OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE BETWEEN '2026-02-01' AND '2026-05-17')
+          ) AND (s.status_rekon = 'BELUM' OR s.status_rekon IS NULL OR s.status_rekon = '') 
+
+        UNION ALL
+        SELECT p.id::text, p.tanggal, p.nomor_bukti as bukti, p.uraian, p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'PENDAPATAN' as source, 'BENDAHARA' as opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-02-01' AND '2026-05-17' AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+
+        UNION ALL
+        SELECT tx.id::text, tx.tanggal, tx.nomor_bukti as bukti, tx.uraian, tx.nilai, 'KELUAR' as tipe, COALESCE(tx.status_rekon, 'BELUM') as status_rekon, 'SETORAN' as source, tx.opd,
+               COALESCE(tx.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM setoran_pajak tx
+        WHERE tx.tanggal::DATE BETWEEN '2026-02-01' AND '2026-05-17' AND (tx.status_rekon = 'BELUM' OR tx.status_rekon IS NULL OR tx.status_rekon = '') 
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = tx.nomor_bukti)
+
+        UNION ALL
+        SELECT p.id::text, COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal, p.nomor_sp2d as bukti, p.uraian, p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'POTONGAN' as source, p.opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE (
+               (p.tanggal_pencairan::DATE BETWEEN '2026-02-01' AND '2026-05-17')
+            OR (p.tanggal_pencairan IS NULL AND COALESCE(s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-02-01' AND '2026-05-17')
+          ) AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+      ) combined
+      ORDER BY tanggal ASC
+      LIMIT 1000 OFFSET 0
+    
+2026-05-17T01:39:39.399Z - OPTIONS /api/reports/reconciliation/data?search=&startDate=2026-01-01&endDate=2026-01-31&status=BELUM&page=1&limit=1000
+2026-05-17T01:39:39.406Z - GET /api/reports/reconciliation/data?search=&startDate=2026-01-01&endDate=2026-01-31&status=BELUM&page=1&limit=1000
+[DEBUG REPORT ROUTER] Request received: GET /reconciliation/data?search=&startDate=2026-01-01&endDate=2026-01-31&status=BELUM&page=1&limit=1000
+prisma:query SELECT 1
+prisma:query BEGIN
+prisma:query SELECT "public"."bank_statement"."id", "public"."bank_statement"."tanggal", "public"."bank_statement"."deskripsi", "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."saldo_akhir", "public"."bank_statement"."is_matched", "public"."bank_statement"."ref_bku_id", "public"."bank_statement"."created_at", "public"."bank_statement"."catatan_selisih", "public"."bank_statement"."match_type", "public"."bank_statement"."selisih_nilai" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) ORDER BY "public"."bank_statement"."tanggal" ASC LIMIT $4 OFFSET $5
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query SELECT SUM("debet") AS "_sum$debet", SUM("kredit") AS "_sum$kredit", COUNT("id") AS "_count$id" FROM (SELECT "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2) OFFSET $3) AS "sub"
+prisma:query COMMIT
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query 
+      SELECT 
+        SUM(CASE WHEN tipe = 'KELUAR' THEN nilai ELSE 0 END) as total_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' THEN nilai ELSE 0 END) as total_masuk,
+        SUM(CASE WHEN tipe = 'KELUAR' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_masuk,
+        COUNT(*) as total_count
+      FROM (
+        SELECT (nilai_bruto - COALESCE(pot.total, 0)) as nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE ((s.tanggal_pencairan::DATE >= '2026-01-01' AND s.tanggal_pencairan::DATE <= '2026-01-31')
+           OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE >= '2026-01-01' AND s.tanggal::DATE <= '2026-01-31'))
+
+        UNION ALL
+        SELECT p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-01-01' AND '2026-01-31'
+
+        UNION ALL
+        SELECT p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-01-01' AND '2026-01-31'
+
+        UNION ALL
+        SELECT s.nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM setoran_pajak s
+        WHERE s.tanggal::DATE BETWEEN '2026-01-01' AND '2026-01-31'
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
+      ) as global_bku
+    
+prisma:query 
+      SELECT
+        id, tanggal, bukti, uraian, nilai, tipe, status_rekon, source, opd, selisih_rekon,
+        COUNT(*) OVER()::int                                               AS _total_bku,
+        COUNT(*) FILTER (WHERE source = 'SP2D') OVER()::int               AS _count_sp2d,
+        COUNT(*) FILTER (WHERE source = 'PENDAPATAN') OVER()::int         AS _count_pendapatan,
+        COUNT(*) FILTER (WHERE source IN ('POTONGAN','SETORAN')) OVER()::int AS _count_potongan
+      FROM (
+        SELECT s.id::text, COALESCE(s.tanggal_pencairan, s.tanggal) as tanggal, s.nomor as bukti, s.uraian,
+               CAST(CASE WHEN s.status_rekon = 'SUDAH_BRUTO' THEN s.nilai_bruto ELSE (s.nilai_bruto - COALESCE(pot.total_nilai, 0)) END AS DECIMAL) as nilai,
+               'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon, 'SP2D' as source, s.opd,
+               COALESCE(s.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total_nilai FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE (
+               (s.tanggal_pencairan::DATE BETWEEN '2026-01-01' AND '2026-01-31')
+            OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE BETWEEN '2026-01-01' AND '2026-01-31')
+          ) AND (s.status_rekon = 'BELUM' OR s.status_rekon IS NULL OR s.status_rekon = '') 
+
+        UNION ALL
+        SELECT p.id::text, p.tanggal, p.nomor_bukti as bukti, p.uraian, p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'PENDAPATAN' as source, 'BENDAHARA' as opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-01-01' AND '2026-01-31' AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+
+        UNION ALL
+        SELECT tx.id::text, tx.tanggal, tx.nomor_bukti as bukti, tx.uraian, tx.nilai, 'KELUAR' as tipe, COALESCE(tx.status_rekon, 'BELUM') as status_rekon, 'SETORAN' as source, tx.opd,
+               COALESCE(tx.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM setoran_pajak tx
+        WHERE tx.tanggal::DATE BETWEEN '2026-01-01' AND '2026-01-31' AND (tx.status_rekon = 'BELUM' OR tx.status_rekon IS NULL OR tx.status_rekon = '') 
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = tx.nomor_bukti)
+
+        UNION ALL
+        SELECT p.id::text, COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal, p.nomor_sp2d as bukti, p.uraian, p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'POTONGAN' as source, p.opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE (
+               (p.tanggal_pencairan::DATE BETWEEN '2026-01-01' AND '2026-01-31')
+            OR (p.tanggal_pencairan IS NULL AND COALESCE(s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-01-01' AND '2026-01-31')
+          ) AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+      ) combined
+      ORDER BY tanggal ASC
+      LIMIT 1000 OFFSET 0
+    
+2026-05-17T01:39:41.747Z - OPTIONS /api/reports/reconciliation/data?search=&startDate=2026-02-01&endDate=2026-02-28&status=BELUM&page=1&limit=1000
+2026-05-17T01:39:41.754Z - GET /api/reports/reconciliation/data?search=&startDate=2026-02-01&endDate=2026-02-28&status=BELUM&page=1&limit=1000
+[DEBUG REPORT ROUTER] Request received: GET /reconciliation/data?search=&startDate=2026-02-01&endDate=2026-02-28&status=BELUM&page=1&limit=1000
+prisma:query BEGIN
+prisma:query SELECT "public"."bank_statement"."id", "public"."bank_statement"."tanggal", "public"."bank_statement"."deskripsi", "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."saldo_akhir", "public"."bank_statement"."is_matched", "public"."bank_statement"."ref_bku_id", "public"."bank_statement"."created_at", "public"."bank_statement"."catatan_selisih", "public"."bank_statement"."match_type", "public"."bank_statement"."selisih_nilai" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) ORDER BY "public"."bank_statement"."tanggal" ASC LIMIT $4 OFFSET $5
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query SELECT SUM("debet") AS "_sum$debet", SUM("kredit") AS "_sum$kredit", COUNT("id") AS "_count$id" FROM (SELECT "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2) OFFSET $3) AS "sub"
+prisma:query COMMIT
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query 
+      SELECT 
+        SUM(CASE WHEN tipe = 'KELUAR' THEN nilai ELSE 0 END) as total_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' THEN nilai ELSE 0 END) as total_masuk,
+        SUM(CASE WHEN tipe = 'KELUAR' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_masuk,
+        COUNT(*) as total_count
+      FROM (
+        SELECT (nilai_bruto - COALESCE(pot.total, 0)) as nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE ((s.tanggal_pencairan::DATE >= '2026-02-01' AND s.tanggal_pencairan::DATE <= '2026-02-28')
+           OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE >= '2026-02-01' AND s.tanggal::DATE <= '2026-02-28'))
+
+        UNION ALL
+        SELECT p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-02-01' AND '2026-02-28'
+
+        UNION ALL
+        SELECT p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-02-01' AND '2026-02-28'
+
+        UNION ALL
+        SELECT s.nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM setoran_pajak s
+        WHERE s.tanggal::DATE BETWEEN '2026-02-01' AND '2026-02-28'
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
+      ) as global_bku
+    
+prisma:query 
+      SELECT
+        id, tanggal, bukti, uraian, nilai, tipe, status_rekon, source, opd, selisih_rekon,
+        COUNT(*) OVER()::int                                               AS _total_bku,
+        COUNT(*) FILTER (WHERE source = 'SP2D') OVER()::int               AS _count_sp2d,
+        COUNT(*) FILTER (WHERE source = 'PENDAPATAN') OVER()::int         AS _count_pendapatan,
+        COUNT(*) FILTER (WHERE source IN ('POTONGAN','SETORAN')) OVER()::int AS _count_potongan
+      FROM (
+        SELECT s.id::text, COALESCE(s.tanggal_pencairan, s.tanggal) as tanggal, s.nomor as bukti, s.uraian,
+               CAST(CASE WHEN s.status_rekon = 'SUDAH_BRUTO' THEN s.nilai_bruto ELSE (s.nilai_bruto - COALESCE(pot.total_nilai, 0)) END AS DECIMAL) as nilai,
+               'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon, 'SP2D' as source, s.opd,
+               COALESCE(s.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total_nilai FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE (
+               (s.tanggal_pencairan::DATE BETWEEN '2026-02-01' AND '2026-02-28')
+            OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE BETWEEN '2026-02-01' AND '2026-02-28')
+          ) AND (s.status_rekon = 'BELUM' OR s.status_rekon IS NULL OR s.status_rekon = '') 
+
+        UNION ALL
+        SELECT p.id::text, p.tanggal, p.nomor_bukti as bukti, p.uraian, p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'PENDAPATAN' as source, 'BENDAHARA' as opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-02-01' AND '2026-02-28' AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+
+        UNION ALL
+        SELECT tx.id::text, tx.tanggal, tx.nomor_bukti as bukti, tx.uraian, tx.nilai, 'KELUAR' as tipe, COALESCE(tx.status_rekon, 'BELUM') as status_rekon, 'SETORAN' as source, tx.opd,
+               COALESCE(tx.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM setoran_pajak tx
+        WHERE tx.tanggal::DATE BETWEEN '2026-02-01' AND '2026-02-28' AND (tx.status_rekon = 'BELUM' OR tx.status_rekon IS NULL OR tx.status_rekon = '') 
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = tx.nomor_bukti)
+
+        UNION ALL
+        SELECT p.id::text, COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal, p.nomor_sp2d as bukti, p.uraian, p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'POTONGAN' as source, p.opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE (
+               (p.tanggal_pencairan::DATE BETWEEN '2026-02-01' AND '2026-02-28')
+            OR (p.tanggal_pencairan IS NULL AND COALESCE(s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-02-01' AND '2026-02-28')
+          ) AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+      ) combined
+      ORDER BY tanggal ASC
+      LIMIT 1000 OFFSET 0
+    
+2026-05-17T01:39:46.248Z - OPTIONS /api/reports/reconciliation/match-smart
+2026-05-17T01:39:46.255Z - POST /api/reports/reconciliation/match-smart
+[DEBUG REPORT ROUTER] Request received: POST /reconciliation/match-smart
+[MAGIC ENGINE] Starting with range: 2026-02-01 to 2026-02-28
+prisma:query SELECT "public"."bank_statement"."id", "public"."bank_statement"."tanggal", "public"."bank_statement"."deskripsi", "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."saldo_akhir", "public"."bank_statement"."is_matched", "public"."bank_statement"."ref_bku_id", "public"."bank_statement"."created_at", "public"."bank_statement"."catatan_selisih", "public"."bank_statement"."match_type", "public"."bank_statement"."selisih_nilai" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."is_matched" = $1 AND "public"."bank_statement"."tanggal" >= $2 AND "public"."bank_statement"."tanggal" <= $3) ORDER BY "public"."bank_statement"."tanggal" ASC OFFSET $4
+prisma:query 
+      SELECT 
+        CAST(h.id AS VARCHAR) as id, 
+        CAST(h.nomor AS VARCHAR) as bukti, 
+        CAST(h.uraian AS VARCHAR) as uraian, 
+        CAST((h.nilai_bruto - COALESCE(pot_agg.total, 0)) AS DECIMAL) as nilai,
+        CAST(h.nilai_bruto AS DECIMAL) as nilai_bruto, 
+        COALESCE(h.tanggal_pencairan, h.tanggal) as tanggal, 
+        'KELUAR' as tipe, 
+        'SP2D' as source
+      FROM data_sp2d h
+      LEFT JOIN (
+        SELECT id_sp2d, SUM(nilai) as total FROM data_sp2d_potongan GROUP BY id_sp2d
+      ) pot_agg ON h.id = pot_agg.id_sp2d
+      LEFT JOIN bank_statement b ON CAST(h.id AS VARCHAR) = b.ref_bku_id
+      WHERE h.status_rekon = 'BELUM' AND b.id IS NULL
+        AND COALESCE(h.tanggal_pencairan, h.tanggal)::DATE BETWEEN '2026-02-01' AND '2026-02-28'
+
+      UNION ALL
+
+      SELECT CAST(p.id AS VARCHAR) as id, CAST(p.nomor_bukti AS VARCHAR) as bukti, CAST(p.uraian AS VARCHAR) as uraian,
+             CAST(p.nilai AS DECIMAL) as nilai, CAST(p.nilai AS DECIMAL) as nilai_bruto, p.tanggal as tanggal, 'MASUK' as tipe, 'PENDAPATAN' as source
+      FROM data_pendapatan p
+      LEFT JOIN bank_statement b ON CAST(p.id AS VARCHAR) = b.ref_bku_id
+      WHERE p.status_rekon = 'BELUM' AND b.id IS NULL
+        AND p.tanggal::DATE BETWEEN '2026-02-01' AND '2026-02-28'
+
+      UNION ALL
+
+      SELECT CAST(s.id AS VARCHAR) as id, CAST(s.nomor_bukti AS VARCHAR) as bukti, CAST(s.uraian AS VARCHAR) as uraian,
+             CAST(s.nilai AS DECIMAL) as nilai, CAST(s.nilai AS DECIMAL) as nilai_bruto, s.tanggal as tanggal, 'KELUAR' as tipe, 'SETORAN' as source
+      FROM setoran_pajak s
+      LEFT JOIN bank_statement b ON CAST(s.id AS VARCHAR) = b.ref_bku_id
+      WHERE s.status_rekon = 'BELUM' AND b.id IS NULL
+        AND s.tanggal::DATE BETWEEN '2026-02-01' AND '2026-02-28'
+
+      UNION ALL
+
+      SELECT CAST(p.id AS VARCHAR) as id, CAST(p.nomor_sp2d AS VARCHAR) as bukti, CAST(p.uraian AS VARCHAR) as uraian,
+             CAST(p.nilai AS DECIMAL) as nilai, CAST(p.nilai AS DECIMAL) as nilai_bruto, COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal, 'POTONGAN' as tipe, 'POTONGAN' as source
+      FROM data_sp2d_potongan p
+      LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+      LEFT JOIN bank_statement b ON CAST(p.id AS VARCHAR) = b.ref_bku_id
+      WHERE p.status_rekon = 'BELUM' AND b.id IS NULL
+        AND COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-02-01' AND '2026-02-28'
+    
+2026-05-17T01:39:46.461Z - GET /api/reports/reconciliation/data?search=&startDate=2026-02-01&endDate=2026-02-28&status=BELUM&page=1&limit=1000
+[DEBUG REPORT ROUTER] Request received: GET /reconciliation/data?search=&startDate=2026-02-01&endDate=2026-02-28&status=BELUM&page=1&limit=1000
+prisma:query BEGIN
+prisma:query SELECT "public"."bank_statement"."id", "public"."bank_statement"."tanggal", "public"."bank_statement"."deskripsi", "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."saldo_akhir", "public"."bank_statement"."is_matched", "public"."bank_statement"."ref_bku_id", "public"."bank_statement"."created_at", "public"."bank_statement"."catatan_selisih", "public"."bank_statement"."match_type", "public"."bank_statement"."selisih_nilai" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) ORDER BY "public"."bank_statement"."tanggal" ASC LIMIT $4 OFFSET $5
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query SELECT SUM("debet") AS "_sum$debet", SUM("kredit") AS "_sum$kredit", COUNT("id") AS "_count$id" FROM (SELECT "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2) OFFSET $3) AS "sub"
+prisma:query COMMIT
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query 
+      SELECT 
+        SUM(CASE WHEN tipe = 'KELUAR' THEN nilai ELSE 0 END) as total_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' THEN nilai ELSE 0 END) as total_masuk,
+        SUM(CASE WHEN tipe = 'KELUAR' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_masuk,
+        COUNT(*) as total_count
+      FROM (
+        SELECT (nilai_bruto - COALESCE(pot.total, 0)) as nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE ((s.tanggal_pencairan::DATE >= '2026-02-01' AND s.tanggal_pencairan::DATE <= '2026-02-28')
+           OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE >= '2026-02-01' AND s.tanggal::DATE <= '2026-02-28'))
+
+        UNION ALL
+        SELECT p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-02-01' AND '2026-02-28'
+
+        UNION ALL
+        SELECT p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-02-01' AND '2026-02-28'
+
+        UNION ALL
+        SELECT s.nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM setoran_pajak s
+        WHERE s.tanggal::DATE BETWEEN '2026-02-01' AND '2026-02-28'
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
+      ) as global_bku
+    
+prisma:query 
+      SELECT
+        id, tanggal, bukti, uraian, nilai, tipe, status_rekon, source, opd, selisih_rekon,
+        COUNT(*) OVER()::int                                               AS _total_bku,
+        COUNT(*) FILTER (WHERE source = 'SP2D') OVER()::int               AS _count_sp2d,
+        COUNT(*) FILTER (WHERE source = 'PENDAPATAN') OVER()::int         AS _count_pendapatan,
+        COUNT(*) FILTER (WHERE source IN ('POTONGAN','SETORAN')) OVER()::int AS _count_potongan
+      FROM (
+        SELECT s.id::text, COALESCE(s.tanggal_pencairan, s.tanggal) as tanggal, s.nomor as bukti, s.uraian,
+               CAST(CASE WHEN s.status_rekon = 'SUDAH_BRUTO' THEN s.nilai_bruto ELSE (s.nilai_bruto - COALESCE(pot.total_nilai, 0)) END AS DECIMAL) as nilai,
+               'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon, 'SP2D' as source, s.opd,
+               COALESCE(s.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total_nilai FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE (
+               (s.tanggal_pencairan::DATE BETWEEN '2026-02-01' AND '2026-02-28')
+            OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE BETWEEN '2026-02-01' AND '2026-02-28')
+          ) AND (s.status_rekon = 'BELUM' OR s.status_rekon IS NULL OR s.status_rekon = '') 
+
+        UNION ALL
+        SELECT p.id::text, p.tanggal, p.nomor_bukti as bukti, p.uraian, p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'PENDAPATAN' as source, 'BENDAHARA' as opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-02-01' AND '2026-02-28' AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+
+        UNION ALL
+        SELECT tx.id::text, tx.tanggal, tx.nomor_bukti as bukti, tx.uraian, tx.nilai, 'KELUAR' as tipe, COALESCE(tx.status_rekon, 'BELUM') as status_rekon, 'SETORAN' as source, tx.opd,
+               COALESCE(tx.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM setoran_pajak tx
+        WHERE tx.tanggal::DATE BETWEEN '2026-02-01' AND '2026-02-28' AND (tx.status_rekon = 'BELUM' OR tx.status_rekon IS NULL OR tx.status_rekon = '') 
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = tx.nomor_bukti)
+
+        UNION ALL
+        SELECT p.id::text, COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal, p.nomor_sp2d as bukti, p.uraian, p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'POTONGAN' as source, p.opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE (
+               (p.tanggal_pencairan::DATE BETWEEN '2026-02-01' AND '2026-02-28')
+            OR (p.tanggal_pencairan IS NULL AND COALESCE(s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-02-01' AND '2026-02-28')
+          ) AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+      ) combined
+      ORDER BY tanggal ASC
+      LIMIT 1000 OFFSET 0
+    
+2026-05-17T01:39:59.182Z - OPTIONS /api/reports/reconciliation/data?search=&startDate=2026-03-01&endDate=2026-03-31&status=BELUM&page=1&limit=1000
+2026-05-17T01:39:59.187Z - GET /api/reports/reconciliation/data?search=&startDate=2026-03-01&endDate=2026-03-31&status=BELUM&page=1&limit=1000
+[DEBUG REPORT ROUTER] Request received: GET /reconciliation/data?search=&startDate=2026-03-01&endDate=2026-03-31&status=BELUM&page=1&limit=1000
+prisma:query SELECT 1
+prisma:query BEGIN
+prisma:query SELECT "public"."bank_statement"."id", "public"."bank_statement"."tanggal", "public"."bank_statement"."deskripsi", "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."saldo_akhir", "public"."bank_statement"."is_matched", "public"."bank_statement"."ref_bku_id", "public"."bank_statement"."created_at", "public"."bank_statement"."catatan_selisih", "public"."bank_statement"."match_type", "public"."bank_statement"."selisih_nilai" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) ORDER BY "public"."bank_statement"."tanggal" ASC LIMIT $4 OFFSET $5
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query SELECT SUM("debet") AS "_sum$debet", SUM("kredit") AS "_sum$kredit", COUNT("id") AS "_count$id" FROM (SELECT "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2) OFFSET $3) AS "sub"
+prisma:query COMMIT
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query 
+      SELECT 
+        SUM(CASE WHEN tipe = 'KELUAR' THEN nilai ELSE 0 END) as total_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' THEN nilai ELSE 0 END) as total_masuk,
+        SUM(CASE WHEN tipe = 'KELUAR' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_masuk,
+        COUNT(*) as total_count
+      FROM (
+        SELECT (nilai_bruto - COALESCE(pot.total, 0)) as nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE ((s.tanggal_pencairan::DATE >= '2026-03-01' AND s.tanggal_pencairan::DATE <= '2026-03-31')
+           OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE >= '2026-03-01' AND s.tanggal::DATE <= '2026-03-31'))
+
+        UNION ALL
+        SELECT p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-03-01' AND '2026-03-31'
+
+        UNION ALL
+        SELECT p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31'
+
+        UNION ALL
+        SELECT s.nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM setoran_pajak s
+        WHERE s.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31'
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
+      ) as global_bku
+    
+prisma:query 
+      SELECT
+        id, tanggal, bukti, uraian, nilai, tipe, status_rekon, source, opd, selisih_rekon,
+        COUNT(*) OVER()::int                                               AS _total_bku,
+        COUNT(*) FILTER (WHERE source = 'SP2D') OVER()::int               AS _count_sp2d,
+        COUNT(*) FILTER (WHERE source = 'PENDAPATAN') OVER()::int         AS _count_pendapatan,
+        COUNT(*) FILTER (WHERE source IN ('POTONGAN','SETORAN')) OVER()::int AS _count_potongan
+      FROM (
+        SELECT s.id::text, COALESCE(s.tanggal_pencairan, s.tanggal) as tanggal, s.nomor as bukti, s.uraian,
+               CAST(CASE WHEN s.status_rekon = 'SUDAH_BRUTO' THEN s.nilai_bruto ELSE (s.nilai_bruto - COALESCE(pot.total_nilai, 0)) END AS DECIMAL) as nilai,
+               'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon, 'SP2D' as source, s.opd,
+               COALESCE(s.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total_nilai FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE (
+               (s.tanggal_pencairan::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+            OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+          ) AND (s.status_rekon = 'BELUM' OR s.status_rekon IS NULL OR s.status_rekon = '') 
+
+        UNION ALL
+        SELECT p.id::text, p.tanggal, p.nomor_bukti as bukti, p.uraian, p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'PENDAPATAN' as source, 'BENDAHARA' as opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31' AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+
+        UNION ALL
+        SELECT tx.id::text, tx.tanggal, tx.nomor_bukti as bukti, tx.uraian, tx.nilai, 'KELUAR' as tipe, COALESCE(tx.status_rekon, 'BELUM') as status_rekon, 'SETORAN' as source, tx.opd,
+               COALESCE(tx.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM setoran_pajak tx
+        WHERE tx.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31' AND (tx.status_rekon = 'BELUM' OR tx.status_rekon IS NULL OR tx.status_rekon = '') 
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = tx.nomor_bukti)
+
+        UNION ALL
+        SELECT p.id::text, COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal, p.nomor_sp2d as bukti, p.uraian, p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'POTONGAN' as source, p.opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE (
+               (p.tanggal_pencairan::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+            OR (p.tanggal_pencairan IS NULL AND COALESCE(s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+          ) AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+      ) combined
+      ORDER BY tanggal ASC
+      LIMIT 1000 OFFSET 0
+    
+2026-05-17T01:40:26.885Z - GET /api/reports/health
+[DEBUG REPORT ROUTER] Request received: GET /health
+2026-05-17T01:40:28.769Z - OPTIONS /api/reports/reconciliation/data?search=&startDate=2026-03-01&endDate=2026-03-31&status=BELUM&page=1&limit=1000
+2026-05-17T01:40:28.774Z - GET /api/reports/reconciliation/data?search=&startDate=2026-03-01&endDate=2026-03-31&status=BELUM&page=1&limit=1000
+[DEBUG REPORT ROUTER] Request received: GET /reconciliation/data?search=&startDate=2026-03-01&endDate=2026-03-31&status=BELUM&page=1&limit=1000
+prisma:query SELECT 1
+prisma:query BEGIN
+prisma:query SELECT "public"."bank_statement"."id", "public"."bank_statement"."tanggal", "public"."bank_statement"."deskripsi", "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."saldo_akhir", "public"."bank_statement"."is_matched", "public"."bank_statement"."ref_bku_id", "public"."bank_statement"."created_at", "public"."bank_statement"."catatan_selisih", "public"."bank_statement"."match_type", "public"."bank_statement"."selisih_nilai" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) ORDER BY "public"."bank_statement"."tanggal" ASC LIMIT $4 OFFSET $5
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query SELECT SUM("debet") AS "_sum$debet", SUM("kredit") AS "_sum$kredit", COUNT("id") AS "_count$id" FROM (SELECT "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2) OFFSET $3) AS "sub"
+prisma:query COMMIT
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query 
+      SELECT 
+        SUM(CASE WHEN tipe = 'KELUAR' THEN nilai ELSE 0 END) as total_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' THEN nilai ELSE 0 END) as total_masuk,
+        SUM(CASE WHEN tipe = 'KELUAR' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_masuk,
+        COUNT(*) as total_count
+      FROM (
+        SELECT (nilai_bruto - COALESCE(pot.total, 0)) as nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE ((s.tanggal_pencairan::DATE >= '2026-03-01' AND s.tanggal_pencairan::DATE <= '2026-03-31')
+           OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE >= '2026-03-01' AND s.tanggal::DATE <= '2026-03-31'))
+
+        UNION ALL
+        SELECT p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-03-01' AND '2026-03-31'
+
+        UNION ALL
+        SELECT p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31'
+
+        UNION ALL
+        SELECT s.nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM setoran_pajak s
+        WHERE s.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31'
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
+      ) as global_bku
+    
+prisma:query 
+      SELECT
+        id, tanggal, bukti, uraian, nilai, tipe, status_rekon, source, opd, selisih_rekon,
+        COUNT(*) OVER()::int                                               AS _total_bku,
+        COUNT(*) FILTER (WHERE source = 'SP2D') OVER()::int               AS _count_sp2d,
+        COUNT(*) FILTER (WHERE source = 'PENDAPATAN') OVER()::int         AS _count_pendapatan,
+        COUNT(*) FILTER (WHERE source IN ('POTONGAN','SETORAN')) OVER()::int AS _count_potongan
+      FROM (
+        SELECT s.id::text, COALESCE(s.tanggal_pencairan, s.tanggal) as tanggal, s.nomor as bukti, s.uraian,
+               CAST(CASE WHEN s.status_rekon = 'SUDAH_BRUTO' THEN s.nilai_bruto ELSE (s.nilai_bruto - COALESCE(pot.total_nilai, 0)) END AS DECIMAL) as nilai,
+               'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon, 'SP2D' as source, s.opd,
+               COALESCE(s.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total_nilai FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE (
+               (s.tanggal_pencairan::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+            OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+          ) AND (s.status_rekon = 'BELUM' OR s.status_rekon IS NULL OR s.status_rekon = '') 
+
+        UNION ALL
+        SELECT p.id::text, p.tanggal, p.nomor_bukti as bukti, p.uraian, p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'PENDAPATAN' as source, 'BENDAHARA' as opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31' AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+
+        UNION ALL
+        SELECT tx.id::text, tx.tanggal, tx.nomor_bukti as bukti, tx.uraian, tx.nilai, 'KELUAR' as tipe, COALESCE(tx.status_rekon, 'BELUM') as status_rekon, 'SETORAN' as source, tx.opd,
+               COALESCE(tx.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM setoran_pajak tx
+        WHERE tx.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31' AND (tx.status_rekon = 'BELUM' OR tx.status_rekon IS NULL OR tx.status_rekon = '') 
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = tx.nomor_bukti)
+
+        UNION ALL
+        SELECT p.id::text, COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal, p.nomor_sp2d as bukti, p.uraian, p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'POTONGAN' as source, p.opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE (
+               (p.tanggal_pencairan::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+            OR (p.tanggal_pencairan IS NULL AND COALESCE(s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+          ) AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+      ) combined
+      ORDER BY tanggal ASC
+      LIMIT 1000 OFFSET 0
+    
+2026-05-17T01:40:35.926Z - OPTIONS /api/reports/reconciliation/data?search=&startDate=2026-03-01&endDate=2026-03-31&status=BELUM&page=1&limit=1000
+2026-05-17T01:40:35.933Z - GET /api/reports/reconciliation/data?search=&startDate=2026-03-01&endDate=2026-03-31&status=BELUM&page=1&limit=1000
+[DEBUG REPORT ROUTER] Request received: GET /reconciliation/data?search=&startDate=2026-03-01&endDate=2026-03-31&status=BELUM&page=1&limit=1000
+prisma:query BEGIN
+prisma:query SELECT "public"."bank_statement"."id", "public"."bank_statement"."tanggal", "public"."bank_statement"."deskripsi", "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."saldo_akhir", "public"."bank_statement"."is_matched", "public"."bank_statement"."ref_bku_id", "public"."bank_statement"."created_at", "public"."bank_statement"."catatan_selisih", "public"."bank_statement"."match_type", "public"."bank_statement"."selisih_nilai" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) ORDER BY "public"."bank_statement"."tanggal" ASC LIMIT $4 OFFSET $5
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query SELECT SUM("debet") AS "_sum$debet", SUM("kredit") AS "_sum$kredit", COUNT("id") AS "_count$id" FROM (SELECT "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2) OFFSET $3) AS "sub"
+prisma:query COMMIT
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query 
+      SELECT 
+        SUM(CASE WHEN tipe = 'KELUAR' THEN nilai ELSE 0 END) as total_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' THEN nilai ELSE 0 END) as total_masuk,
+        SUM(CASE WHEN tipe = 'KELUAR' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_masuk,
+        COUNT(*) as total_count
+      FROM (
+        SELECT (nilai_bruto - COALESCE(pot.total, 0)) as nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE ((s.tanggal_pencairan::DATE >= '2026-03-01' AND s.tanggal_pencairan::DATE <= '2026-03-31')
+           OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE >= '2026-03-01' AND s.tanggal::DATE <= '2026-03-31'))
+
+        UNION ALL
+        SELECT p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-03-01' AND '2026-03-31'
+
+        UNION ALL
+        SELECT p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31'
+
+        UNION ALL
+        SELECT s.nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM setoran_pajak s
+        WHERE s.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31'
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
+      ) as global_bku
+    
+prisma:query 
+      SELECT
+        id, tanggal, bukti, uraian, nilai, tipe, status_rekon, source, opd, selisih_rekon,
+        COUNT(*) OVER()::int                                               AS _total_bku,
+        COUNT(*) FILTER (WHERE source = 'SP2D') OVER()::int               AS _count_sp2d,
+        COUNT(*) FILTER (WHERE source = 'PENDAPATAN') OVER()::int         AS _count_pendapatan,
+        COUNT(*) FILTER (WHERE source IN ('POTONGAN','SETORAN')) OVER()::int AS _count_potongan
+      FROM (
+        SELECT s.id::text, COALESCE(s.tanggal_pencairan, s.tanggal) as tanggal, s.nomor as bukti, s.uraian,
+               CAST(CASE WHEN s.status_rekon = 'SUDAH_BRUTO' THEN s.nilai_bruto ELSE (s.nilai_bruto - COALESCE(pot.total_nilai, 0)) END AS DECIMAL) as nilai,
+               'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon, 'SP2D' as source, s.opd,
+               COALESCE(s.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total_nilai FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE (
+               (s.tanggal_pencairan::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+            OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+          ) AND (s.status_rekon = 'BELUM' OR s.status_rekon IS NULL OR s.status_rekon = '') 
+
+        UNION ALL
+        SELECT p.id::text, p.tanggal, p.nomor_bukti as bukti, p.uraian, p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'PENDAPATAN' as source, 'BENDAHARA' as opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31' AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+
+        UNION ALL
+        SELECT tx.id::text, tx.tanggal, tx.nomor_bukti as bukti, tx.uraian, tx.nilai, 'KELUAR' as tipe, COALESCE(tx.status_rekon, 'BELUM') as status_rekon, 'SETORAN' as source, tx.opd,
+               COALESCE(tx.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM setoran_pajak tx
+        WHERE tx.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31' AND (tx.status_rekon = 'BELUM' OR tx.status_rekon IS NULL OR tx.status_rekon = '') 
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = tx.nomor_bukti)
+
+        UNION ALL
+        SELECT p.id::text, COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal, p.nomor_sp2d as bukti, p.uraian, p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'POTONGAN' as source, p.opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE (
+               (p.tanggal_pencairan::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+            OR (p.tanggal_pencairan IS NULL AND COALESCE(s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+          ) AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+      ) combined
+      ORDER BY tanggal ASC
+      LIMIT 1000 OFFSET 0
+    
+2026-05-17T01:40:41.303Z - OPTIONS /api/reports/reconciliation/data?search=&startDate=2026-03-01&endDate=2026-03-31&status=BELUM&page=1&limit=1000
+2026-05-17T01:40:41.306Z - GET /api/reports/reconciliation/data?search=&startDate=2026-03-01&endDate=2026-03-31&status=BELUM&page=1&limit=1000
+[DEBUG REPORT ROUTER] Request received: GET /reconciliation/data?search=&startDate=2026-03-01&endDate=2026-03-31&status=BELUM&page=1&limit=1000
+prisma:query BEGIN
+prisma:query SELECT "public"."bank_statement"."id", "public"."bank_statement"."tanggal", "public"."bank_statement"."deskripsi", "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."saldo_akhir", "public"."bank_statement"."is_matched", "public"."bank_statement"."ref_bku_id", "public"."bank_statement"."created_at", "public"."bank_statement"."catatan_selisih", "public"."bank_statement"."match_type", "public"."bank_statement"."selisih_nilai" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) ORDER BY "public"."bank_statement"."tanggal" ASC LIMIT $4 OFFSET $5
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query SELECT SUM("debet") AS "_sum$debet", SUM("kredit") AS "_sum$kredit", COUNT("id") AS "_count$id" FROM (SELECT "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2) OFFSET $3) AS "sub"
+prisma:query COMMIT
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query 
+      SELECT 
+        SUM(CASE WHEN tipe = 'KELUAR' THEN nilai ELSE 0 END) as total_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' THEN nilai ELSE 0 END) as total_masuk,
+        SUM(CASE WHEN tipe = 'KELUAR' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_masuk,
+        COUNT(*) as total_count
+      FROM (
+        SELECT (nilai_bruto - COALESCE(pot.total, 0)) as nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE ((s.tanggal_pencairan::DATE >= '2026-03-01' AND s.tanggal_pencairan::DATE <= '2026-03-31')
+           OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE >= '2026-03-01' AND s.tanggal::DATE <= '2026-03-31'))
+
+        UNION ALL
+        SELECT p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-03-01' AND '2026-03-31'
+
+        UNION ALL
+        SELECT p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31'
+
+        UNION ALL
+        SELECT s.nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM setoran_pajak s
+        WHERE s.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31'
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
+      ) as global_bku
+    
+prisma:query 
+      SELECT
+        id, tanggal, bukti, uraian, nilai, tipe, status_rekon, source, opd, selisih_rekon,
+        COUNT(*) OVER()::int                                               AS _total_bku,
+        COUNT(*) FILTER (WHERE source = 'SP2D') OVER()::int               AS _count_sp2d,
+        COUNT(*) FILTER (WHERE source = 'PENDAPATAN') OVER()::int         AS _count_pendapatan,
+        COUNT(*) FILTER (WHERE source IN ('POTONGAN','SETORAN')) OVER()::int AS _count_potongan
+      FROM (
+        SELECT s.id::text, COALESCE(s.tanggal_pencairan, s.tanggal) as tanggal, s.nomor as bukti, s.uraian,
+               CAST(CASE WHEN s.status_rekon = 'SUDAH_BRUTO' THEN s.nilai_bruto ELSE (s.nilai_bruto - COALESCE(pot.total_nilai, 0)) END AS DECIMAL) as nilai,
+               'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon, 'SP2D' as source, s.opd,
+               COALESCE(s.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total_nilai FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE (
+               (s.tanggal_pencairan::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+            OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+          ) AND (s.status_rekon = 'BELUM' OR s.status_rekon IS NULL OR s.status_rekon = '') 
+
+        UNION ALL
+        SELECT p.id::text, p.tanggal, p.nomor_bukti as bukti, p.uraian, p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'PENDAPATAN' as source, 'BENDAHARA' as opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31' AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+
+        UNION ALL
+        SELECT tx.id::text, tx.tanggal, tx.nomor_bukti as bukti, tx.uraian, tx.nilai, 'KELUAR' as tipe, COALESCE(tx.status_rekon, 'BELUM') as status_rekon, 'SETORAN' as source, tx.opd,
+               COALESCE(tx.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM setoran_pajak tx
+        WHERE tx.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31' AND (tx.status_rekon = 'BELUM' OR tx.status_rekon IS NULL OR tx.status_rekon = '') 
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = tx.nomor_bukti)
+
+        UNION ALL
+        SELECT p.id::text, COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal, p.nomor_sp2d as bukti, p.uraian, p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'POTONGAN' as source, p.opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE (
+               (p.tanggal_pencairan::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+            OR (p.tanggal_pencairan IS NULL AND COALESCE(s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+          ) AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+      ) combined
+      ORDER BY tanggal ASC
+      LIMIT 1000 OFFSET 0
+    
+2026-05-17T01:41:08.551Z - OPTIONS /api/reports/reconciliation/data?search=&startDate=2026-03-01&endDate=2026-03-31&status=BELUM&page=1&limit=1000
+2026-05-17T01:41:08.557Z - GET /api/reports/reconciliation/data?search=&startDate=2026-03-01&endDate=2026-03-31&status=BELUM&page=1&limit=1000
+[DEBUG REPORT ROUTER] Request received: GET /reconciliation/data?search=&startDate=2026-03-01&endDate=2026-03-31&status=BELUM&page=1&limit=1000
+prisma:query SELECT 1
+prisma:query BEGIN
+prisma:query SELECT "public"."bank_statement"."id", "public"."bank_statement"."tanggal", "public"."bank_statement"."deskripsi", "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."saldo_akhir", "public"."bank_statement"."is_matched", "public"."bank_statement"."ref_bku_id", "public"."bank_statement"."created_at", "public"."bank_statement"."catatan_selisih", "public"."bank_statement"."match_type", "public"."bank_statement"."selisih_nilai" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) ORDER BY "public"."bank_statement"."tanggal" ASC LIMIT $4 OFFSET $5
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query SELECT SUM("debet") AS "_sum$debet", SUM("kredit") AS "_sum$kredit", COUNT("id") AS "_count$id" FROM (SELECT "public"."bank_statement"."debet", "public"."bank_statement"."kredit", "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2) OFFSET $3) AS "sub"
+prisma:query COMMIT
+prisma:query SELECT COUNT(*) AS "_count$_all" FROM (SELECT "public"."bank_statement"."id" FROM "public"."bank_statement" WHERE ("public"."bank_statement"."tanggal" >= $1 AND "public"."bank_statement"."tanggal" <= $2 AND "public"."bank_statement"."is_matched" = $3) OFFSET $4) AS "sub"
+prisma:query 
+      SELECT 
+        SUM(CASE WHEN tipe = 'KELUAR' THEN nilai ELSE 0 END) as total_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' THEN nilai ELSE 0 END) as total_masuk,
+        SUM(CASE WHEN tipe = 'KELUAR' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_keluar,
+        SUM(CASE WHEN tipe = 'MASUK' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_masuk,
+        COUNT(*) as total_count
+      FROM (
+        SELECT (nilai_bruto - COALESCE(pot.total, 0)) as nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE ((s.tanggal_pencairan::DATE >= '2026-03-01' AND s.tanggal_pencairan::DATE <= '2026-03-31')
+           OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE >= '2026-03-01' AND s.tanggal::DATE <= '2026-03-31'))
+
+        UNION ALL
+        SELECT p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-03-01' AND '2026-03-31'
+
+        UNION ALL
+        SELECT p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31'
+
+        UNION ALL
+        SELECT s.nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        FROM setoran_pajak s
+        WHERE s.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31'
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
+      ) as global_bku
+    
+prisma:query 
+      SELECT
+        id, tanggal, bukti, uraian, nilai, tipe, status_rekon, source, opd, selisih_rekon,
+        COUNT(*) OVER()::int                                               AS _total_bku,
+        COUNT(*) FILTER (WHERE source = 'SP2D') OVER()::int               AS _count_sp2d,
+        COUNT(*) FILTER (WHERE source = 'PENDAPATAN') OVER()::int         AS _count_pendapatan,
+        COUNT(*) FILTER (WHERE source IN ('POTONGAN','SETORAN')) OVER()::int AS _count_potongan
+      FROM (
+        SELECT s.id::text, COALESCE(s.tanggal_pencairan, s.tanggal) as tanggal, s.nomor as bukti, s.uraian,
+               CAST(CASE WHEN s.status_rekon = 'SUDAH_BRUTO' THEN s.nilai_bruto ELSE (s.nilai_bruto - COALESCE(pot.total_nilai, 0)) END AS DECIMAL) as nilai,
+               'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon, 'SP2D' as source, s.opd,
+               COALESCE(s.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d s
+        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total_nilai FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
+        WHERE (
+               (s.tanggal_pencairan::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+            OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+          ) AND (s.status_rekon = 'BELUM' OR s.status_rekon IS NULL OR s.status_rekon = '') 
+
+        UNION ALL
+        SELECT p.id::text, p.tanggal, p.nomor_bukti as bukti, p.uraian, p.nilai, 'MASUK' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'PENDAPATAN' as source, 'BENDAHARA' as opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_pendapatan p
+        WHERE p.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31' AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+
+        UNION ALL
+        SELECT tx.id::text, tx.tanggal, tx.nomor_bukti as bukti, tx.uraian, tx.nilai, 'KELUAR' as tipe, COALESCE(tx.status_rekon, 'BELUM') as status_rekon, 'SETORAN' as source, tx.opd,
+               COALESCE(tx.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM setoran_pajak tx
+        WHERE tx.tanggal::DATE BETWEEN '2026-03-01' AND '2026-03-31' AND (tx.status_rekon = 'BELUM' OR tx.status_rekon IS NULL OR tx.status_rekon = '') 
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = tx.nomor_bukti)
+
+        UNION ALL
+        SELECT p.id::text, COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal, p.nomor_sp2d as bukti, p.uraian, p.nilai, 'KELUAR' as tipe, COALESCE(p.status_rekon, 'BELUM') as status_rekon, 'POTONGAN' as source, p.opd,
+               COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon
+        FROM data_sp2d_potongan p
+        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+        WHERE (
+               (p.tanggal_pencairan::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+            OR (p.tanggal_pencairan IS NULL AND COALESCE(s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '2026-03-01' AND '2026-03-31')
+          ) AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL OR p.status_rekon = '') 
+      ) combined
+      ORDER BY tanggal ASC
+      LIMIT 1000 OFFSET 0
+    
