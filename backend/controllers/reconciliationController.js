@@ -2461,13 +2461,20 @@ const getDiscrepancyReport = async (req, res) => {
         ) sub GROUP BY bln
       ) inc ON inc.bln = m.bulan
       LEFT JOIN (
+        -- Formula baku: SP2D Bruto + Setoran Standalone
+        -- Bruto = Neto + Rincian Potongan (konsisten dengan summaryAgg di getReconciliationData)
+        -- Setoran standalone: NOT EXISTS guard cegah double-count dengan rincian potongan SP2D
         SELECT bln, SUM(nilai) as total_pengeluaran FROM (
           SELECT EXTRACT(MONTH FROM COALESCE(tanggal_pencairan, tanggal))::int as bln,
-                 (CASE WHEN status_rekon = 'SUDAH_BRUTO' THEN nilai_bruto ELSE (nilai_bruto - COALESCE((SELECT SUM(p.nilai) FROM data_sp2d_potongan p WHERE p.id_sp2d = data_sp2d.id AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER')), nilai_potongan)) END) as nilai
+                 nilai_bruto as nilai
           FROM data_sp2d WHERE tahun = ${currentYear}
           UNION ALL
           SELECT EXTRACT(MONTH FROM tanggal)::int as bln, CAST(nilai AS DECIMAL) as nilai
-          FROM setoran_pajak WHERE EXTRACT(YEAR FROM tanggal) = ${currentYear}
+          FROM setoran_pajak
+          WHERE EXTRACT(YEAR FROM tanggal) = ${currentYear}
+          AND NOT EXISTS (
+            SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = setoran_pajak.nomor_bukti
+          )
         ) combined_exp
         GROUP BY bln
       ) exp ON exp.bln = m.bulan
