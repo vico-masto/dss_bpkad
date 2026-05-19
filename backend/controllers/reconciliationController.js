@@ -1447,7 +1447,7 @@ const getSuggestions = async (req, res) => {
         // Internal Integrity Check
         const potGelondongan = toNumber(c.nilai_potongan_gelondongan);
         const potRincian = toNumber(c.nilai_potongan_rincian);
-        const integrityMismatch = c.tipe === 'KELUAR' && Math.abs(potGelondongan - potRincian) > 1;
+        const integrityMismatch = c.tipe === 'KELUAR' && Math.abs(potGelondongan - potRincian) > 1 && c.status_rekon !== 'SUDAH_BRUTO';
 
         const bankTgl = bankDateStr;
         const diffDays = dateDiff / (1000 * 3600 * 24);
@@ -2671,6 +2671,7 @@ const getPotonganIntegrity = async (req, res) => {
         GROUP BY id_sp2d
       ) p ON s.id = p.id_sp2d
       WHERE s.tahun = ${targetTahun}
+      AND s.status_rekon != 'SUDAH_BRUTO'
       AND (s.nilai_potongan > 0 OR p.total_rincian > 0)
       AND ABS(s.nilai_potongan - COALESCE(p.total_rincian, 0)) > 1
       ORDER BY ABS(s.nilai_potongan - COALESCE(p.total_rincian, 0)) DESC
