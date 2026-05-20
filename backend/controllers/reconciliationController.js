@@ -393,9 +393,13 @@ const getReconciliationData = async (req, res) => {
         SUM(CASE WHEN tipe = 'MASUK' AND (status_rekon = 'BELUM' OR status_rekon IS NULL OR status_rekon = '') THEN nilai ELSE 0 END) as unmatched_masuk,
         COUNT(*) as total_count
       FROM (
-        SELECT (nilai_bruto - COALESCE(pot.total, 0)) as nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
+        SELECT CASE WHEN s.status_rekon = 'SUDAH_BRUTO' THEN s.nilai_bruto
+                    ELSE s.nilai_bruto - COALESCE(
+                      (SELECT SUM(p.nilai) FROM data_sp2d_potongan p
+                       WHERE p.id_sp2d = s.id AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER')),
+                      CAST(s.nilai_potongan AS DECIMAL)
+                    ) END as nilai, 'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon
         FROM data_sp2d s
-        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
         WHERE ((s.tanggal_pencairan::DATE >= '${sDate}' AND s.tanggal_pencairan::DATE <= '${eDate}')
            OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE >= '${sDate}' AND s.tanggal::DATE <= '${eDate}'))
 
@@ -432,11 +436,15 @@ const getReconciliationData = async (req, res) => {
         COUNT(*) FILTER (WHERE source IN ('POTONGAN','SETORAN')) OVER()::int AS _count_potongan
       FROM (
         SELECT s.id::text, COALESCE(s.tanggal_pencairan, s.tanggal) as tanggal, s.nomor as bukti, s.uraian,
-               CAST(CASE WHEN s.status_rekon = 'SUDAH_BRUTO' THEN s.nilai_bruto ELSE (s.nilai_bruto - COALESCE(pot.total_nilai, 0)) END AS DECIMAL) as nilai,
+               CAST(CASE WHEN s.status_rekon = 'SUDAH_BRUTO' THEN s.nilai_bruto
+                         ELSE s.nilai_bruto - COALESCE(
+                           (SELECT SUM(p.nilai) FROM data_sp2d_potongan p
+                            WHERE p.id_sp2d = s.id AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER')),
+                           CAST(s.nilai_potongan AS DECIMAL)
+                         ) END AS DECIMAL) as nilai,
                'KELUAR' as tipe, COALESCE(s.status_rekon, 'BELUM') as status_rekon, 'SP2D' as source, s.opd,
                COALESCE(s.selisih_rekon, 0)::numeric as selisih_rekon
         FROM data_sp2d s
-        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total_nilai FROM data_sp2d_potongan GROUP BY id_sp2d) pot ON s.id = pot.id_sp2d
         WHERE (
                (s.tanggal_pencairan::DATE BETWEEN '${sDate}' AND '${eDate}')
             OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE BETWEEN '${sDate}' AND '${eDate}')
@@ -959,7 +967,12 @@ const bulkMatchSmart = async (req, res) => {
         CAST(h.id AS VARCHAR) as id,
         CAST(h.nomor AS VARCHAR) as bukti,
         CAST(h.uraian AS VARCHAR) as uraian,
-        CAST((h.nilai_bruto - COALESCE(pot_agg.total, 0)) AS DECIMAL) as nilai,
+        CAST(CASE WHEN h.status_rekon = 'SUDAH_BRUTO' THEN h.nilai_bruto
+                  ELSE h.nilai_bruto - COALESCE(
+                    (SELECT SUM(p.nilai) FROM data_sp2d_potongan p
+                     WHERE p.id_sp2d = h.id AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER')),
+                    CAST(h.nilai_potongan AS DECIMAL)
+                  ) END AS DECIMAL) as nilai,
         CAST(h.nilai_bruto AS DECIMAL) as nilai_bruto,
         COALESCE(h.tanggal_pencairan, h.tanggal) as tanggal,
         'KELUAR' as tipe,
@@ -967,9 +980,6 @@ const bulkMatchSmart = async (req, res) => {
         '' as opd,
         '' as jenis_potongan
       FROM data_sp2d h
-      LEFT JOIN (
-        SELECT id_sp2d, SUM(nilai) as total FROM data_sp2d_potongan GROUP BY id_sp2d
-      ) pot_agg ON h.id = pot_agg.id_sp2d
       LEFT JOIN bank_statement b ON TRIM(CAST(h.id AS VARCHAR)) = TRIM(b.ref_bku_id)
       WHERE COALESCE(UPPER(TRIM(h.status_rekon)), '') NOT LIKE '%SUDAH%' AND b.id IS NULL
         AND COALESCE(h.tanggal_pencairan, h.tanggal)::DATE BETWEEN '${sDate}' AND '${eDate}'
@@ -3145,23 +3155,29 @@ const clusterMatch = async (req, res) => {
       // sumber selisih Rp 64M/86M yang pernah terjadi. Keduanya harus dicek.
       // ORDER BY: neto match diprioritaskan (selisih neto terkecil tampil duluan).
       const sp2dList = await prisma.$queryRaw`
-        SELECT CAST(h.id AS VARCHAR) as id, CAST(h.nomor AS VARCHAR) as bukti,
-               CAST(h.uraian AS VARCHAR) as uraian,
-               CAST(h.nilai_bruto - COALESCE(pot_c.total, 0) AS DECIMAL) as nilai_neto,
-               CAST(h.nilai_bruto AS DECIMAL) as nilai_bruto,
-               CAST(h.nilai_bruto - COALESCE(pot_c.total, 0) AS DECIMAL) as nilai,
-               COALESCE(h.tanggal_pencairan, h.tanggal) as tanggal, 'SP2D' as source
-        FROM data_sp2d h
-        LEFT JOIN bank_statement b ON TRIM(CAST(h.id AS VARCHAR)) = TRIM(b.ref_bku_id)
-        LEFT JOIN (SELECT id_sp2d, SUM(nilai) as total FROM data_sp2d_potongan GROUP BY id_sp2d) pot_c ON h.id = pot_c.id_sp2d
-        WHERE COALESCE(UPPER(TRIM(h.status_rekon)), '') NOT LIKE '%SUDAH%' AND b.id IS NULL
-          AND (
-            ABS(CAST(h.nilai_bruto - COALESCE(pot_c.total, 0) AS DECIMAL) - ${targetVal}) < 1
-            OR ABS(CAST(h.nilai_bruto AS DECIMAL) - ${targetVal}) < 1
-          )
-          AND CAST(COALESCE(h.tanggal_pencairan, h.tanggal) AS DATE) BETWEEN CAST(${sDate} AS DATE) AND CAST(${eDate} AS DATE)
-        ORDER BY ABS(CAST(h.nilai_bruto - COALESCE(pot_c.total, 0) AS DECIMAL) - ${targetVal}) ASC,
-                 COALESCE(h.tanggal_pencairan, h.tanggal) ASC
+        WITH sp2d_neto AS (
+          SELECT h.id, h.nomor, h.uraian, h.nilai_bruto, h.tanggal_pencairan, h.tanggal,
+            CAST(
+              CASE WHEN h.status_rekon = 'SUDAH_BRUTO' THEN h.nilai_bruto
+              ELSE h.nilai_bruto - COALESCE(
+                (SELECT SUM(p.nilai) FROM data_sp2d_potongan p
+                 WHERE p.id_sp2d = h.id AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER')),
+                CAST(h.nilai_potongan AS DECIMAL)
+              ) END AS DECIMAL) as neto_val
+          FROM data_sp2d h
+          LEFT JOIN bank_statement b ON TRIM(CAST(h.id AS VARCHAR)) = TRIM(b.ref_bku_id)
+          WHERE COALESCE(UPPER(TRIM(h.status_rekon)), '') NOT LIKE '%SUDAH%' AND b.id IS NULL
+            AND CAST(COALESCE(h.tanggal_pencairan, h.tanggal) AS DATE) BETWEEN CAST(${sDate} AS DATE) AND CAST(${eDate} AS DATE)
+        )
+        SELECT CAST(id AS VARCHAR) as id, CAST(nomor AS VARCHAR) as bukti,
+               CAST(uraian AS VARCHAR) as uraian,
+               neto_val as nilai_neto,
+               CAST(nilai_bruto AS DECIMAL) as nilai_bruto,
+               neto_val as nilai,
+               COALESCE(tanggal_pencairan, tanggal) as tanggal, 'SP2D' as source
+        FROM sp2d_neto
+        WHERE ABS(neto_val - ${targetVal}) < 1 OR ABS(CAST(nilai_bruto AS DECIMAL) - ${targetVal}) < 1
+        ORDER BY ABS(neto_val - ${targetVal}) ASC, COALESCE(tanggal_pencairan, tanggal) ASC
       `;
 
       const potonganList = await prisma.$queryRaw`

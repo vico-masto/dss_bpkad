@@ -27,6 +27,7 @@ router.get('/opd-ledger', authMiddleware, reportController.getOpdLedger);
 router.get('/bailout-monitoring', authMiddleware, reportController.getBailoutMonitoring);
 router.get('/rister-bku', authMiddleware, reportController.getBKURister);
 router.get('/opd-tax-summary', authMiddleware, reportController.getOpdTaxSummary);
+router.get('/potongan-opd-realisasi', authMiddleware, reportController.getPotonganOpdRealisasi);
 router.get('/tax-monthly-analytics', authMiddleware, reportController.getMonthlyTaxAnalytics);
 router.get('/reconciliation/potongan-integrity', authMiddleware, reconciliationController.getPotonganIntegrity);
 router.get('/reconciliation/data', authMiddleware, reconciliationController.getReconciliationData);

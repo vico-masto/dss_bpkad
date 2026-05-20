@@ -65,16 +65,16 @@ export default function BKUPage() {
         icon={<BookOpen className="size-5" />}
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-[#E9ECEF]">
-              <Calendar size={14} className="text-[#98A2B3]" />
-              <div className="flex items-center text-xs font-medium text-[#101828]">
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-fin-border">
+              <Calendar size={14} className="text-fin-text-muted" />
+              <div className="flex items-center text-xs font-medium text-fin-text-primary">
                 <input
                   type="date"
                   className="bg-transparent border-none outline-none cursor-pointer"
                   value={filters.tgl_awal}
                   onChange={(e) => setFilters({...filters, tgl_awal: e.target.value})}
                 />
-                <span className="mx-2 text-[#98A2B3]">to</span>
+                <span className="mx-2 text-fin-text-muted">to</span>
                 <input
                   type="date"
                   className="bg-transparent border-none outline-none cursor-pointer"
@@ -85,7 +85,7 @@ export default function BKUPage() {
             </div>
             <div className="relative">
               <select
-                className="bg-white px-4 h-9 rounded-lg border border-[#E9ECEF] text-xs font-medium text-[#101828] outline-none focus:border-[#2E90FA] appearance-none cursor-pointer pr-10 transition-all"
+                className="bg-white px-4 h-9 rounded-lg border border-fin-border text-xs font-medium text-fin-text-primary outline-none focus:border-ds-focus-ring appearance-none cursor-pointer pr-10 transition-all"
                 value={filters.id_sumber_dana}
                 onChange={(e) => setFilters({...filters, id_sumber_dana: e.target.value})}
               >
@@ -94,12 +94,12 @@ export default function BKUPage() {
                   <option key={sd.id} value={sd.id}>{sd.nama}</option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[#98A2B3]" size={14} />
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-fin-text-muted" size={14} />
             </div>
-            <Button size="icon" onClick={() => refreshBKU()} className="h-9 w-9 bg-[#101828] text-white rounded-lg hover:bg-[#1D2939] transition-all">
+            <Button size="icon" onClick={() => refreshBKU()} className="h-9 w-9 bg-ds-primary text-white rounded-lg hover:bg-ds-primary-hover transition-all">
               <RefreshCw size={16} className={cn(loading && "animate-spin")} />
             </Button>
-            <Button variant="outline" className="h-9 px-4 bg-white text-[#475467] border-[#E9ECEF] rounded-lg font-semibold text-xs hover:bg-[#F8F9FA] gap-2 transition-all">
+            <Button variant="outline" className="h-9 px-4 bg-white text-fin-text-secondary border-fin-border rounded-lg font-semibold text-xs hover:bg-fin-page gap-2 transition-all">
               <Download size={14} />
               <span>Export</span>
             </Button>
@@ -128,33 +128,33 @@ export default function BKUPage() {
          <SummaryItem 
           label="Saldo Akhir Buku" 
           value={summary.saldoAkhir} 
-          color="text-[#101828]" 
-          bg="bg-[#F8F9FA]"
+          color="text-fin-text-primary" 
+          bg="bg-fin-page"
           icon={<Coins size={18} />} 
           loading={loading}
          />
       </div>
 
       {/* TABLE SECTION */}
-      <Card className="rounded-xl border border-[#E9ECEF] overflow-hidden bg-white shadow-sm">
+      <Card className="rounded-xl border border-fin-border overflow-hidden bg-white shadow-sm">
         <div className="overflow-x-auto min-h-[500px]">
           {loading && !bkuResponse ? (
-            <div className="flex flex-col items-center justify-center py-40 text-[#98A2B3]">
+            <div className="flex flex-col items-center justify-center py-40 text-fin-text-muted">
               <Loader2 className="animate-spin mb-4" size={48} />
               <p className="text-sm font-medium">Sinkronisasi data buku...</p>
             </div>
           ) : (
             <Table>
-              <TableHeader className="bg-[#F8F9FA]">
-                <TableRow className="border-b border-[#E9ECEF] hover:bg-transparent">
-                  <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider">Tanggal</TableHead>
-                  <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider">Referensi</TableHead>
-                  <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider">OPD</TableHead>
-                  <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider">Keterangan</TableHead>
-                  <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider text-right">Debet (Rp)</TableHead>
-                  <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider text-right">Kredit (Rp)</TableHead>
-                  <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider text-right">Saldo (Rp)</TableHead>
-                  <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider text-center">Status</TableHead>
+              <TableHeader className="bg-fin-page">
+                <TableRow className="border-b border-fin-border hover:bg-transparent">
+                  <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider">Tanggal</TableHead>
+                  <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider">Referensi</TableHead>
+                  <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider">OPD</TableHead>
+                  <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider">Keterangan</TableHead>
+                  <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider text-right">Debet (Rp)</TableHead>
+                  <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider text-right">Kredit (Rp)</TableHead>
+                  <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider text-right">Saldo (Rp)</TableHead>
+                  <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y divide-[#E9ECEF]">
@@ -163,7 +163,7 @@ export default function BKUPage() {
                     <td colSpan={8} className="px-6 py-40 text-center">
                        <div className="flex flex-col items-center gap-3">
                           <Filter size={48} className="text-[#F1F3F5]" />
-                          <p className="text-[#98A2B3] text-sm font-medium">Tidak ada transaksi dalam periode ini.</p>
+                          <p className="text-fin-text-muted text-sm font-medium">Tidak ada transaksi dalam periode ini.</p>
                        </div>
                     </td>
                   </TableRow>
@@ -174,20 +174,20 @@ export default function BKUPage() {
                     const isAuditReady = tx.status_rekon && tx.status_rekon !== 'N/A';
 
                     return (
-                      <TableRow key={idx} className={cn("hover:bg-[#F8F9FA] transition-colors group", tx.tipe === 'SALDO_AWAL' && "bg-[#F9FAFB] font-bold")}>
-                        <TableCell className="px-6 py-4 text-xs font-medium text-[#475467]">
+                      <TableRow key={idx} className={cn("hover:bg-fin-page transition-colors group", tx.tipe === 'SALDO_AWAL' && "bg-[#F9FAFB] font-bold")}>
+                        <TableCell className="px-6 py-4 text-xs font-medium text-fin-text-secondary">
                           {format(new Date(tx.tanggal), 'dd/MM/yyyy')}
                         </TableCell>
                         <TableCell className="px-6 py-4">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#F2F4F7] text-[#344054] border border-[#D0D5DD]">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-fin-subtle text-[#344054] border border-fin-border-strong">
                             {tx.bukti}
                           </span>
                         </TableCell>
                         <TableCell className="px-6 py-4">
-                           <p className="text-[11px] font-semibold text-[#101828] max-w-[150px] truncate uppercase">{tx.opd}</p>
+                           <p className="text-[11px] font-semibold text-fin-text-primary max-w-[150px] truncate uppercase">{tx.opd}</p>
                         </TableCell>
                         <TableCell className="px-6 py-4">
-                          <p className="text-xs font-medium text-[#475467] max-w-[300px] leading-relaxed">{tx.uraian}</p>
+                          <p className="text-xs font-medium text-fin-text-secondary max-w-[300px] leading-relaxed">{tx.uraian}</p>
                           <p className="text-[10px] font-semibold text-[#2E90FA] mt-1 uppercase">{tx.id_sumber_dana}</p>
                         </TableCell>
                         <TableCell className="px-6 py-4 text-right text-xs font-semibold text-[#027A48]" style={{fontVariantNumeric:'tabular-nums'}}>
@@ -197,7 +197,7 @@ export default function BKUPage() {
                           {kredit > 0 ? formatCurrency(kredit) : '-'}
                         </TableCell>
                         <TableCell className="px-6 py-4 text-right">
-                           <span className="text-xs font-semibold text-[#101828] bg-[#F8F9FA] px-3 py-1.5 rounded-md border border-[#E9ECEF] transition-all group-hover:bg-white" style={{fontVariantNumeric:'tabular-nums'}}>
+                           <span className="text-xs font-semibold text-fin-text-primary bg-fin-page px-3 py-1.5 rounded-lg border border-fin-border transition-all group-hover:bg-white" style={{fontVariantNumeric:'tabular-nums'}}>
                              {formatCurrency(tx.saldo)}
                            </span>
                         </TableCell>
@@ -224,9 +224,9 @@ export default function BKUPage() {
         </div>
 
         {/* PAGINATION FOOTER */}
-        <div className="p-6 border-t border-[#E9ECEF] flex items-center justify-between bg-white">
-          <p className="text-xs font-medium text-[#475467]">
-            Menampilkan <span className="text-[#101828] font-bold">{transactions.length}</span> dari <span className="text-[#101828] font-bold">{pagination.totalData}</span> transaksi
+        <div className="p-6 border-t border-fin-border flex items-center justify-between bg-white">
+          <p className="text-xs font-medium text-fin-text-secondary">
+            Menampilkan <span className="text-fin-text-primary font-bold">{transactions.length}</span> dari <span className="text-fin-text-primary font-bold">{pagination.totalData}</span> transaksi
           </p>
           <div className="flex items-center gap-2">
             <Button 
@@ -234,7 +234,7 @@ export default function BKUPage() {
               size="sm" 
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1 || loading}
-              className="h-8 w-8 p-0 rounded-md border-[#E9ECEF]"
+              className="h-8 w-8 p-0 rounded-lg border-fin-border"
             >
               <ChevronLeft size={16} />
             </Button>
@@ -253,8 +253,8 @@ export default function BKUPage() {
                       size="sm"
                       onClick={() => setCurrentPage(pageNum)}
                       className={cn(
-                        "h-8 w-8 p-0 text-xs font-bold rounded-md",
-                        currentPage === pageNum ? "bg-[#101828] text-white" : "border-[#E9ECEF] text-[#475467]"
+                        "h-8 w-8 p-0 text-xs font-bold rounded-lg",
+                        currentPage === pageNum ? "bg-ds-primary text-white" : "border-fin-border text-fin-text-secondary"
                       )}
                     >
                       {pageNum}
@@ -267,7 +267,7 @@ export default function BKUPage() {
               size="sm" 
               onClick={() => setCurrentPage(p => Math.min(pagination.totalPages, p + 1))}
               disabled={currentPage === pagination.totalPages || loading}
-              className="h-8 w-8 p-0 rounded-md border-[#E9ECEF]"
+              className="h-8 w-8 p-0 rounded-lg border-fin-border"
             >
               <ChevronRight size={16} />
             </Button>
@@ -280,15 +280,15 @@ export default function BKUPage() {
 
 function SummaryItem({ label, value, color, icon, bg, loading }: any) {
   return (
-    <Card className="p-4 sm:p-6 rounded-xl border border-[#E9ECEF] shadow-sm bg-white transition-all hover:border-[#2E90FA] overflow-hidden">
+    <Card className="p-4 sm:p-6 rounded-xl border border-fin-border shadow-sm bg-white transition-all hover:border-[#2E90FA] overflow-hidden">
       <div className="flex items-center gap-3 sm:gap-4">
         <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shrink-0", bg, color)}>
           {icon}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold text-[#98A2B3] uppercase tracking-wider mb-1 truncate">{label}</p>
+          <p className="text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider mb-1 truncate">{label}</p>
           {loading ? (
-            <div className="h-6 w-24 bg-[#F2F4F7] animate-pulse rounded mt-1" />
+            <div className="h-6 w-24 bg-fin-subtle animate-pulse rounded mt-1" />
           ) : (
             <p className={cn("text-base sm:text-lg lg:text-xl font-bold tracking-tight tabular-nums truncate", color)} title={formatCurrency(value)}>
               {formatCurrency(value)}

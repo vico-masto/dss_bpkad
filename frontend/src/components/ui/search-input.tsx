@@ -82,7 +82,7 @@ function SearchInput({
         <button
           type="button"
           onClick={handleClear}
-          className="absolute right-2 flex items-center justify-center rounded-md p-0.5 text-fin-text-muted transition-colors hover:bg-fin-subtle hover:text-fin-text-primary"
+          className="absolute right-2 flex items-center justify-center rounded-lg p-0.5 text-fin-text-muted transition-colors hover:bg-fin-subtle hover:text-fin-text-primary"
           aria-label="Hapus pencarian"
         >
           <X size={13} />

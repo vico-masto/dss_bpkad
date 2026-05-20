@@ -26,7 +26,7 @@ import api from '@/lib/api';
 import { toast } from 'sonner';
 
 export default function SaldoAwalPage() {
-  const [data, setData] = useState([]);
+  const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tahun, setTahun] = useState(new Date().getFullYear());
@@ -65,7 +65,7 @@ export default function SaldoAwalPage() {
     <div className="max-w-5xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-1000 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div className="flex items-center gap-6">
-          <div className="w-16 h-16 bg-slate-900 rounded-3xl flex items-center justify-center text-white shadow-2xl shadow-slate-900/20 ring-4 ring-slate-900/5">
+          <div className="w-16 h-16 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-2xl shadow-slate-900/20 ring-4 ring-slate-900/5">
             <Database size={32} />
           </div>
           <div>
@@ -74,7 +74,7 @@ export default function SaldoAwalPage() {
           </div>
         </div>
         
-        <div className="flex items-center space-x-3 bg-white px-6 py-3 rounded-[24px] shadow-sm border border-slate-100 group hover:border-brand transition-colors">
+        <div className="flex items-center space-x-3 bg-white px-6 py-3 rounded-xl shadow-sm border border-slate-100 group hover:border-brand transition-colors">
           <Calendar size={18} className="text-slate-400 group-hover:text-brand" />
           <select 
             className="bg-transparent outline-none font-bold text-slate-700 text-xs cursor-pointer"
@@ -90,8 +90,8 @@ export default function SaldoAwalPage() {
         <SummaryItem 
           label="Total Saldo Awal" 
           value={data.reduce((acc: any, curr: any) => acc + (curr.nilai || 0), 0)} 
-          color="text-[#101828]" 
-          bg="bg-[#F8F9FA]"
+          color="text-fin-text-primary" 
+          bg="bg-fin-page"
           icon={<Banknote size={18} />} 
         />
         <SummaryItem 
@@ -122,9 +122,9 @@ export default function SaldoAwalPage() {
         </div>
       </div>
 
-      <Card className="rounded-xl border border-[#E9ECEF] overflow-hidden bg-white shadow-sm">
-        <div className="p-6 border-b border-[#F2F4F7] bg-[#F8F9FA]/50 flex justify-between items-center">
-           <h3 className="text-lg font-semibold text-[#101828]">Master Saldo Awal</h3>
+      <Card className="rounded-xl border border-fin-border overflow-hidden bg-white shadow-sm">
+        <div className="p-6 border-b border-[#F2F4F7] bg-fin-page/50 flex justify-between items-center">
+           <h3 className="text-lg font-semibold text-fin-text-primary">Master Saldo Awal</h3>
            {saving && (
              <div className="flex items-center gap-2 text-[#2E90FA] animate-pulse">
                <Loader2 size={14} className="animate-spin" />
@@ -135,35 +135,35 @@ export default function SaldoAwalPage() {
 
         <div className="overflow-x-auto">
           <Table>
-            <TableHeader className="bg-[#F8F9FA]">
-              <TableRow className="border-b border-[#E9ECEF] hover:bg-transparent">
-                <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider">Sumber Dana</TableHead>
-                <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider">Nilai Saldo Awal (Rp)</TableHead>
-                <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider text-right">Update</TableHead>
+            <TableHeader className="bg-fin-page">
+              <TableRow className="border-b border-fin-border hover:bg-transparent">
+                <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider">Sumber Dana</TableHead>
+                <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider">Nilai Saldo Awal (Rp)</TableHead>
+                <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider text-right">Update</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="divide-y divide-[#E9ECEF]">
               {loading ? (
                 <TableRow>
                   <TableCell colSpan={3} className="px-6 py-20 text-center">
-                    <Loader2 className="animate-spin mx-auto text-[#98A2B3]" size={40} />
+                    <Loader2 className="animate-spin mx-auto text-fin-text-muted" size={40} />
                   </TableCell>
                 </TableRow>
               ) : (
                 data.map((item: any) => (
-                  <TableRow key={item.id} className="hover:bg-[#F8F9FA] transition-colors group">
+                  <TableRow key={item.id} className="hover:bg-fin-page transition-colors group">
                     <TableCell className="px-6 py-4">
                       <div className="flex flex-col">
-                        <p className="font-bold text-[#101828] text-sm tracking-tight uppercase">{item.nama}</p>
+                        <p className="font-bold text-fin-text-primary text-sm tracking-tight uppercase">{item.nama}</p>
                         <p className="text-[10px] font-semibold text-[#667085] mt-0.5">{item.id}</p>
                       </div>
                     </TableCell>
                     <TableCell className="px-6 py-4">
                       <div className="relative max-w-[250px]">
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-[#98A2B3]">RP</div>
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-fin-text-muted">RP</div>
                         <Input 
                           type="text" 
-                          className="w-full h-10 pl-10 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-[#2E90FA]/20 focus-visible:border-[#2E90FA] font-bold text-sm text-[#101828] transition-all"
+                          className="w-full h-10 pl-10 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-ds-focus-ring focus-visible:border-ds-focus-ring font-bold text-sm text-fin-text-primary transition-all"
                           value={formatNumber(item.nilai || 0)}
                           onChange={(e) => {
                             const val = parseNumber(e.target.value);
@@ -196,13 +196,13 @@ export default function SaldoAwalPage() {
 
 function SummaryItem({ label, value, color, icon, bg, isCurrency = true }: any) {
   return (
-    <Card className="p-4 sm:p-6 rounded-xl border border-[#E9ECEF] shadow-sm bg-white transition-all hover:border-[#2E90FA] overflow-hidden">
+    <Card className="p-4 sm:p-6 rounded-xl border border-fin-border shadow-sm bg-white transition-all hover:border-[#2E90FA] overflow-hidden">
       <div className="flex items-center gap-3 sm:gap-4">
         <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shrink-0", bg, color)}>
           {icon}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold text-[#98A2B3] uppercase tracking-wider mb-1 truncate">{label}</p>
+          <p className="text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider mb-1 truncate">{label}</p>
           <p className={cn("text-base sm:text-lg lg:text-xl font-bold tracking-tight tabular-nums truncate", color)} title={isCurrency ? formatCurrency(value) : value}>
             {isCurrency ? formatCurrency(value) : value}
           </p>

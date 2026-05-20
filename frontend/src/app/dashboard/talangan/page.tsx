@@ -383,7 +383,7 @@ export default function TalanganPage() {
     ]);
 
     if (type === 'excel') {
-      const excelData = exportData.map(row => ({
+      const excelData = exportData.map((row: any) => ({
         'No': row[0],
         'Tanggal': row[1],
         'No. Referensi': row[2],
@@ -396,7 +396,7 @@ export default function TalanganPage() {
       }));
       exportToExcel(excelData, `Laporan_Talangan_${format(new Date(), 'yyyyMMdd')}`, 'Jurnal Talangan');
     } else {
-      const pdfData = exportData.map(row => [
+      const pdfData = exportData.map((row: any) => [
         row[0], row[1], row[2], row[3], row[4], row[5], row[6], formatCurrency(row[7] as number), row[8]
       ]);
       exportToPDF(headers, pdfData, `Laporan_Talangan_${format(new Date(), 'yyyyMMdd')}`, 'MONITORING JURNAL TALANGAN BELANJA DAERAH');
@@ -466,14 +466,16 @@ export default function TalanganPage() {
               </p>
             )}
           </div>
-          <button
+          <Button
+            variant="outline"
+            size="sm"
+            loading={fixingAnomalies}
             onClick={handleFixAnomalies}
-            disabled={fixingAnomalies}
-            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50"
+            leftIcon={<CheckCircle2 size={12} />}
+            className="shrink-0 border-amber-300 bg-amber-600 text-white hover:bg-amber-700 hover:text-white"
           >
-            {fixingAnomalies ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
             Perbaiki Otomatis
-          </button>
+          </Button>
         </div>
       )}
 
@@ -490,32 +492,36 @@ export default function TalanganPage() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setBalanceCandidates(null)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-semibold rounded-lg transition-colors"
             >
               Batal
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="income"
+              size="sm"
+              loading={checkingBalance}
+              leftIcon={<ShieldCheck size={12} />}
               onClick={handleAutoSettleByBalance}
-              disabled={checkingBalance}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50"
             >
-              {checkingBalance ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
               Tandai Aman
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
         <div className="flex justify-end">
-          <button
+          <Button
+            variant="outline"
+            size="sm"
+            loading={checkingBalance}
+            leftIcon={<ShieldCheck size={12} />}
             onClick={handleCheckBalance}
-            disabled={checkingBalance}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-fin-surface border border-emerald-200 hover:border-emerald-400 text-emerald-700 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+            className="border-emerald-200 text-emerald-700 hover:border-emerald-400 hover:bg-fin-surface"
           >
-            {checkingBalance ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
             Cek Sumber Dana Tersedia
-          </button>
+          </Button>
         </div>
       )}
 
@@ -526,7 +532,7 @@ export default function TalanganPage() {
            animate={{ opacity: 1, y: 0 }}
            className="group"
          >
-           <Card className="p-5 rounded-2xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300">
+           <Card className="p-5 rounded-xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300">
               <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-fin-info-text transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
                  <Banknote size={100} />
               </div>
@@ -550,7 +556,7 @@ export default function TalanganPage() {
            transition={{ delay: 0.1 }}
            className="group"
          >
-           <Card className="p-5 rounded-2xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300">
+           <Card className="p-5 rounded-xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300">
               <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-fin-success-text transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
                  <CheckCircle2 size={100} />
               </div>
@@ -574,7 +580,7 @@ export default function TalanganPage() {
            transition={{ delay: 0.2 }}
            className="group"
          >
-           <Card className="p-5 rounded-2xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300">
+           <Card className="p-5 rounded-xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300">
               <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-[#F79009] transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
                  <Clock size={100} />
               </div>
@@ -598,7 +604,7 @@ export default function TalanganPage() {
            transition={{ delay: 0.3 }}
            className="group"
          >
-           <Card className="p-5 rounded-2xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300">
+           <Card className="p-5 rounded-xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300">
               <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-[#D92D20] transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
                  <ShieldAlert size={100} />
               </div>
@@ -606,7 +612,7 @@ export default function TalanganPage() {
                 <div className="space-y-1">
                    <p className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest">Risiko Tinggi (&gt;14 Hr)</p>
                    <h2 className="text-xl font-black tracking-tight text-[#D92D20]">
-                     {getGroupedBailout().filter(g => {
+                     {getGroupedBailout().filter((g: any) => {
                        const days = Math.floor((new Date().getTime() - new Date(g.tanggal).getTime()) / (1000 * 3600 * 24));
                        return g.status === 'BELUM' && days > 14;
                      }).length} Dokumen
@@ -621,7 +627,7 @@ export default function TalanganPage() {
       </div>
 
       {/* Filter Panel */}
-      <Card className="rounded-2xl shadow-sm border border-fin-border bg-fin-surface overflow-hidden">
+      <Card className="rounded-xl shadow-sm border border-fin-border bg-fin-surface overflow-hidden">
         <div className="p-6 bg-fin-surface space-y-6">
            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="flex-1 max-w-xl relative">
@@ -629,7 +635,7 @@ export default function TalanganPage() {
                 <input 
                   type="text" 
                   placeholder="Cari referensi, uraian, atau OPD..." 
-                  className="w-full h-11 pl-12 pr-4 bg-fin-page border border-fin-border rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/10 transition-all shadow-sm"
+                  className="w-full h-11 pl-12 pr-4 bg-fin-page border border-fin-border rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-ds-focus-ring/10 transition-all shadow-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -835,7 +841,7 @@ export default function TalanganPage() {
                                           {item.status === 'BELUM' && (
                                             <Button 
                                               size="sm" 
-                                              className="h-8 px-3 text-xs font-bold bg-fin-success-bg text-[#027A48] border-none rounded-lg hover:bg-[#D1FADF] transition-all flex items-center gap-1.5"
+                                              className="h-8 px-3 text-xs font-bold bg-fin-success-bg text-fin-income-text border-none rounded-lg hover:bg-fin-income-bg transition-all flex items-center gap-1.5"
                                               onClick={() => handleSettle(item)}
                                             >
                                               <CheckCircle size={14} /> Lunaskan
@@ -888,8 +894,8 @@ export default function TalanganPage() {
 
       {/* ASSIGN MODAL (KELOLA) */}
       <Dialog open={!!assignModal} onOpenChange={() => setAssignModal(null)}>
-        <DialogContent className="w-[95vw] max-w-md rounded-3xl p-0 border-none shadow-2xl overflow-hidden bg-fin-surface">
-           <div className="p-6 bg-[#101828] text-white">
+        <DialogContent className="w-[95vw] max-w-md rounded-xl p-0 border-none shadow-2xl overflow-hidden bg-fin-surface">
+           <div className="p-6 bg-ds-primary text-white">
               <div className="flex items-center gap-3">
                  <div className="w-10 h-10 bg-fin-info-bg0/20 rounded-xl flex items-center justify-center border border-white/10">
                     <ShieldCheck size={20} className="text-indigo-400" />
@@ -902,7 +908,7 @@ export default function TalanganPage() {
            </div>
 
            <div className="p-6 space-y-6">
-              <div className="bg-fin-page border border-fin-border rounded-2xl p-5 space-y-4">
+              <div className="bg-fin-page border border-fin-border rounded-xl p-5 space-y-4">
                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                        <p className="text-xs font-bold text-fin-text-muted uppercase tracking-wider">No. Referensi</p>
@@ -926,7 +932,7 @@ export default function TalanganPage() {
                        <ArrowRightLeft size={16} />
                     </div>
                     <select 
-                      className="w-full h-11 pl-12 pr-4 bg-fin-surface border border-fin-border rounded-xl text-sm font-bold text-fin-text-primary focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all cursor-pointer appearance-none"
+                      className="w-full h-11 pl-12 pr-4 bg-fin-surface border border-fin-border rounded-xl text-sm font-bold text-fin-text-primary focus:ring-2 focus:ring-ds-focus-ring/10 focus:border-ds-focus-ring outline-none transition-all cursor-pointer appearance-none"
                       value={selectedSumberTalangan}
                       onChange={(e) => setSelectedSumberTalangan(e.target.value)}
                     >
@@ -957,7 +963,7 @@ export default function TalanganPage() {
               <Button 
                 onClick={handleAssignTalangan}
                 disabled={assigning || !selectedSumberTalangan}
-                className="flex-[2] h-11 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md gap-2"
+                className="flex-[2] h-11 bg-ds-primary hover:bg-ds-primary-hover text-white rounded-xl font-bold text-xs shadow-md gap-2"
               >
                  {assigning ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
                  <span>Terapkan Penjamin</span>
@@ -968,9 +974,9 @@ export default function TalanganPage() {
 
       {/* SPLIT MODAL */}
       <Dialog open={!!splitModal} onOpenChange={() => setSplitModal(null)}>
-        <DialogContent className="w-[95vw] max-w-2xl rounded-[32px] p-0 border-none shadow-2xl bg-fin-surface overflow-hidden flex flex-col max-h-[85vh]">
+        <DialogContent className="w-[95vw] max-w-2xl rounded-xl p-0 border-none shadow-2xl bg-fin-surface overflow-hidden flex flex-col max-h-[85vh]">
            {/* HEADER */}
-           <div className="p-4 bg-[#101828] text-white shrink-0 relative overflow-hidden">
+           <div className="p-4 bg-ds-primary text-white shrink-0 relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-fin-info-bg0/10 rounded-full -mr-16 -mt-16 blur-3xl" />
               <div className="relative z-10 flex justify-between items-center px-2">
                  <div className="flex items-center gap-3">
@@ -994,7 +1000,7 @@ export default function TalanganPage() {
               <div className="space-y-4">
                  <div className="flex items-center justify-between sticky top-0 bg-fin-surface/95 backdrop-blur-md py-2 z-10 border-b border-gray-50 mb-1">
                     <h4 className="text-xs font-black text-fin-text-primary uppercase tracking-[0.2em] flex items-center gap-2">
-                       <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                       <div className="w-1.5 h-1.5 rounded-full bg-ds-primary" />
                        Rincian Pembagian
                     </h4>
                     <Button 
@@ -1012,18 +1018,18 @@ export default function TalanganPage() {
                         <div 
                           key={idx} 
                           className={cn(
-                            "flex items-center gap-4 p-4 bg-fin-surface border rounded-2xl transition-all group shadow-sm",
+                            "flex items-center gap-4 p-4 bg-fin-surface border rounded-xl transition-all group shadow-sm",
                             idx === 0 ? "border-indigo-200 bg-fin-info-bg/5" : "border-fin-border hover:border-indigo-300"
                           )}
                         >
                            <div className="flex-1 space-y-2">
                               <div className="flex items-center justify-between ml-1">
                                  <label className="text-xs font-black text-fin-text-muted uppercase tracking-wider">Sumber Penjamin</label>
-                                 {idx === 0 && <Badge className="h-4 px-2 bg-indigo-600 text-white text-[10px] font-black border-none uppercase rounded-md">Primary</Badge>}
+                                 {idx === 0 && <Badge className="h-4 px-2 bg-ds-primary text-white text-[10px] font-black border-none uppercase rounded-lg">Primary</Badge>}
                               </div>
                               <div className="relative">
                                  <select 
-                                   className="w-full h-10 pl-3 pr-8 bg-fin-page border border-fin-border rounded-xl text-sm font-bold text-fin-text-primary focus:border-indigo-500 outline-none transition-all cursor-pointer appearance-none"
+                                   className="w-full h-10 pl-3 pr-8 bg-fin-page border border-fin-border rounded-xl text-sm font-bold text-fin-text-primary focus:border-ds-focus-ring outline-none transition-all cursor-pointer appearance-none"
                                    value={alloc.id_sumber_talangan}
                                    onChange={(e) => updateAllocation(idx, 'id_sumber_talangan', e.target.value)}
                                  >
@@ -1046,7 +1052,7 @@ export default function TalanganPage() {
                                   type="text" 
                                   readOnly={idx === 0 && allocations.length > 1}
                                   className={cn(
-                                    "w-full h-10 pl-9 pr-3 border rounded-xl text-sm font-black text-fin-text-primary focus:border-indigo-500 outline-none transition-all",
+                                    "w-full h-10 pl-9 pr-3 border rounded-xl text-sm font-black text-fin-text-primary focus:border-ds-focus-ring outline-none transition-all",
                                     idx === 0 && allocations.length > 1 ? "bg-[#F3F4F6] border-[#E5E7EB] text-[#9BA3AF] cursor-not-allowed" : "bg-fin-surface border-fin-border"
                                   )}
                                   value={new Intl.NumberFormat('id-ID').format(alloc.nilai || 0)}
@@ -1078,7 +1084,7 @@ export default function TalanganPage() {
            {/* FOOTER */}
            <div className="p-4 bg-fin-page border-t border-fin-border space-y-3 shrink-0">
               <div className={cn(
-                 "p-3 rounded-2xl flex items-center justify-between border shadow-sm transition-all",
+                 "p-3 rounded-xl flex items-center justify-between border shadow-sm transition-all",
                  Math.abs(allocations.reduce((sum, a) => sum + parseFloat(a.nilai.toString() || '0'), 0) - parseFloat(splitModal?.nilai || 0)) < 1 
                    ? "bg-emerald-50 border-emerald-200 text-emerald-800" 
                    : "bg-red-50 border-red-200 text-red-800"
@@ -1110,14 +1116,14 @@ export default function TalanganPage() {
                 <Button 
                   variant="outline" 
                   onClick={() => setSplitModal(null)}
-                  className="flex-1 h-11 text-fin-text-muted font-black text-xs bg-fin-surface border-[#D0D5DD] hover:bg-gray-50 rounded-xl"
+                  className="flex-1 h-11 text-fin-text-muted font-black text-xs bg-fin-surface border-fin-border-strong hover:bg-gray-50 rounded-xl"
                 >
                   Batal
                 </Button>
                 <Button 
                   onClick={handleSplitTalangan}
                   disabled={splitting || Math.abs(allocations.reduce((sum, a) => sum + parseFloat(a.nilai.toString() || '0'), 0) - parseFloat(splitModal?.nilai || 0)) > 1}
-                  className="flex-[2] h-11 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs shadow-lg shadow-indigo-100 gap-2 transition-all"
+                  className="flex-[2] h-11 bg-ds-primary hover:bg-ds-primary-hover text-white rounded-xl font-black text-xs shadow-lg shadow-ds-primary/10 gap-2 transition-all"
                 >
                    {splitting ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
                    <span>Simpan Pembagian Alokasi</span>
@@ -1145,7 +1151,7 @@ export default function TalanganPage() {
                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
                className="relative w-full max-w-lg h-full bg-fin-surface shadow-2xl flex flex-col"
              >
-                <div className="p-6 border-b border-fin-border flex items-center justify-between bg-[#101828] text-white shrink-0">
+                <div className="p-6 border-b border-fin-border flex items-center justify-between bg-ds-primary text-white shrink-0">
                    <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-fin-surface/10 rounded-xl flex items-center justify-center text-white border border-white/10">
                          <Banknote size={20} />
@@ -1170,7 +1176,7 @@ export default function TalanganPage() {
                       <div className="space-y-8">
                          <div className="space-y-4">
                             <div className="flex items-center gap-3 px-1">
-                               <div className="h-5 w-1 bg-indigo-600 rounded-full"></div>
+                               <div className="h-5 w-1 bg-ds-primary rounded-full"></div>
                                <h4 className="text-xs font-black text-fin-text-primary uppercase tracking-[0.2em]">Kas Reguler (Non-Earmark)</h4>
                             </div>
                             <div className="grid grid-cols-1 gap-4">
@@ -1179,7 +1185,7 @@ export default function TalanganPage() {
                                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Data tidak tersedia</p>
                                   </div>
                                ) : cashStats.filter(s => s.kategori?.toUpperCase() === 'BEBAS').map((item) => (
-                                  <Card key={item.id} className="p-5 border-fin-border hover:border-indigo-600/30 transition-all shadow-sm group">
+                                  <Card key={item.id} className="p-5 border-fin-border hover:border-ds-focus-ring/30 transition-all shadow-sm group">
                                      <div className="flex justify-between items-start mb-4">
                                         <div>
                                            <Badge className="bg-fin-info-bg text-indigo-700 border-none text-xs font-black px-2 mb-1">
@@ -1219,7 +1225,7 @@ export default function TalanganPage() {
                    <Button 
                       onClick={fetchCashStats} 
                       disabled={loadingCashStats}
-                      className="w-full h-12 bg-[#101828] hover:bg-[#1D2939] text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-gray-200 transition-all"
+                      className="w-full h-12 bg-ds-primary hover:bg-ds-primary-hover text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-gray-200 transition-all"
                    >
                       <RefreshCw size={18} className={loadingCashStats ? "animate-spin" : ""} />
                       SINKRONISASI SALDO KAS
@@ -1253,8 +1259,8 @@ export default function TalanganPage() {
 
       {/* MANUAL INPUT MODAL */}
       <Dialog open={isManualModalOpen} onOpenChange={setIsManualModalOpen}>
-        <DialogContent className="w-[95vw] max-w-lg rounded-[24px] p-0 border-none shadow-2xl overflow-hidden bg-fin-surface">
-           <div className="p-6 bg-indigo-600 text-white relative">
+        <DialogContent className="w-[95vw] max-w-lg rounded-xl p-0 border-none shadow-2xl overflow-hidden bg-fin-surface">
+           <div className="p-6 bg-ds-primary text-white relative">
               <div className="relative z-10">
                  <DialogTitle className="text-xl font-bold tracking-tight">Input Jurnal Talangan Manual</DialogTitle>
                  <p className="text-indigo-100 text-xs font-medium">Rekam data transaksi talangan belanja secara mandiri</p>
@@ -1266,7 +1272,7 @@ export default function TalanganPage() {
                    <label className="text-xs font-bold text-fin-text-muted uppercase tracking-wider ml-1">No. Referensi / SP2D</label>
                    <input 
                       type="text" 
-                      className="w-full h-10 px-3 bg-fin-page border border-fin-border rounded-xl text-sm font-bold text-fin-text-primary focus:outline-none focus:border-indigo-500"
+                      className="w-full h-10 px-3 bg-fin-page border border-fin-border rounded-xl text-sm font-bold text-fin-text-primary focus:outline-none focus:border-ds-focus-ring"
                       placeholder="Contoh: 001/SP2D/2024"
                       value={manualForm.no_referensi}
                       onChange={(e) => setManualForm({...manualForm, no_referensi: e.target.value})}
@@ -1276,7 +1282,7 @@ export default function TalanganPage() {
                    <label className="text-xs font-bold text-fin-text-muted uppercase tracking-wider ml-1">Nominal (Rp)</label>
                    <input 
                       type="number" 
-                      className="w-full h-10 px-3 bg-fin-page border border-fin-border rounded-xl text-sm font-bold text-fin-text-primary focus:outline-none focus:border-indigo-500"
+                      className="w-full h-10 px-3 bg-fin-page border border-fin-border rounded-xl text-sm font-bold text-fin-text-primary focus:outline-none focus:border-ds-focus-ring"
                       placeholder="0"
                       value={manualForm.nilai}
                       onChange={(e) => setManualForm({...manualForm, nilai: e.target.value})}
@@ -1287,7 +1293,7 @@ export default function TalanganPage() {
               <div className="space-y-1.5">
                  <label className="text-xs font-bold text-fin-text-muted uppercase tracking-wider ml-1">Sumber Dana Asli (Yang Ditalangi)</label>
                  <select 
-                   className="w-full h-10 px-3 bg-fin-page border border-fin-border rounded-xl text-sm font-bold text-fin-text-primary focus:outline-none focus:border-indigo-500"
+                   className="w-full h-10 px-3 bg-fin-page border border-fin-border rounded-xl text-sm font-bold text-fin-text-primary focus:outline-none focus:border-ds-focus-ring"
                    value={manualForm.id_sumber_dana_asal}
                    onChange={(e) => setManualForm({...manualForm, id_sumber_dana_asal: e.target.value})}
                  >
@@ -1301,7 +1307,7 @@ export default function TalanganPage() {
               <div className="space-y-1.5">
                  <label className="text-xs font-bold text-fin-text-muted uppercase tracking-wider ml-1">Sumber Dana Talangan (Pengganti)</label>
                  <select 
-                   className="w-full h-10 px-3 bg-fin-page border border-fin-border rounded-xl text-sm font-bold text-fin-text-primary focus:outline-none focus:border-indigo-500"
+                   className="w-full h-10 px-3 bg-fin-page border border-fin-border rounded-xl text-sm font-bold text-fin-text-primary focus:outline-none focus:border-ds-focus-ring"
                    value={manualForm.id_sumber_dana_talangan}
                    onChange={(e) => setManualForm({...manualForm, id_sumber_dana_talangan: e.target.value})}
                  >
@@ -1315,7 +1321,7 @@ export default function TalanganPage() {
               <div className="space-y-1.5">
                  <label className="text-xs font-bold text-fin-text-muted uppercase tracking-wider ml-1">Keterangan / Uraian</label>
                  <textarea 
-                    className="w-full h-20 p-3 bg-fin-page border border-fin-border rounded-xl text-xs font-medium text-fin-text-primary focus:outline-none focus:border-indigo-500"
+                    className="w-full h-20 p-3 bg-fin-page border border-fin-border rounded-xl text-xs font-medium text-fin-text-primary focus:outline-none focus:border-ds-focus-ring"
                     placeholder="Masukkan alasan atau rincian tambahan..."
                     value={manualForm.keterangan}
                     onChange={(e) => setManualForm({...manualForm, keterangan: e.target.value})}
@@ -1334,7 +1340,7 @@ export default function TalanganPage() {
               <Button 
                 onClick={handleCreateManual}
                 disabled={creatingManual}
-                className="flex-[2] h-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-lg gap-2"
+                className="flex-[2] h-10 bg-ds-primary hover:bg-ds-primary-hover text-white rounded-xl font-bold text-xs shadow-lg gap-2"
               >
                  {creatingManual ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
                  <span>Simpan Rekaman Manual</span>

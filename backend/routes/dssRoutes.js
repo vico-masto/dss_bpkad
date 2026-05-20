@@ -35,9 +35,12 @@ router.post('/simulator/projections', authMiddleware, simulatorController.upsert
 router.get('/tax-monitoring', authMiddleware, reportController.getTaxMonitoring);
 router.get('/general-ledger', authMiddleware, reportController.getGeneralLedger);
 
-// Penyesuaian
+// Penyesuaian (CRUD Lengkap)
 router.get('/penyesuaian', authMiddleware, penyesuaianController.getPenyesuaianList);
 router.post('/penyesuaian', authMiddleware, penyesuaianController.createPenyesuaian);
+router.get('/penyesuaian/:id', authMiddleware, penyesuaianController.getPenyesuaianById);
+router.put('/penyesuaian/:id', authMiddleware, penyesuaianController.updatePenyesuaian);
+router.delete('/penyesuaian/:id', authMiddleware, penyesuaianController.deletePenyesuaian);
 
 // Saldo Awal
 router.get('/saldo-awal', authMiddleware, saldoAwalController.getSaldoAwalList);

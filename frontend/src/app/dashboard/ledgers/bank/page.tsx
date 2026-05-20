@@ -170,9 +170,10 @@ export default function BankLedgerPage() {
             <FileSpreadsheet size={16} className="mr-2" />
             Excel
           </Button>
-          <Button 
+          <Button
+            variant="primary"
             onClick={handlePreviewReport}
-            className="h-10 bg-fin-text-primary text-fin-surface shadow-lg font-bold"
+            className="h-10 shadow-lg"
           >
             <Printer size={16} className="mr-2" />
             Cetak Laporan
@@ -200,7 +201,7 @@ export default function BankLedgerPage() {
                       type="date" 
                       value={filters.startDate}
                       onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-                      className="h-10 border-fin-border bg-fin-page text-fin-text-primary focus:ring-fin-info/20"
+                      className="h-10 border-fin-border bg-fin-page text-fin-text-primary focus:ring-ds-focus-ring"
                     />
                   </div>
                   <div className="space-y-2">
@@ -211,7 +212,7 @@ export default function BankLedgerPage() {
                       type="date" 
                       value={filters.endDate}
                       onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-                      className="h-10 border-fin-border bg-fin-page text-fin-text-primary focus:ring-fin-info/20"
+                      className="h-10 border-fin-border bg-fin-page text-fin-text-primary focus:ring-ds-focus-ring"
                     />
                   </div>
                   <div className="space-y-2">
@@ -219,7 +220,7 @@ export default function BankLedgerPage() {
                        <Wallet size={12} className="text-fin-info" /> Rekening Bank / Sumber Dana
                     </label>
                     <select 
-                      className="w-full h-10 px-3 rounded-md border border-fin-border bg-fin-surface text-sm focus:outline-none focus:ring-2 focus:ring-fin-info/20"
+                      className="w-full h-10 px-3 rounded-lg border border-fin-border bg-fin-surface text-sm focus:outline-none focus:ring-2 focus:ring-ds-focus-ring"
                       value={filters.sumberDana}
                       onChange={(e) => setFilters({ ...filters, sumberDana: e.target.value })}
                     >
@@ -324,7 +325,7 @@ export default function BankLedgerPage() {
                         {item.tanggal ? format(new Date(item.tanggal), 'dd/MM/yyyy') : '-'}
                       </TableCell>
                       <TableCell>
-                        <span className="inline-flex px-2 py-1 bg-fin-page text-fin-text-primary text-[10px] font-black rounded-md tracking-wider">
+                        <span className="inline-flex px-2 py-1 bg-fin-page text-fin-text-primary text-[10px] font-black rounded-lg tracking-wider">
                           {item.bukti}
                         </span>
                       </TableCell>
@@ -381,11 +382,11 @@ export default function BankLedgerPage() {
 
       {/* PDF PREVIEW MODAL */}
       {previewPdf && (
-        <div className="fixed inset-0 z-50 bg-[#101828]/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-ds-primary/80 backdrop-blur-sm flex items-center justify-center p-4">
           <motion.div 
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-fin-surface rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden shadow-2xl"
+            className="bg-fin-surface rounded-xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden shadow-2xl"
           >
             <div className="p-4 border-b border-fin-border flex items-center justify-between bg-fin-surface">
               <div className="flex items-center gap-3">

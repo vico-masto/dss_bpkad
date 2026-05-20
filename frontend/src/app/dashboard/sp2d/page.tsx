@@ -64,7 +64,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { 
   Dialog, 
   DialogContent, 
@@ -79,7 +79,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { NumericInput } from "@/components/ui/numeric-input";
+import { NumericInput } from "@/components/NumericInput";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from '@/components/patterns/page-header';
@@ -278,7 +278,7 @@ export default function Sp2dUnifiedPage() {
       }
     }
 
-    const exportData = dataToExport.map((item, index) => ({
+    const exportData = dataToExport.map((item: any, index: number) => ({
       'No.': index + 1,
       'Tanggal': format(new Date(item.tanggal), 'yyyy-MM-dd'),
       'Nomor': item.nomor,
@@ -778,10 +778,10 @@ export default function Sp2dUnifiedPage() {
             <div className="bg-fin-page p-1 rounded-lg border border-fin-border">
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-auto">
                 <TabsList className="bg-transparent h-auto p-0">
-                  <TabsTrigger value="rekam" className="px-6 py-2 rounded-md text-xs font-medium data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+                  <TabsTrigger value="rekam" className="px-6 py-2 rounded-lg text-xs font-medium data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
                     <FileUp size={14} /> Perekaman Baru
                   </TabsTrigger>
-                  <TabsTrigger value="arsip" className="px-6 py-2 rounded-md text-xs font-medium data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+                  <TabsTrigger value="arsip" className="px-6 py-2 rounded-lg text-xs font-medium data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
                     <Database size={14} /> Arsip Data
                   </TabsTrigger>
                 </TabsList>
@@ -865,7 +865,7 @@ export default function Sp2dUnifiedPage() {
           >
             {/* Quick Stats Summary */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-               <Card className="bg-fin-surface p-6 rounded-xl border border-fin-border shadow-sm flex items-center gap-4 group hover:border-indigo-600 transition-all">
+               <Card className="bg-fin-surface p-6 rounded-xl border border-fin-border shadow-sm flex items-center gap-4 group hover:border-ds-focus-ring transition-all">
                   <div className="w-12 h-12 bg-fin-info-bg text-[#175CD3] rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"><Banknote size={24} /></div>
                   <div>
                     <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider">Total Bruto (Periode)</p>
@@ -882,7 +882,7 @@ export default function Sp2dUnifiedPage() {
                     </div>
                   </div>
                </Card>
-               <Card className="bg-fin-surface p-6 rounded-xl border border-fin-border shadow-sm flex items-center gap-4 group hover:border-indigo-600 transition-all">
+               <Card className="bg-fin-surface p-6 rounded-xl border border-fin-border shadow-sm flex items-center gap-4 group hover:border-ds-focus-ring transition-all">
                   <div className="w-12 h-12 bg-[#F5F9FF] text-[#175CD3] rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"><Activity size={24} /></div>
                   <div>
                     <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider">Total Transaksi</p>
@@ -933,7 +933,7 @@ export default function Sp2dUnifiedPage() {
                        <Button 
                          variant="ghost" 
                          size="icon" 
-                         onClick={() => { setFilters({ opd: '', jenis: '', status: '', search: '', startDate: '', endDate: '' }); mutate(); }}
+                         onClick={() => { setFilters({ opd: '', jenis: '', status: '', search: '', startDate: '', endDate: '', onlySelisih: '' }); mutate(); }}
                          className="h-9 w-9 text-fin-text-muted hover:text-fin-text-primary hover:bg-fin-subtle rounded-full transition-all border border-fin-border"
                          title="Refresh & Reset"
                        >
@@ -959,7 +959,7 @@ export default function Sp2dUnifiedPage() {
                                  </label>
                                  <Input 
                                    placeholder="Cari bukti / uraian..." 
-                                   className="h-11 bg-fin-page border-fin-border rounded-xl text-xs font-medium px-4 focus:ring-2 focus:ring-fin-info/10 transition-all shadow-sm" 
+                                   className="h-11 bg-fin-page border-fin-border rounded-xl text-xs font-medium px-4 focus:ring-2 focus:ring-ds-focus-ring transition-all shadow-sm" 
                                    value={filters.search}
                                    onChange={(e) => setFilters({...filters, search: e.target.value})}
                                  />
@@ -969,15 +969,16 @@ export default function Sp2dUnifiedPage() {
                                  <label className="text-[10px] font-bold text-fin-info uppercase tracking-wider flex items-center gap-2 ml-1">
                                     <Building2 size={13} /> Satuan Kerja (OPD)
                                  </label>
-                                 <Select value={filters.opd} onValueChange={(v) => setFilters({...filters, opd: v === 'none' ? '' : v})}>
-                                    <SelectTrigger className="h-11 bg-fin-page border-fin-border rounded-xl text-[10px] font-medium px-4 focus:ring-2 focus:ring-fin-info/10 shadow-sm">
-                                       <SelectValue placeholder="Semua Dinas / Badan" />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-xl border-fin-border shadow-xl">
-                                       <SelectItem value="none" className="text-[10px] font-bold text-fin-info py-2.5">SEMUA SUMBER</SelectItem>
-                                       {opdList.map((opd: any) => <SelectItem key={opd} value={opd} className="text-[10px] font-medium py-2.5">{opd}</SelectItem>)}
-                                    </SelectContent>
-                                 </Select>
+                                 <Combobox
+                                   value={filters.opd || 'none'}
+                                   onValueChange={(v) => setFilters({...filters, opd: v === 'none' || !v ? '' : v})}
+                                   placeholder="Semua Dinas / Badan"
+                                   className="h-11"
+                                   options={[
+                                     { value: 'none', label: 'SEMUA SUMBER' },
+                                     ...opdList.map((opd: any) => ({ value: opd, label: opd })),
+                                   ]}
+                                 />
                               </div>
 
                               <div className="lg:col-span-4 space-y-2.5">
@@ -992,10 +993,10 @@ export default function Sp2dUnifiedPage() {
                               </div>
 
                               <div className="lg:col-span-2 flex items-center gap-2">
-                                 <Button onClick={() => setCurrentPage(1)} className="h-11 flex-1 bg-fin-text-primary hover:opacity-90 text-fin-surface rounded-xl text-[10px] font-black gap-2 shadow-md transition-all active:scale-95">
+                                 <Button variant="primary" onClick={() => setCurrentPage(1)} className="h-11 flex-1 rounded-xl text-[10px] font-black gap-2 shadow-md active:scale-95">
                                     <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} /> Tampilkan
                                  </Button>
-                                 <Button variant="ghost" onClick={() => setFilters({ opd: '', jenis: '', status: '', search: '', startDate: '', endDate: '' })} className="h-11 px-3 bg-fin-subtle hover:bg-fin-border text-fin-text-muted rounded-xl text-[10px] font-bold transition-all">
+                                 <Button variant="ghost" onClick={() => setFilters({ opd: '', jenis: '', status: '', search: '', startDate: '', endDate: '', onlySelisih: '' })} className="h-11 px-3 bg-fin-subtle hover:bg-fin-border text-fin-text-muted rounded-xl text-[10px] font-bold transition-all">
                                     Reset
                                  </Button>
                               </div>
@@ -1004,7 +1005,7 @@ export default function Sp2dUnifiedPage() {
                            {/* ROW 2: QUICK FILTERS & ACTION BAR */}
                            <div className="flex flex-wrap items-center justify-between gap-6 pt-6 border-t border-[#F8F9FA]">
                               <div className="flex items-center gap-5">
-                                 <span className="text-[10px] font-bold text-[#98A2B3] uppercase tracking-widest ml-1">Filter Cepat:</span>
+                                 <span className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest ml-1">Filter Cepat:</span>
                                  <div className="flex items-center gap-2.5">
                                     <Button variant="outline" onClick={() => handleQuickFilter('bulan_ini')} className="h-9 px-4 border-[#EAECF0] hover:border-[#2E90FA] hover:bg-fin-surface rounded-full text-[10px] font-bold text-fin-text-muted gap-2 transition-all shadow-sm">
                                        <Calendar size={14} className="text-fin-info" /> Bulan Ini
@@ -1026,26 +1027,34 @@ export default function Sp2dUnifiedPage() {
                                         {filters.onlySelisih === 'true' ? 'Menampilkan Temuan Selisih' : 'Hanya Selisih'}
                                      </Button>
                                     <div className="flex items-center gap-2.5 ml-3">
-                                       <Select value={filters.jenis} onValueChange={(v) => setFilters({...filters, jenis: v === 'none' ? '' : v})}>
-                                          <SelectTrigger className="h-9 min-w-[150px] bg-fin-surface border-fin-border rounded-full text-[10px] font-bold text-fin-text-muted px-4 shadow-sm">
-                                             <SelectValue placeholder="Jenis Belanja" />
-                                          </SelectTrigger>
-                                          <SelectContent className="rounded-xl border-fin-border shadow-xl">
-                                             <SelectItem value="none" className="text-[10px] font-bold text-indigo-600">SEMUA JENIS</SelectItem>
-                                             {jenisList.map(j => <SelectItem key={j} value={j} className="text-[10px] font-medium">{j}</SelectItem>)}
-                                          </SelectContent>
-                                       </Select>
-                                       <Select value={filters.status} onValueChange={(v) => setFilters({...filters, status: v === 'none' ? '' : v})}>
-                                          <SelectTrigger className="h-9 min-w-[140px] bg-fin-surface border-fin-border rounded-full text-[10px] font-bold text-fin-text-muted px-4 shadow-sm">
-                                             <SelectValue placeholder="Status Kas" />
-                                          </SelectTrigger>
-                                          <SelectContent className="rounded-xl border-fin-border shadow-xl">
-                                             <SelectItem value="none" className="text-[10px] font-bold text-indigo-600">SEMUA STATUS</SelectItem>
-                                             <SelectItem value="Aman" className="text-[10px] font-medium">AMAN (KAS)</SelectItem>
-                                             <SelectItem value="Talangan" className="text-[10px] font-medium">TALANGAN</SelectItem>
-                                          </SelectContent>
-                                       </Select>
-                                    </div>
+                                        <select
+                                          value={filters.jenis || 'none'}
+                                          onChange={(e) => {
+                                            const v = e.target.value;
+                                            setFilters({...filters, jenis: v === 'none' || !v ? '' : v});
+                                          }}
+                                          className="h-9 min-w-[150px] px-3 border border-fin-border rounded-lg bg-fin-surface text-fin-text-primary text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                                        >
+                                          <option value="none">SEMUA JENIS</option>
+                                          {jenisList.map((j: any) => (
+                                            <option key={j} value={j} className="bg-fin-surface text-fin-text-primary">
+                                              {j}
+                                            </option>
+                                          ))}
+                                        </select>
+                                        <select
+                                          value={filters.status || 'none'}
+                                          onChange={(e) => {
+                                            const v = e.target.value;
+                                            setFilters({...filters, status: v === 'none' || !v ? '' : v});
+                                          }}
+                                          className="h-9 min-w-[140px] px-3 border border-fin-border rounded-lg bg-fin-surface text-fin-text-primary text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                                        >
+                                          <option value="none">SEMUA STATUS</option>
+                                          <option value="Aman" className="bg-fin-surface text-fin-text-primary">AMAN (KAS)</option>
+                                          <option value="Talangan" className="bg-fin-surface text-fin-text-primary">TALANGAN</option>
+                                        </select>
+                                     </div>
                                  </div>
                               </div>
 
@@ -1057,7 +1066,7 @@ export default function Sp2dUnifiedPage() {
                                  <Button variant="ghost" onClick={handlePrintPDF} className="h-8 px-4 text-[10px] font-bold text-fin-text-muted hover:text-fin-expense hover:bg-fin-surface rounded-full flex items-center gap-2 transition-all">
                                     <Printer size={13} /> PDF
                                  </Button>
-                                 <Button variant="ghost" onClick={handleExportExcel} className="h-8 px-4 text-[10px] font-bold text-fin-text-muted hover:text-[#027A48] hover:bg-fin-surface rounded-full flex items-center gap-2 transition-all">
+                                 <Button variant="ghost" onClick={handleExportExcel} className="h-8 px-4 text-[10px] font-bold text-fin-text-muted hover:text-fin-income hover:bg-fin-surface rounded-full flex items-center gap-2 transition-all">
                                     <FileSpreadsheet size={13} /> Excel
                                  </Button>
                                  <div className="w-px h-3.5 bg-[#D0D5DD] mx-1" />
@@ -1086,7 +1095,7 @@ export default function Sp2dUnifiedPage() {
                     <TableHeader className="bg-fin-page">
                       <TableRow className="hover:bg-transparent border-b border-fin-border">
                         <TableHead className="px-6 py-4 text-center w-16">
-                          <button onClick={toggleSelectAll} className="text-[#98A2B3] hover:text-fin-text-muted transition-all">
+                          <button onClick={toggleSelectAll} className="text-fin-text-muted hover:text-fin-text-muted transition-all">
                             {selectedIds.length === sp2dList.length && sp2dList.length > 0 ? <CheckSquare size={16} /> : <Square size={16} />}
                           </button>
                         </TableHead>
@@ -1175,25 +1184,25 @@ export default function Sp2dUnifiedPage() {
                           </TableCell>
                           <TableCell className="px-4 py-4">
                             <div className="flex items-center gap-1.5 group/copy">
-                              <p className="text-xs font-semibold text-fin-text-primary transition-colors group-hover/copy:text-indigo-600 select-all">{item.nomor}</p>
+                              <p className="text-xs font-semibold text-fin-text-primary transition-colors group-hover/copy:text-fin-info-text select-all">{item.nomor}</p>
                               <button
                                 title="Salin nomor SP2D"
                                 onClick={() => {
                                   navigator.clipboard.writeText(item.nomor);
                                   toast.success('Nomor disalin', { description: item.nomor });
                                 }}
-                                className="p-0.5 rounded opacity-40 hover:opacity-100 hover:bg-indigo-50 hover:text-indigo-600 text-fin-text-muted transition-all shrink-0"
+                                className="p-0.5 rounded opacity-40 hover:opacity-100 hover:bg-indigo-50 hover:text-fin-info-text text-fin-text-muted transition-all shrink-0"
                               >
                                 <Copy size={11} />
                               </button>
                             </div>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#F2F4F7] text-[#344054] border border-[#D0D5DD] uppercase mt-1">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold bg-fin-subtle text-[#344054] border border-fin-border-strong uppercase mt-1">
                               {item.jenis}
                             </span>
                           </TableCell>
                           <TableCell className="px-4 py-4">
                             <p className="text-xs font-bold text-fin-text-primary truncate max-w-[150px]">{item.opd}</p>
-                            <p className="text-xs text-[#98A2B3] mt-0.5">Kode Satker: {item.opd.substring(0, 5)}</p>
+                            <p className="text-xs text-fin-text-muted mt-0.5">Kode Satker: {item.opd.substring(0, 5)}</p>
                           </TableCell>
                           <TableCell className="px-4 py-4">
                             <p className="text-xs font-bold text-fin-text-primary truncate max-w-[200px]" title={item.uraian}>{item.uraian}</p>
@@ -1250,10 +1259,10 @@ export default function Sp2dUnifiedPage() {
                                    tanggalPencairan: item.tanggal_pencairan ? item.tanggal_pencairan.split('T')[0] : ''
                                 })}
                                 className={cn(
-                                   "inline-flex items-center px-3 py-1 rounded-md text-[10px] font-black border mx-auto transition-all shadow-sm",
+                                   "inline-flex items-center px-3 py-1 rounded-lg text-[10px] font-black border mx-auto transition-all shadow-sm",
                                    item.selisih_rekon != 0 
                                      ? "bg-fin-warning text-fin-surface border-fin-warning hover:opacity-90 ring-2 ring-fin-warning/10" 
-                                     : "bg-fin-surface text-[#98A2B3] border-fin-border hover:border-[#2E90FA] hover:text-fin-info"
+                                     : "bg-fin-surface text-fin-text-muted border-fin-border hover:border-[#2E90FA] hover:text-fin-info"
                                  )}
                                >
                                  {item.selisih_rekon != 0 ? 'FIX DIFF' : 'CEK'}
@@ -1276,16 +1285,16 @@ export default function Sp2dUnifiedPage() {
                           </TableCell>
                           <TableCell className="px-6 py-4 text-center">
                             <div className="flex items-center justify-center gap-2">
-                               <Button variant="ghost" size="icon" onClick={() => handleClone(item)} className="h-8 w-8 rounded-md text-[#98A2B3] hover:text-fin-info hover:bg-fin-info-bg transition-colors" title="Duplikasi">
+                               <Button variant="ghost" size="icon" onClick={() => handleClone(item)} className="h-8 w-8 rounded-lg text-fin-text-muted hover:text-fin-info hover:bg-fin-info-bg transition-colors" title="Duplikasi">
                                   <RefreshCw size={14} />
                                </Button>
                                <Button variant="ghost" size="icon" onClick={() => {
                                   router.push(`/dashboard/sp2d?edit=${item.id}&tab=rekam`);
                                   setActiveTab('rekam');
-                               }} className="h-8 w-8 rounded-md text-[#98A2B3] hover:text-fin-info hover:bg-fin-info-bg transition-colors" title="Edit">
+                               }} className="h-8 w-8 rounded-lg text-fin-text-muted hover:text-fin-info hover:bg-fin-info-bg transition-colors" title="Edit">
                                   <Edit size={14} />
                                </Button>
-                               <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} className="h-8 w-8 rounded-md text-[#98A2B3] hover:text-fin-expense hover:bg-fin-expense/10 transition-colors" title="Hapus">
+                               <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} className="h-8 w-8 rounded-lg text-fin-text-muted hover:text-fin-expense hover:bg-fin-expense/10 transition-colors" title="Hapus">
                                   <Trash2 size={14} />
                                </Button>
                             </div>
@@ -1301,14 +1310,14 @@ export default function Sp2dUnifiedPage() {
         {/* Pagination Footer */}
         <div className="px-6 py-4 bg-fin-page border-t border-fin-border flex flex-col md:flex-row justify-between items-center gap-4">
            <div className="flex items-center gap-4">
-              <p className="text-xs text-[#98A2B3]">
+              <p className="text-xs text-fin-text-muted">
                 Showing {(currentPage - 1) * limit + 1} - {Math.min(currentPage * limit, data?.total || 0)} of {data?.total || 0} Entries
               </p>
               <Button 
                 variant="ghost" 
                 size="sm" 
                 onClick={() => { setLimit(10000); setCurrentPage(1); }}
-                className={cn("text-[10px] font-bold h-7 px-3 rounded-md", limit === 10000 ? "bg-[#101828] text-white" : "text-fin-info bg-fin-info-bg hover:bg-[#D1E9FF]")}
+                className={cn("text-[10px] font-bold h-7 px-3 rounded-lg", limit === 10000 ? "bg-ds-primary text-white" : "text-fin-info bg-fin-info-bg hover:bg-[#D1E9FF]")}
               >
                 {limit === 10000 ? 'SEMUA DATA AKTIF' : 'TAMPILKAN SEMUA'}
               </Button>
@@ -1324,11 +1333,11 @@ export default function Sp2dUnifiedPage() {
                 size="icon"
                 disabled={currentPage === 1 || limit === 10000}
                 onClick={() => setCurrentPage(prev => prev - 1)}
-                className="h-8 w-8 bg-fin-surface border-fin-border rounded-md text-fin-text-muted disabled:opacity-30 transition-all active:scale-95"
+                className="h-8 w-8 bg-fin-surface border-fin-border rounded-lg text-fin-text-muted disabled:opacity-30 transition-all active:scale-95"
               >
                 <ChevronLeft size={16} />
               </Button>
-              <div className="flex items-center px-4 h-8 bg-fin-surface border border-fin-border rounded-md text-xs font-bold text-fin-text-primary">
+              <div className="flex items-center px-4 h-8 bg-fin-surface border border-fin-border rounded-lg text-xs font-bold text-fin-text-primary">
                 Page {currentPage} of {data?.totalPages || 1}
               </div>
               <Button 
@@ -1336,7 +1345,7 @@ export default function Sp2dUnifiedPage() {
                 size="icon"
                 disabled={currentPage >= (data?.totalPages || 1) || limit === 10000}
                 onClick={() => setCurrentPage(prev => prev + 1)}
-                className="h-8 w-8 bg-fin-surface border-fin-border rounded-md text-fin-text-muted disabled:opacity-30 transition-all active:scale-95"
+                className="h-8 w-8 bg-fin-surface border-fin-border rounded-lg text-fin-text-muted disabled:opacity-30 transition-all active:scale-95"
               >
                 <ChevronRight size={16} />
               </Button>
@@ -1374,29 +1383,29 @@ export default function Sp2dUnifiedPage() {
                       </Button>
                    </div>
                    <h3 className="text-xl font-bold tracking-tight">Monitor Saldo Kas</h3>
-                   <p className="text-sm text-[#98A2B3] mt-1">Informasi ketersediaan dana per rincian sumber dana</p>
+                   <p className="text-sm text-fin-text-muted mt-1">Informasi ketersediaan dana per rincian sumber dana</p>
                 </div>
 
                  <div className="flex-1 overflow-y-auto p-6 space-y-10 custom-scrollbar">
                    {loadingCashStats ? (
                       <div className="flex flex-col items-center justify-center py-20 gap-4">
                          <Loader2 className="animate-spin text-fin-info" size={32} />
-                         <p className="text-xs font-bold text-[#98A2B3] uppercase tracking-widest">Sinkronisasi Data...</p>
+                         <p className="text-xs font-bold text-fin-text-muted uppercase tracking-widest">Sinkronisasi Data...</p>
                       </div>
                    ) : (
                       <>
                         {/* KAS BEBAS SECTION */}
                         <div className="space-y-4">
                            <div className="flex items-center gap-3 px-1">
-                              <div className="h-6 w-1 bg-indigo-600 rounded-full"></div>
+                              <div className="h-6 w-1 bg-ds-primary rounded-full"></div>
                               <h4 className="text-[11px] font-black text-fin-text-primary uppercase tracking-[0.2em]">Kelompok Kas Bebas</h4>
                               <div className="flex-1 h-px bg-[#E9ECEF]"></div>
                            </div>
                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                               {cashStats.filter(s => s.kategori === 'BEBAS').map((item) => (
-                                 <Card key={item.id} className="p-5 border-fin-border hover:border-indigo-600/30 transition-all group relative overflow-hidden">
+                                 <Card key={item.id} className="p-5 border-fin-border hover:border-ds-focus-ring/30 transition-all group relative overflow-hidden">
                                     <div className="absolute top-0 right-0 p-1">
-                                       <div className="w-1.5 h-1.5 rounded-full bg-indigo-600/20 group-hover:bg-indigo-600 transition-colors"></div>
+                                       <div className="w-1.5 h-1.5 rounded-full bg-ds-primary/20 group-hover:bg-ds-primary transition-colors"></div>
                                     </div>
                                     <div className="flex justify-between items-start mb-4">
                                        <div>
@@ -1406,7 +1415,7 @@ export default function Sp2dUnifiedPage() {
                                           <h4 className="text-sm font-bold text-fin-text-primary leading-tight">{item.nama}</h4>
                                        </div>
                                        <div className="text-right">
-                                          <p className="text-[10px] font-bold text-[#98A2B3] uppercase tracking-wider">Kas Efektif</p>
+                                          <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider">Kas Efektif</p>
                                           <p className={cn(
                                              "text-lg font-extrabold tabular-nums",
                                              item.kas_efektif > 0 ? "text-fin-income" : "text-fin-expense"
@@ -1464,7 +1473,7 @@ export default function Sp2dUnifiedPage() {
                                           <h4 className="text-sm font-bold text-fin-text-primary leading-tight">{item.nama}</h4>
                                        </div>
                                        <div className="text-right">
-                                          <p className="text-[10px] font-bold text-[#98A2B3] uppercase tracking-wider">Kas Efektif</p>
+                                          <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider">Kas Efektif</p>
                                           <p className={cn(
                                              "text-lg font-extrabold tabular-nums",
                                              item.kas_efektif > 0 ? "text-fin-income" : "text-fin-expense"
@@ -1525,7 +1534,7 @@ export default function Sp2dUnifiedPage() {
             <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="bg-fin-surface w-full max-w-6xl h-[90vh] rounded-xl shadow-2xl overflow-hidden flex flex-col">
                 <div className="h-16 border-b border-fin-border flex items-center justify-between px-8 bg-fin-page">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-[#101828] rounded-lg flex items-center justify-center text-white"><FileText size={16} /></div>
+                    <div className="w-8 h-8 bg-ds-primary rounded-lg flex items-center justify-center text-white"><FileText size={16} /></div>
                     <div>
                        <h3 className="text-sm font-semibold text-fin-text-primary">Document Viewer</h3>
                        <p className="text-[11px] text-fin-text-muted">Pratinjau Arsip Digital SP2D</p>
@@ -1536,11 +1545,11 @@ export default function Sp2dUnifiedPage() {
                       variant="outline" 
                       size="sm" 
                       onClick={() => window.open(previewPdf, '_blank')}
-                      className="text-[10px] font-bold h-8 px-4 rounded-md border-[#D0D5DD] hover:bg-fin-surface"
+                      className="text-[10px] font-bold h-8 px-4 rounded-lg border-fin-border-strong hover:bg-fin-surface"
                     >
                       Buka di Tab Baru
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setPreviewPdf(null)} className="h-8 w-8 text-[#98A2B3] hover:text-fin-expense rounded-md"><X size={20} /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => setPreviewPdf(null)} className="h-8 w-8 text-fin-text-muted hover:text-fin-expense rounded-lg"><X size={20} /></Button>
                   </div>
                </div>
                <div className="flex-1 w-full bg-slate-100 flex items-center justify-center relative">
@@ -1579,7 +1588,7 @@ export default function Sp2dUnifiedPage() {
                           <label className="text-[10px] font-black text-fin-info uppercase tracking-widest ml-1">Tanggal Cair (Bank)</label>
                           <Input 
                             type="date" 
-                            className="h-12 bg-fin-surface border-2 border-[#2E90FA]/10 rounded-lg outline-none focus:border-[#2E90FA] font-bold text-fin-text-primary transition-all shadow-sm"
+                            className="h-12 bg-fin-surface border-2 border-[#2E90FA]/10 rounded-lg outline-none focus:border-ds-focus-ring font-bold text-fin-text-primary transition-all shadow-sm"
                             value={rekonModal.tanggalPencairan}
                             onChange={(e) => setRekonModal({...rekonModal, tanggalPencairan: e.target.value})}
                           />
@@ -1590,7 +1599,7 @@ export default function Sp2dUnifiedPage() {
                           <div className="relative">
                             <input 
                               type="text" 
-                              className="w-full px-4 h-12 bg-fin-surface border-2 border-[#2E90FA]/20 rounded-lg outline-none focus:border-[#2E90FA] font-bold text-fin-text-primary text-lg tracking-tight transition-all shadow-sm"
+                              className="w-full px-4 h-12 bg-fin-surface border-2 border-[#2E90FA]/20 rounded-lg outline-none focus:border-ds-focus-ring font-bold text-fin-text-primary text-lg tracking-tight transition-all shadow-sm"
                               placeholder="0"
                               value={formatNumber(rekonModal.nilaiBank)}
                               onChange={(e) => {
@@ -1609,7 +1618,7 @@ export default function Sp2dUnifiedPage() {
                      <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">
                            <label className="text-[10px] font-medium text-fin-text-muted ml-1 uppercase tracking-wider">Nilai SP2D (Neto)</label>
-                           <div className="h-10 flex items-center px-4 bg-[#F2F4F7] border border-fin-border rounded-lg font-bold text-fin-text-muted text-sm tabular-nums">
+                           <div className="h-10 flex items-center px-4 bg-fin-subtle border border-fin-border rounded-lg font-bold text-fin-text-muted text-sm tabular-nums">
                              {formatCurrency(rekonModal.nilaiNeto)}
                            </div>
                         </div>
@@ -1667,7 +1676,7 @@ export default function Sp2dUnifiedPage() {
             exit={{ y: 100, opacity: 0 }}
             className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[150] w-full max-w-2xl px-4"
           >
-            <div className="bg-fin-surface/95 backdrop-blur-xl text-fin-text-primary p-4 rounded-2xl shadow-2xl border border-fin-border flex items-center justify-between gap-6 ring-4 ring-black/10">
+            <div className="bg-fin-surface/95 backdrop-blur-xl text-fin-text-primary p-4 rounded-xl shadow-2xl border border-fin-border flex items-center justify-between gap-6 ring-4 ring-black/10">
                <div className="flex items-center gap-4 pl-2">
                  <div className="w-8 h-8 bg-fin-info text-fin-surface rounded-lg flex items-center justify-center font-bold text-sm">
                    {selectedIds.length}
@@ -1701,7 +1710,7 @@ export default function Sp2dUnifiedPage() {
 
       {/* RESTORE TANGGAL PENCAIRAN DIALOG */}
       <Dialog open={restoreModal} onOpenChange={setRestoreModal}>
-        <DialogContent className="max-w-md bg-fin-surface rounded-3xl p-0 overflow-hidden border border-fin-border">
+        <DialogContent className="max-w-md bg-fin-surface rounded-xl p-0 overflow-hidden border border-fin-border">
           <div className="bg-rose-600 p-7 text-white">
             <div className="flex items-center gap-3">
               <CalendarCheck size={28} />
@@ -1714,11 +1723,11 @@ export default function Sp2dUnifiedPage() {
           <div className="p-6 space-y-4">
             {restorePreview && (
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 text-center">
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-center">
                   <p className="text-2xl font-black text-rose-600">{restorePreview.total_null}</p>
                   <p className="text-[9px] text-rose-500 uppercase font-bold mt-1">SP2D Tanpa Tgl Cair</p>
                 </div>
-                <div className="bg-green-50 border border-green-200 rounded-2xl p-3 text-center">
+                <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-center">
                   <p className="text-2xl font-black text-green-600">{restorePreview.bisa_pulih_dari_potongan}</p>
                   <p className="text-[9px] text-green-600 uppercase font-bold mt-1">Bisa Dipulihkan</p>
                 </div>
@@ -1744,12 +1753,12 @@ export default function Sp2dUnifiedPage() {
               <Button
                 onClick={() => handleRestore(false)}
                 disabled={restoring || (restorePreview?.total_null === 0)}
-                className="flex-1 h-12 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-xs uppercase"
+                className="flex-1 h-12 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase"
               >
                 {restoring ? <Loader2 size={14} className="animate-spin mr-2" /> : <CalendarCheck size={14} className="mr-2" />}
                 Pulihkan Sekarang
               </Button>
-              <Button variant="ghost" onClick={() => setRestoreModal(false)} className="h-12 px-4 rounded-2xl text-xs font-bold">
+              <Button variant="ghost" onClick={() => setRestoreModal(false)} className="h-12 px-4 rounded-xl text-xs font-bold">
                 Batal
               </Button>
             </div>
@@ -1759,8 +1768,8 @@ export default function Sp2dUnifiedPage() {
 
       {/* IMPORT PREVIEW DIALOG (NEW PREMIUM UI) */}
       <Dialog open={importPreview.isOpen} onOpenChange={(v) => !isImporting && setImportPreview({ ...importPreview, isOpen: v })}>
-         <DialogContent className="!fixed !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !max-w-2xl !w-[90vw] !max-h-[95vh] rounded-[32px] p-0 overflow-hidden border-none shadow-2xl flex flex-col">
-            <div className="bg-[#101828] p-8 text-white relative overflow-hidden shrink-0">
+         <DialogContent className="!fixed !left-1/2 !top-1/2 !-translate-x-1/2 !-translate-y-1/2 !max-w-2xl !w-[90vw] !max-h-[95vh] rounded-xl p-0 overflow-hidden border-none shadow-2xl flex flex-col">
+            <div className="bg-ds-primary p-8 text-white relative overflow-hidden shrink-0">
                <div className="absolute top-0 right-0 p-6 opacity-10 rotate-12">
                   <FileUp size={80} />
                </div>
@@ -1770,19 +1779,19 @@ export default function Sp2dUnifiedPage() {
                   </div>
                   <div>
                      <DialogTitle className="text-xl font-bold tracking-tight">Pratinjau Impor Data</DialogTitle>
-                     <DialogDescription className="text-[#98A2B3] font-medium mt-0.5">Verifikasi dokumen sebelum dimasukkan ke dalam sistem</DialogDescription>
+                     <DialogDescription className="text-fin-text-muted font-medium mt-0.5">Verifikasi dokumen sebelum dimasukkan ke dalam sistem</DialogDescription>
                   </div>
                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-5 bg-fin-page rounded-2xl border border-fin-border">
-                     <p className="text-[9px] font-bold text-[#98A2B3] uppercase tracking-widest mb-1">Jumlah Dokumen</p>
+                  <div className="p-5 bg-fin-page rounded-xl border border-fin-border">
+                     <p className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest mb-1">Jumlah Dokumen</p>
                      <p className="text-xl font-bold text-fin-text-primary">{importPreview.stats?.count} Records</p>
                   </div>
-                  <div className="p-5 bg-fin-page rounded-2xl border border-fin-border">
-                     <p className="text-[9px] font-bold text-[#98A2B3] uppercase tracking-widest mb-1">Total Nilai Bruto</p>
+                  <div className="p-5 bg-fin-page rounded-xl border border-fin-border">
+                     <p className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest mb-1">Total Nilai Bruto</p>
                      <p className="text-xl font-bold text-fin-income">{formatCurrency(importPreview.stats?.total || 0)}</p>
                   </div>
                </div>
@@ -1796,19 +1805,19 @@ export default function Sp2dUnifiedPage() {
                      {importPreview.data.map((item: any, idx: number) => (
                         <div key={idx} className="p-3 bg-fin-surface border border-fin-border rounded-xl flex justify-between items-center hover:border-[#2E90FA] transition-colors group">
                            <div className="flex items-center gap-3">
-                              <div className="w-7 h-7 rounded-lg bg-[#F1F3F5] flex items-center justify-center text-[9px] font-bold text-[#98A2B3] group-hover:bg-[#2E90FA] group-hover:text-white transition-colors">
+                              <div className="w-7 h-7 rounded-lg bg-[#F1F3F5] flex items-center justify-center text-[9px] font-bold text-fin-text-muted group-hover:bg-[#2E90FA] group-hover:text-white transition-colors">
                                  {idx + 1}
                               </div>
                               <div>
                                  <div className="flex items-center gap-1.5 group/copy">
-                                    <p className="text-[11px] font-bold text-fin-text-primary truncate max-w-[150px] transition-colors group-hover/copy:text-indigo-600 select-all">{item.nomor || 'NOMOR KOSONG'}</p>
+                                    <p className="text-[11px] font-bold text-fin-text-primary truncate max-w-[150px] transition-colors group-hover/copy:text-fin-info-text select-all">{item.nomor || 'NOMOR KOSONG'}</p>
                                     <button
                                       title="Salin nomor SP2D"
                                       onClick={() => {
                                         navigator.clipboard.writeText(item.nomor);
                                         toast.success('Nomor disalin', { description: item.nomor });
                                       }}
-                                      className="p-0.5 rounded opacity-40 hover:opacity-100 hover:bg-indigo-50 hover:text-indigo-600 text-fin-text-muted transition-all shrink-0"
+                                      className="p-0.5 rounded opacity-40 hover:opacity-100 hover:bg-indigo-50 hover:text-fin-info-text text-fin-text-muted transition-all shrink-0"
                                     >
                                       <Copy size={11} />
                                     </button>
@@ -1839,7 +1848,7 @@ export default function Sp2dUnifiedPage() {
                   </div>
                </div>
 
-               <div className="bg-amber-50 border border-amber-100 p-5 rounded-2xl flex items-start gap-3">
+               <div className="bg-amber-50 border border-amber-100 p-5 rounded-xl flex items-start gap-3">
                   <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center text-white shrink-0 shadow-lg shadow-amber-500/20">
                      <AlertCircle size={16} />
                   </div>
@@ -1861,14 +1870,14 @@ export default function Sp2dUnifiedPage() {
                            {Math.round((importProgress.current / importProgress.total) * 100)}%
                         </p>
                      </div>
-                     <div className="h-3 w-full bg-[#EAECF0] rounded-full overflow-hidden border border-[#D0D5DD]/20 shadow-inner">
+                     <div className="h-3 w-full bg-[#EAECF0] rounded-full overflow-hidden border border-fin-border-strong/20 shadow-inner">
                         <motion.div 
                            initial={{ width: 0 }}
                            animate={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
-                           className="h-full bg-[#101828] rounded-full"
+                           className="h-full bg-ds-primary rounded-full"
                         />
                      </div>
-                     <p className="text-[10px] text-center font-bold text-[#98A2B3] uppercase tracking-widest">
+                     <p className="text-[10px] text-center font-bold text-fin-text-muted uppercase tracking-widest">
                         {importProgress.current} DARI {importProgress.total} DOKUMEN BERHASIL DIPROSES
                      </p>
                   </div>
@@ -1876,7 +1885,7 @@ export default function Sp2dUnifiedPage() {
                   <div className="flex gap-4 w-full sm:flex-row flex-col">
                      <Button 
                        onClick={handleCommitImport} 
-                       className="h-14 flex-1 bg-[#101828] hover:bg-[#1D2939] text-white rounded-xl font-bold text-sm shadow-xl shadow-[#101828]/20 group transition-all"
+                       className="h-14 flex-1 bg-ds-primary hover:bg-ds-primary-hover text-white rounded-xl font-bold text-sm shadow-xl shadow-[#101828]/20 group transition-all"
                      >
                         <div className="flex items-center gap-2">
                            <Save size={18} className="group-hover:scale-110 transition-transform" />
@@ -1886,7 +1895,7 @@ export default function Sp2dUnifiedPage() {
                      <Button 
                        variant="ghost" 
                        onClick={() => setImportPreview({ isOpen: false, data: [], stats: null })}
-                       className="h-14 px-8 text-[#98A2B3] font-bold hover:bg-fin-surface rounded-xl transition-all"
+                       className="h-14 px-8 text-fin-text-muted font-bold hover:bg-fin-surface rounded-xl transition-all"
                      >
                         BATALKAN
                      </Button>

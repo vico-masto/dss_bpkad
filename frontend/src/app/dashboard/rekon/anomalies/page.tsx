@@ -25,11 +25,12 @@ import { formatCurrency, cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import api from '@/lib/api';
 import { toast } from 'sonner';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import Link from 'next/link';
 import { exportToExcelMultiSheet } from '@/lib/exportUtils';
 import { FileDown } from 'lucide-react';
 import { PageHeader } from '@/components/patterns/page-header';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   Tooltip, 
   TooltipContent, 
@@ -147,7 +148,7 @@ export default function AnomalyPage() {
   if (loading && !data) {
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center space-y-4">
-        <Loader2 className="animate-spin text-indigo-600" size={48} />
+        <Loader2 className="animate-spin text-fin-info-text" size={48} />
         <p className="text-slate-500 font-medium animate-pulse">Menganalisis Integritas Data Keuangan...</p>
       </div>
     );
@@ -171,16 +172,17 @@ export default function AnomalyPage() {
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-2 bg-fin-surface px-3 h-10 rounded-xl border border-fin-border shadow-sm">
                 <span className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider">Filter:</span>
-                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="border-none shadow-none h-full font-semibold text-xs focus:ring-0 bg-transparent w-32">
-                    <SelectValue placeholder="Bulan" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-fin-surface border-fin-border">
-                    {months.map((m) => (
-                      <SelectItem key={m.value} value={m.value} className="text-xs font-semibold hover:bg-fin-page">{m.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="h-8 w-32 px-2 border-none bg-transparent text-fin-text-primary text-xs font-semibold focus:outline-none cursor-pointer"
+                >
+                  {months.map((m) => (
+                    <option key={m.value} value={m.value} className="bg-fin-surface text-fin-text-primary">
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <Button onClick={handleExport} disabled={exporting || loading} variant="outline" className="h-10 px-4 border-fin-border rounded-xl font-semibold text-xs flex items-center gap-2 hover:bg-fin-page transition-all">
                 {exporting ? <Loader2 className="animate-spin" size={14} /> : <FileDown size={14} />}
@@ -256,7 +258,7 @@ export default function AnomalyPage() {
                   </div>
                 </Card>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="bg-[#101828] text-white border-none rounded-lg p-3 text-xs max-w-[250px] font-medium leading-relaxed">
+              <TooltipContent side="bottom" className="bg-ds-primary text-white border-none rounded-lg p-3 text-xs max-w-[250px] font-medium leading-relaxed">
                 {stat.tooltip}
               </TooltipContent>
             </Tooltip>
@@ -269,16 +271,16 @@ export default function AnomalyPage() {
         <Tabs defaultValue="sp2d" value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="bg-fin-page px-6 pt-4 border-b border-fin-border flex flex-col md:flex-row justify-between md:items-center gap-4">
             <TabsList className="bg-transparent h-auto p-0 gap-2 flex-wrap">
-              <TabsTrigger value="sp2d" className="px-4 py-2 rounded-t-lg rounded-b-none border-b-2 border-transparent text-xs font-semibold data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 data-[state=active]:bg-fin-surface transition-all">
+              <TabsTrigger value="sp2d" className="px-4 py-2 rounded-t-lg rounded-b-none border-b-2 border-transparent text-xs font-semibold data-[state=active]:border-ds-focus-ring data-[state=active]:text-fin-info-text data-[state=active]:bg-fin-surface transition-all">
                 Anomali Pengeluaran (SP2D)
               </TabsTrigger>
-              <TabsTrigger value="penerimaan" className="px-4 py-2 rounded-t-lg rounded-b-none border-b-2 border-transparent text-xs font-semibold data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 data-[state=active]:bg-fin-surface transition-all">
+              <TabsTrigger value="penerimaan" className="px-4 py-2 rounded-t-lg rounded-b-none border-b-2 border-transparent text-xs font-semibold data-[state=active]:border-ds-focus-ring data-[state=active]:text-fin-info-text data-[state=active]:bg-fin-surface transition-all">
                 Anomali Penerimaan
               </TabsTrigger>
-              <TabsTrigger value="selisih" className="px-4 py-2 rounded-t-lg rounded-b-none border-b-2 border-transparent text-xs font-semibold data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 data-[state=active]:bg-fin-surface transition-all">
+              <TabsTrigger value="selisih" className="px-4 py-2 rounded-t-lg rounded-b-none border-b-2 border-transparent text-xs font-semibold data-[state=active]:border-ds-focus-ring data-[state=active]:text-fin-info-text data-[state=active]:bg-fin-surface transition-all">
                 Selisih Potongan & Pajak
               </TabsTrigger>
-              <TabsTrigger value="bank" className="px-4 py-2 rounded-t-lg rounded-b-none border-b-2 border-transparent text-xs font-semibold data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 data-[state=active]:bg-fin-surface transition-all">
+              <TabsTrigger value="bank" className="px-4 py-2 rounded-t-lg rounded-b-none border-b-2 border-transparent text-xs font-semibold data-[state=active]:border-ds-focus-ring data-[state=active]:text-fin-info-text data-[state=active]:bg-fin-surface transition-all">
                 Bank Unidentified
               </TabsTrigger>
             </TabsList>
@@ -293,7 +295,7 @@ export default function AnomalyPage() {
                 placeholder="Cari transaksi..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-fin-border rounded-lg leading-5 bg-fin-surface text-fin-text-primary placeholder-fin-text-muted focus:outline-none focus:ring-1 focus:ring-indigo-600 focus:border-indigo-600 sm:text-xs transition-all"
+                className="block w-full pl-10 pr-3 py-2 border border-fin-border rounded-lg leading-5 bg-fin-surface text-fin-text-primary placeholder-fin-text-muted focus:outline-none focus:ring-1 focus:ring-ds-focus-ring focus:border-ds-focus-ring sm:text-xs transition-all"
               />
             </div>
           </div>
@@ -315,64 +317,64 @@ export default function AnomalyPage() {
                       <p className="text-[10px] font-bold text-slate-400">Menampilkan 100 data terbaru yang memerlukan verifikasi pencairan bank</p>
                     </div>
 
-                    <div className="overflow-x-auto rounded-2xl border border-fin-border">
-                      <table className="w-full text-left">
-                        <thead className="bg-fin-page">
-                          <tr>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Nomor SP2D</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">OPD</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Uraian</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-right">Nilai Neto</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Tgl SP2D</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-center">Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-fin-border">
+                    <div className="overflow-x-auto rounded-xl border border-fin-border">
+                      <Table>
+                        <TableHeader className="bg-fin-page">
+                          <TableRow>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Nomor SP2D</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">OPD</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Uraian</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-right">Nilai Neto</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Tgl SP2D</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-center">Aksi</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody className="divide-y divide-fin-border">
                           {(data?.unmatchedSP2D ?? []).length === 0 ? (
-                            <tr>
-                              <td colSpan={6} className="p-12 text-center">
+                            <TableRow>
+                              <TableCell colSpan={6} className="p-12 text-center">
                                 <div className="flex flex-col items-center opacity-40">
                                   <CheckCircle2 size={40} className="text-[#12B76A] mb-2" />
-                                  <p className="text-xs font-semibold text-[#475467]">Semua SP2D telah sesuai dengan bank!</p>
+                                  <p className="text-xs font-semibold text-fin-text-secondary">Semua SP2D telah sesuai dengan bank!</p>
                                 </div>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           ) : (
                             (data?.unmatchedSP2D ?? []).filter((item: any) =>
                               item.nomor.toLowerCase().includes(searchQuery.toLowerCase()) ||
                               item.uraian.toLowerCase().includes(searchQuery.toLowerCase())
                             ).map((item: any) => (
-                              <tr key={item.id} className="hover:bg-fin-page transition-colors group">
-                                <td className="p-4">
+                              <TableRow key={item.id} className="hover:bg-fin-page transition-colors group">
+                                <TableCell className="p-4">
                                   <div className="font-black text-xs text-fin-text-primary truncate max-w-[200px]">{item.nomor}</div>
                                   <div className="text-[9px] font-bold text-fin-text-muted uppercase mt-0.5">{format(new Date(item.tanggal), 'dd MMM yyyy')}</div>
-                                </td>
-                                <td className="p-4">
+                                </TableCell>
+                                <TableCell className="p-4">
                                   <div className="text-[10px] font-bold text-fin-text-secondary truncate max-w-[200px]">{item.opd}</div>
-                                </td>
-                                <td className="p-4">
+                                </TableCell>
+                                <TableCell className="p-4">
                                   <div className="text-[10px] font-bold text-fin-text-muted truncate max-w-[200px] italic">{item.uraian}</div>
-                                </td>
-                                <td className="p-4 text-right">
+                                </TableCell>
+                                <TableCell className="p-4 text-right">
                                   <div className="font-black text-xs text-fin-expense tabular-nums">{formatCurrency(item.nilai_neto)}</div>
-                                </td>
-                                <td className="p-4">
+                                </TableCell>
+                                <TableCell className="p-4">
                                   <div className="text-[10px] font-black text-fin-text-muted">
                                     {format(new Date(item.tanggal), 'dd/MM/yy')}
                                   </div>
-                                </td>
-                                <td className="p-4 text-center">
+                                </TableCell>
+                                <TableCell className="p-4 text-center">
                                   <Link href={`/dashboard/rekon?search=${item.nomor}`}>
-                                    <Button size="sm" variant="ghost" className="h-8 w-8 rounded-lg text-fin-text-muted hover:text-indigo-600 p-0">
+                                    <Button size="sm" variant="ghost" className="h-8 w-8 rounded-lg text-fin-text-muted hover:text-fin-info-text p-0">
                                       <ExternalLink size={14} />
                                     </Button>
                                   </Link>
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             ))
                           )}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                     </div>
                   </div>
                 </TabsContent>
@@ -385,58 +387,58 @@ export default function AnomalyPage() {
                       <p className="text-[10px] font-bold text-slate-400">Mencari potensi kesalahan input No. Bukti atau tanggal penerimaan</p>
                     </div>
 
-                    <div className="overflow-x-auto rounded-2xl border border-fin-border">
-                      <table className="w-full text-left">
-                        <thead className="bg-fin-page">
-                          <tr>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">No. Bukti / STS</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Uraian</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-right">Nilai</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Tgl Buku</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-center">Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-fin-border">
+                    <div className="overflow-x-auto rounded-xl border border-fin-border">
+                      <Table>
+                        <TableHeader className="bg-fin-page">
+                          <TableRow>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">No. Bukti / STS</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Uraian</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-right">Nilai</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Tgl Buku</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-center">Aksi</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody className="divide-y divide-fin-border">
                           {(data?.unmatchedPendapatan ?? []).length === 0 ? (
-                            <tr>
-                              <td colSpan={5} className="p-12 text-center">
+                            <TableRow>
+                              <TableCell colSpan={5} className="p-12 text-center">
                                 <div className="flex flex-col items-center opacity-40">
                                   <CheckCircle2 size={40} className="text-[#12B76A] mb-2" />
-                                  <p className="text-xs font-semibold text-[#475467]">Seluruh pendapatan telah klop!</p>
+                                  <p className="text-xs font-semibold text-fin-text-secondary">Seluruh pendapatan telah klop!</p>
                                 </div>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           ) : (
                             (data?.unmatchedPendapatan ?? []).filter((item: any) =>
                               item.nomor_bukti.toLowerCase().includes(searchQuery.toLowerCase()) ||
                               item.uraian.toLowerCase().includes(searchQuery.toLowerCase())
                             ).map((item: any) => (
-                              <tr key={item.id} className="hover:bg-fin-page transition-colors group">
-                                <td className="p-4">
+                              <TableRow key={item.id} className="hover:bg-fin-page transition-colors group">
+                                <TableCell className="p-4">
                                   <div className="font-black text-xs text-fin-text-primary">{item.nomor_bukti}</div>
                                   <div className="text-[9px] font-bold text-fin-info mt-0.5">{item.id_sumber_dana}</div>
-                                </td>
-                                <td className="p-4">
+                                </TableCell>
+                                <TableCell className="p-4">
                                   <div className="text-[10px] font-bold text-fin-text-muted line-clamp-1 max-w-[300px]">{item.uraian}</div>
-                                </td>
-                                <td className="p-4 text-right">
+                                </TableCell>
+                                <TableCell className="p-4 text-right">
                                   <div className="font-black text-xs text-fin-income tabular-nums">{formatCurrency(item.nilai)}</div>
-                                </td>
-                                <td className="p-4">
+                                </TableCell>
+                                <TableCell className="p-4">
                                   <div className="text-[10px] font-black text-fin-text-muted">{format(new Date(item.tanggal), 'dd/MM/yy')}</div>
-                                </td>
-                                <td className="p-4 text-center">
+                                </TableCell>
+                                <TableCell className="p-4 text-center">
                                   <Link href={`/pendapatan?search=${item.nomor_bukti}`}>
-                                    <Button size="sm" variant="ghost" className="h-8 w-8 rounded-lg text-fin-text-muted hover:text-indigo-600 p-0">
+                                    <Button size="sm" variant="ghost" className="h-8 w-8 rounded-lg text-fin-text-muted hover:text-fin-info-text p-0">
                                       <SearchX size={14} />
                                     </Button>
                                   </Link>
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             ))
                           )}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                     </div>
                   </div>
                 </TabsContent>
@@ -449,59 +451,59 @@ export default function AnomalyPage() {
                       <p className="text-[10px] font-bold text-slate-400">Rincian potongan yang sudah diinput namun belum ditemukan di mutasi bank</p>
                     </div>
 
-                    <div className="overflow-x-auto rounded-2xl border border-fin-border">
-                      <table className="w-full text-left">
-                        <thead className="bg-fin-page">
-                          <tr>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">No. SP2D</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Uraian</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-right">Nilai</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Tgl Cair</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-center">Tipe</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-fin-border">
+                    <div className="overflow-x-auto rounded-xl border border-fin-border">
+                      <Table>
+                        <TableHeader className="bg-fin-page">
+                          <TableRow>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">No. SP2D</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Uraian</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-right">Nilai</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Tgl Cair</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-center">Tipe</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody className="divide-y divide-fin-border">
                           {(data?.unmatchedPotongan ?? []).length === 0 ? (
-                            <tr>
-                              <td colSpan={5} className="p-12 text-center">
+                            <TableRow>
+                              <TableCell colSpan={5} className="p-12 text-center">
                                 <div className="flex flex-col items-center opacity-40">
                                   <CheckCircle2 size={40} className="text-[#12B76A] mb-2" />
-                                  <p className="text-xs font-semibold text-[#475467]">Seluruh potongan telah disetorkan!</p>
+                                  <p className="text-xs font-semibold text-fin-text-secondary">Seluruh potongan telah disetorkan!</p>
                                 </div>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           ) : (
                             (data?.unmatchedPotongan ?? []).filter((item: any) =>
                               item.nomor_bukti.toLowerCase().includes(searchQuery.toLowerCase()) ||
                               item.uraian.toLowerCase().includes(searchQuery.toLowerCase())
                             ).map((item: any) => (
-                              <tr key={item.id} className="hover:bg-fin-page transition-colors group">
-                                <td className="p-4">
+                              <TableRow key={item.id} className="hover:bg-fin-page transition-colors group">
+                                <TableCell className="p-4">
                                   <div className="font-black text-xs text-fin-text-primary">{item.nomor_bukti}</div>
                                   <div className="text-[9px] font-bold text-fin-info mt-0.5">{item.id_sumber_dana}</div>
-                                </td>
-                                <td className="p-4">
+                                </TableCell>
+                                <TableCell className="p-4">
                                   <div className="text-[10px] font-bold text-fin-text-muted line-clamp-1 max-w-[300px]">{item.uraian}</div>
-                                </td>
-                                <td className="p-4 text-right">
+                                </TableCell>
+                                <TableCell className="p-4 text-right">
                                   <div className="font-black text-xs text-fin-info tabular-nums">{formatCurrency(item.nilai)}</div>
-                                </td>
-                                <td className="p-4">
+                                </TableCell>
+                                <TableCell className="p-4">
                                   <div className="text-[10px] font-black text-fin-text-muted">{format(new Date(item.tanggal), 'dd/MM/yy')}</div>
-                                </td>
-                                <td className="p-4 text-center">
+                                </TableCell>
+                                <TableCell className="p-4 text-center">
                                    <span className={cn(
-                                     "px-2 py-0.5 rounded-md text-[8px] font-black uppercase",
+                                     "px-2 py-0.5 rounded-lg text-[8px] font-black uppercase",
                                      item.tipe === 'SELISIH_POTONGAN' ? "bg-fin-warning-bg text-fin-warning-text" : "bg-fin-surplus-bg text-fin-surplus-text"
                                    )}>
                                      {item.tipe.replace('SELISIH_', '')}
                                    </span>
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             ))
                           )}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                     </div>
                   </div>
                 </TabsContent>
@@ -514,57 +516,57 @@ export default function AnomalyPage() {
                       <p className="text-[10px] font-bold text-slate-400">Mutasi yang sudah ada di rekening koran tapi belum Anda input di aplikasi</p>
                     </div>
 
-                    <div className="overflow-x-auto rounded-2xl border border-fin-border">
-                      <table className="w-full text-left">
-                        <thead className="bg-fin-page">
-                          <tr>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Tgl Bank</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Deskripsi Rekening Koran</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-right">Penerimaan</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-right">Pengeluaran</th>
-                            <th className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-center">Tipe</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-fin-border">
+                    <div className="overflow-x-auto rounded-xl border border-fin-border">
+                      <Table>
+                        <TableHeader className="bg-fin-page">
+                          <TableRow>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Tgl Bank</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Deskripsi Rekening Koran</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-right">Penerimaan</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-right">Pengeluaran</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-center">Tipe</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody className="divide-y divide-fin-border">
                           {(data?.unidentifiedBank ?? []).length === 0 ? (
-                            <tr>
-                              <td colSpan={5} className="p-12 text-center">
+                            <TableRow>
+                              <TableCell colSpan={5} className="p-12 text-center">
                                 <div className="flex flex-col items-center opacity-40">
                                   <CheckCircle2 size={40} className="text-[#12B76A] mb-2" />
-                                  <p className="text-xs font-semibold text-[#475467]">Mutasi bank telah terpetakan sempurna!</p>
+                                  <p className="text-xs font-semibold text-fin-text-secondary">Mutasi bank telah terpetakan sempurna!</p>
                                 </div>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           ) : (
                             (data?.unidentifiedBank ?? []).filter((item: any) =>
                               item.deskripsi.toLowerCase().includes(searchQuery.toLowerCase())
                             ).map((item: any) => (
-                              <tr key={item.id} className="hover:bg-fin-page transition-colors">
-                                <td className="p-4">
+                              <TableRow key={item.id} className="hover:bg-fin-page transition-colors">
+                                <TableCell className="p-4">
                                   <div className="text-xs font-black text-fin-text-primary">{format(new Date(item.tanggal), 'dd/MM/yy')}</div>
-                                </td>
-                                <td className="p-4">
+                                </TableCell>
+                                <TableCell className="p-4">
                                   <div className="text-[10px] font-bold text-fin-text-muted line-clamp-1 max-w-[400px] uppercase">{item.deskripsi}</div>
-                                </td>
-                                <td className="p-4 text-right">
+                                </TableCell>
+                                <TableCell className="p-4 text-right">
                                   <div className="font-black text-xs text-fin-income tabular-nums">{Number(item.kredit) > 0 ? formatCurrency(item.kredit) : '-'}</div>
-                                </td>
-                                <td className="p-4 text-right">
+                                </TableCell>
+                                <TableCell className="p-4 text-right">
                                   <div className="font-black text-xs text-fin-expense tabular-nums">{Number(item.debet) > 0 ? formatCurrency(item.debet) : '-'}</div>
-                                </td>
-                                <td className="p-4 text-center">
+                                </TableCell>
+                                <TableCell className="p-4 text-center">
                                   <span className={cn(
                                     "px-2 py-0.5 rounded-full text-[8px] font-black uppercase",
                                     Number(item.kredit) > 0 ? "bg-fin-income-bg text-fin-income-text" : "bg-fin-expense-bg text-fin-expense-text"
                                   )}>
                                     {Number(item.kredit) > 0 ? 'Inflow' : 'Outflow'}
                                   </span>
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             ))
                           )}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                     </div>
                   </div>
                 </TabsContent>

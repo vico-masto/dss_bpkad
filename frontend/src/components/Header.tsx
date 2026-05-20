@@ -124,7 +124,7 @@ export default function Header({ isCollapsed, setIsCollapsed }: { isCollapsed: b
             e.preventDefault();
             toggleTheme();
           }}
-          className="p-2 text-fin-text-muted hover:text-indigo-600 dark:hover:text-amber-400 hover:bg-fin-page rounded-xl transition-all relative z-[100] cursor-pointer"
+          className="p-2 text-fin-text-muted hover:text-fin-info-text dark:hover:text-amber-400 hover:bg-fin-page rounded-xl transition-all relative z-[100] cursor-pointer"
           title={isDarkMode ? "Aktifkan Mode Terang" : "Aktifkan Mode Malam"}
         >
           {isDarkMode ? <Sun size={20} className="animate-in spin-in-180 duration-500" /> : <Moon size={20} className="animate-in spin-in-180 duration-500" />}

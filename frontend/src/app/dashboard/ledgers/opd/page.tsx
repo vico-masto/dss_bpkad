@@ -116,7 +116,7 @@ export default function OpdLedgerPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-fin-text-primary tracking-tight flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#101828] rounded-xl flex items-center justify-center shadow-lg">
+            <div className="w-10 h-10 bg-ds-primary rounded-xl flex items-center justify-center shadow-lg">
                <Building2 className="text-white" size={24} />
             </div>
             BUKU PEMBANTU OPD
@@ -133,7 +133,7 @@ export default function OpdLedgerPage() {
             <FileSpreadsheet size={16} className="mr-2" />
             Excel
           </Button>
-          <Button onClick={handlePreviewReport} className="h-10 bg-fin-text-primary text-fin-surface font-bold">
+          <Button variant="primary" onClick={handlePreviewReport} className="h-10">
             <Printer size={16} className="mr-2" />
             Cetak Laporan
           </Button>
@@ -150,7 +150,7 @@ export default function OpdLedgerPage() {
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Pilih Unit Kerja (OPD)</label>
                     <select 
-                      className="w-full h-10 px-3 rounded-md border border-fin-border bg-fin-page text-fin-text-primary text-sm focus:ring-2 focus:ring-fin-info/20 focus:outline-none"
+                      className="w-full h-10 px-3 rounded-lg border border-fin-border bg-fin-page text-fin-text-primary text-sm focus:ring-2 focus:ring-ds-focus-ring focus:outline-none"
                       value={filters.opd}
                       onChange={(e) => setFilters({ ...filters, opd: e.target.value })}
                     >
@@ -199,8 +199,8 @@ export default function OpdLedgerPage() {
               </div>
            </CardContent>
         </Card>
-        <Card className="border-fin-border shadow-sm bg-fin-income/10 overflow-hidden relative group">
-           <CardContent className="p-6">
+        <Card className="border-fin-income/20 shadow-sm bg-fin-income-bg overflow-hidden relative group">
+           <CardContent className="p-5">
               <p className="text-[10px] font-black text-fin-income uppercase tracking-widest mb-1">Sisa Pagu Anggaran</p>
               <h3 className="text-2xl font-black text-fin-income tabular-nums">
                 {isLoading ? '...' : formatCurrency(data?.summary?.sisaPagu || 0)}
@@ -241,7 +241,7 @@ export default function OpdLedgerPage() {
                         {new Date(item.tanggal).toLocaleDateString('id-ID')}
                       </TableCell>
                       <TableCell>
-                        <span className="inline-flex px-2 py-1 bg-fin-page text-fin-text-primary text-[10px] font-black rounded-md tracking-wider">
+                        <span className="inline-flex px-2 py-1 bg-fin-page text-fin-text-primary text-[10px] font-black rounded-lg tracking-wider">
                           {item.bukti}
                         </span>
                       </TableCell>
@@ -268,7 +268,7 @@ export default function OpdLedgerPage() {
                             <Badge variant="outline" className="bg-[#F9FAFB] text-fin-text-muted border-[#EAECF0] text-[9px] px-2 py-0.5 font-medium whitespace-nowrap">BELUM REKON</Badge>
                           )}
                           {item.keterangan_rekon && (
-                            <p className="text-[8px] text-indigo-600 font-bold max-w-[80px] truncate" title={item.keterangan_rekon}>
+                            <p className="text-[8px] text-fin-info-text font-bold max-w-[80px] truncate" title={item.keterangan_rekon}>
                               {item.keterangan_rekon}
                             </p>
                           )}
@@ -291,15 +291,15 @@ export default function OpdLedgerPage() {
 
       {/* PDF PREVIEW MODAL */}
       {previewPdf && (
-        <div className="fixed inset-0 z-50 bg-[#101828]/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-fin-surface rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-ds-primary/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-fin-surface rounded-xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden shadow-2xl">
             <div className="p-4 border-b border-fin-border flex items-center justify-between">
               <h3 className="font-black text-fin-text-primary text-sm uppercase">Pratinjau Buku Pembantu OPD</h3>
               <Button variant="ghost" onClick={() => setPreviewPdf(null)}><X size={18} /></Button>
             </div>
             <iframe src={previewPdf} className="flex-1 w-full" />
             <div className="p-4 bg-slate-50 border-t flex justify-end">
-              <Button onClick={() => setPreviewPdf(null)} className="bg-[#101828] text-white">Tutup</Button>
+              <Button onClick={() => setPreviewPdf(null)} className="bg-ds-primary text-white">Tutup</Button>
             </div>
           </motion.div>
         </div>

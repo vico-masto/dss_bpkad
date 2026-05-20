@@ -40,7 +40,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 
@@ -257,8 +257,8 @@ export default function SetoranPajakPage() {
         <SummaryItem 
           label="Total Arsip Pajak" 
           value={pagination.totalData} 
-          color="text-[#101828]" 
-          bg="bg-[#F8F9FA]"
+          color="text-fin-text-primary" 
+          bg="bg-fin-page"
           icon={<CreditCard size={18} />} 
           isCurrency={false}
         />
@@ -290,70 +290,68 @@ export default function SetoranPajakPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <div className="lg:col-span-8">
-          <Card className="rounded-xl border border-[#E9ECEF] shadow-sm overflow-hidden bg-white">
-            <div className="p-6 border-b border-[#F2F4F7] bg-[#F8F9FA]/50 flex flex-row items-center justify-between">
+          <Card className="rounded-xl border border-fin-border shadow-sm overflow-hidden bg-white">
+            <div className="p-6 border-b border-[#F2F4F7] bg-fin-page/50 flex flex-row items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-[#101828] rounded-lg flex items-center justify-center text-white">
+                <div className="w-10 h-10 bg-ds-primary rounded-lg flex items-center justify-center text-white">
                   <ArrowUpRight size={20} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-[#101828] tracking-tight">Formulir Setoran Pajak</h3>
-                  <p className="text-xs font-medium text-[#475467]">Input Bukti Bayar NTPN / SSP Tahun {new Date().getFullYear()}</p>
+                  <h3 className="text-lg font-semibold text-fin-text-primary tracking-tight">Formulir Setoran Pajak</h3>
+                  <p className="text-xs font-medium text-fin-text-secondary">Input Bukti Bayar NTPN / SSP Tahun {new Date().getFullYear()}</p>
                 </div>
               </div>
-              {editId && <Badge variant="outline" className="bg-[#FFFAEB] text-[#B54708] border-[#FEDF89] px-3 py-1 rounded-md text-[10px] font-semibold">Mode Edit Aktif</Badge>}
+              {editId && <Badge variant="outline" className="bg-[#FFFAEB] text-[#B54708] border-[#FEDF89] px-3 py-1 rounded-lg text-[10px] font-semibold">Mode Edit Aktif</Badge>}
             </div>
             
             <CardContent className="p-8 space-y-6">
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-[#475467] ml-1">Jenis Pajak</label>
-                    <Select value={formData.jenis_pajak} onValueChange={(v) => setFormData({...formData, jenis_pajak: v})}>
-                      <SelectTrigger className="h-11 bg-[#F9FAFB] border-[#EAECF0] rounded-lg text-sm font-medium text-[#101828]">
-                        <SelectValue placeholder="Pilih jenis pajak..." />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-lg">
-                        <SelectItem value="PPN" className="text-xs font-medium py-2.5">PPN (Pajak Pertambahan Nilai)</SelectItem>
-                        <SelectItem value="PPH_21" className="text-xs font-medium py-2.5">PPh 21 (Pajak Penghasilan)</SelectItem>
-                        <SelectItem value="PPH_22" className="text-xs font-medium py-2.5">PPh 22 (Pajak Penghasilan)</SelectItem>
-                        <SelectItem value="PPH_23" className="text-xs font-medium py-2.5">PPh 23 (Pajak Penghasilan)</SelectItem>
-                        <SelectItem value="PAJAK_DAERAH" className="text-xs font-medium py-2.5">Pajak Daerah</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <label className="text-xs font-semibold text-fin-text-secondary ml-1">Jenis Pajak</label>
+                    <Combobox
+                      value={formData.jenis_pajak}
+                      onValueChange={(v) => setFormData({...formData, jenis_pajak: v})}
+                      placeholder="Pilih jenis pajak..."
+                      className="h-11"
+                      options={[
+                        { value: 'PPN', label: 'PPN (Pajak Pertambahan Nilai)' },
+                        { value: 'PPH_21', label: 'PPh 21 (Pajak Penghasilan)' },
+                        { value: 'PPH_22', label: 'PPh 22 (Pajak Penghasilan)' },
+                        { value: 'PPH_23', label: 'PPh 23 (Pajak Penghasilan)' },
+                        { value: 'PAJAK_DAERAH', label: 'Pajak Daerah' },
+                      ]}
+                    />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-[#475467] ml-1">Tanggal Pembayaran</label>
-                    <Input type="date" className="h-11 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-[#2E90FA]/20 focus-visible:border-[#2E90FA] font-bold text-sm text-[#101828]" value={formData.tanggal} onChange={(e) => setFormData({...formData, tanggal: e.target.value})} required />
+                    <label className="text-xs font-semibold text-fin-text-secondary ml-1">Tanggal Pembayaran</label>
+                    <Input type="date" className="h-11 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-ds-focus-ring focus-visible:border-ds-focus-ring font-bold text-sm text-fin-text-primary" value={formData.tanggal} onChange={(e) => setFormData({...formData, tanggal: e.target.value})} required />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-[#475467] ml-1">Nomor NTPN / Kode Billing</label>
-                  <Input type="text" placeholder="Masukkan 16 digit kode NTPN..." className="h-11 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-[#2E90FA]/20 focus-visible:border-[#2E90FA] font-bold text-sm text-[#101828]" value={formData.nomor_ntpn} onChange={(e) => setFormData({...formData, nomor_ntpn: e.target.value})} required />
+                  <label className="text-xs font-semibold text-fin-text-secondary ml-1">Nomor NTPN / Kode Billing</label>
+                  <Input type="text" placeholder="Masukkan 16 digit kode NTPN..." className="h-11 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-ds-focus-ring focus-visible:border-ds-focus-ring font-bold text-sm text-fin-text-primary" value={formData.nomor_ntpn} onChange={(e) => setFormData({...formData, nomor_ntpn: e.target.value})} required />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-[#475467] ml-1">Sumber Dana Pengurang</label>
-                  <Select value={formData.id_sumber_dana} onValueChange={(v) => setFormData({...formData, id_sumber_dana: v})}>
-                    <SelectTrigger className="h-11 bg-[#F9FAFB] border-[#EAECF0] rounded-lg text-sm font-medium text-[#101828]">
-                      <SelectValue placeholder="Pilih sumber dana pengurang..." />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-lg">
-                      {sumberDanaList.map((sd: any) => (
-                        <SelectItem key={sd.id} value={sd.id} className="text-xs font-medium py-2.5 uppercase">{sd.nama}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <label className="text-xs font-semibold text-fin-text-secondary ml-1">Sumber Dana Pengurang</label>
+                  <Combobox
+                    value={formData.id_sumber_dana}
+                    onValueChange={(v) => setFormData({...formData, id_sumber_dana: v})}
+                    placeholder="Pilih sumber dana pengurang..."
+                    className="h-11"
+                    options={sumberDanaList.map((sd: any) => ({ value: sd.id, label: sd.nama }))}
+                  />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-[#475467] ml-1">Nilai Setoran (Rp)</label>
+                  <label className="text-xs font-semibold text-fin-text-secondary ml-1">Nilai Setoran (Rp)</label>
                   <div className="relative">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#98A2B3] font-bold text-sm">Rp</div>
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-fin-text-muted font-bold text-sm">Rp</div>
                     <Input 
                       type="text" 
-                      className="h-14 pl-12 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-[#2E90FA]/20 focus-visible:border-[#2E90FA] font-bold text-[#101828] text-2xl tracking-tight transition-all" 
+                      className="h-14 pl-12 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-ds-focus-ring focus-visible:border-ds-focus-ring font-bold text-fin-text-primary text-2xl tracking-tight transition-all" 
                       value={formatNumber(formData.nilai)} 
                       onChange={(e) => setFormData({...formData, nilai: parseNumber(e.target.value)})} 
                       required 
@@ -362,15 +360,15 @@ export default function SetoranPajakPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-[#475467] ml-1">Keterangan Tambahan</label>
-                  <Textarea className="px-4 py-3 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-[#2E90FA]/20 focus-visible:border-[#2E90FA] min-h-[100px] font-medium text-sm text-[#101828]" placeholder="Contoh: Setoran PPN atas SP2D nomor..." value={formData.uraian} onChange={(e) => setFormData({...formData, uraian: e.target.value})} required />
+                  <label className="text-xs font-semibold text-fin-text-secondary ml-1">Keterangan Tambahan</label>
+                  <Textarea className="px-4 py-3 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-ds-focus-ring focus-visible:border-ds-focus-ring min-h-[100px] font-medium text-sm text-fin-text-primary" placeholder="Contoh: Setoran PPN atas SP2D nomor..." value={formData.uraian} onChange={(e) => setFormData({...formData, uraian: e.target.value})} required />
                 </div>
 
                 <div className="pt-4 flex flex-col gap-3">
                   <Button 
                     type="submit" 
                     disabled={saving} 
-                    className="h-12 bg-[#101828] hover:bg-[#1D2939] text-white rounded-lg font-bold shadow-sm transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
+                    className="h-12 bg-ds-primary hover:bg-ds-primary-hover text-white rounded-lg font-bold shadow-sm transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
                   >
                     {saving ? <Loader2 className="animate-spin" size={20} /> : editId ? <RefreshCw size={20} /> : <Save size={20} />}
                     <span className="uppercase tracking-widest text-[10px]">{editId ? 'Perbarui Setoran Pajak' : 'Simpan Transaksi Pajak'}</span>
@@ -392,19 +390,19 @@ export default function SetoranPajakPage() {
 
         {/* Compact History Sidebar (Standardized) */}
         <div className="lg:col-span-4 space-y-6">
-          <Card className="rounded-xl border border-[#E9ECEF] shadow-sm bg-white overflow-hidden">
-              <div className="p-6 border-b border-[#F2F4F7] bg-[#F8F9FA]/50 flex flex-col gap-4">
+          <Card className="rounded-xl border border-fin-border shadow-sm bg-white overflow-hidden">
+              <div className="p-6 border-b border-[#F2F4F7] bg-fin-page/50 flex flex-col gap-4">
                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-[#475467] flex items-center uppercase tracking-wider">
-                      <Clock size={16} className="mr-2 text-[#98A2B3]" />
+                    <h3 className="text-xs font-bold text-fin-text-secondary flex items-center uppercase tracking-wider">
+                      <Clock size={16} className="mr-2 text-fin-text-muted" />
                       Riwayat NTPN
                     </h3>
                     <div className="flex gap-2">
-                       <Button variant="ghost" size="icon" onClick={() => refreshHistory()} className="h-8 w-8 rounded-md hover:bg-white transition-all"><RefreshCw size={14} className={cn(loading && "animate-spin")} /></Button>
+                       <Button variant="ghost" size="icon" onClick={() => refreshHistory()} className="h-8 w-8 rounded-lg hover:bg-white transition-all"><RefreshCw size={14} className={cn(loading && "animate-spin")} /></Button>
                     </div>
                  </div>
                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#98A2B3]" size={14} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-fin-text-muted" size={14} />
                     <Input 
                       placeholder="Cari NTPN / Uraian..." 
                       className="h-9 pl-9 bg-white border-[#EAECF0] text-xs font-medium rounded-lg"
@@ -418,28 +416,28 @@ export default function SetoranPajakPage() {
                {loading && !historyResponse ? (
                   <div className="flex flex-col items-center justify-center py-10 gap-3">
                     <Loader2 className="animate-spin text-[#2E90FA]" size={32} />
-                    <span className="text-xs font-bold text-[#98A2B3] uppercase tracking-widest">Sinkronisasi...</span>
+                    <span className="text-xs font-bold text-fin-text-muted uppercase tracking-widest">Sinkronisasi...</span>
                   </div>
                ) : historyData.length === 0 ? (
                   <div className="py-10 text-center space-y-3">
                     <Database className="mx-auto text-[#F2F4F7]" size={48} />
-                    <p className="text-[#98A2B3] text-xs font-medium uppercase tracking-widest">Data Kosong</p>
+                    <p className="text-fin-text-muted text-xs font-medium uppercase tracking-widest">Data Kosong</p>
                   </div>
                ) : (
                  historyData.map((h: any, i: number) => (
-                   <div key={i} className={cn("group p-4 bg-white rounded-xl border border-[#E9ECEF] hover:border-[#2E90FA] hover:shadow-sm transition-all cursor-pointer", editId === h.id && "border-[#2E90FA] bg-[#EFF8FF]/30")}>
+                   <div key={i} className={cn("group p-4 bg-white rounded-xl border border-fin-border hover:border-[#2E90FA] hover:shadow-sm transition-all cursor-pointer", editId === h.id && "border-[#2E90FA] bg-[#EFF8FF]/30")}>
                       <div className="flex justify-between items-start mb-2">
-                         <Badge variant="outline" className="text-[9px] font-bold text-[#344054] truncate max-w-[120px] bg-[#F9FAFB] border-[#EAECF0] px-2 py-0.5 rounded-md">
+                         <Badge variant="outline" className="text-[9px] font-bold text-[#344054] truncate max-w-[120px] bg-[#F9FAFB] border-[#EAECF0] px-2 py-0.5 rounded-lg">
                            {h.nomor_bukti}
                          </Badge>
-                         <span className="text-[9px] font-semibold text-[#98A2B3]">{format(new Date(h.tanggal), 'dd/MM/yy')}</span>
+                         <span className="text-[9px] font-semibold text-fin-text-muted">{format(new Date(h.tanggal), 'dd/MM/yy')}</span>
                       </div>
-                      <p className="text-[10px] text-[#475467] line-clamp-1 mb-3 font-medium uppercase">{h.uraian}</p>
+                      <p className="text-[10px] text-fin-text-secondary line-clamp-1 mb-3 font-medium uppercase">{h.uraian}</p>
                       <div className="flex justify-between items-center">
-                         <span className="text-sm font-bold text-[#101828] tabular-nums">{formatCurrency(h.nilai)}</span>
+                         <span className="text-sm font-bold text-fin-text-primary tabular-nums">{formatCurrency(h.nilai)}</span>
                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                           <Button variant="ghost" size="icon" onClick={() => handleEdit(h)} className="h-7 w-7 rounded-md hover:bg-[#EFF8FF] text-[#98A2B3] hover:text-[#175CD3] transition-colors"><Edit size={12} /></Button>
-                           <Button variant="ghost" size="icon" onClick={() => handleDelete(h.id)} className="h-7 w-7 rounded-md hover:bg-[#FEF3F2] text-[#98A2B3] hover:text-[#B42318] transition-colors"><Trash2 size={12} /></Button>
+                           <Button variant="ghost" size="icon" onClick={() => handleEdit(h)} className="h-7 w-7 rounded-lg hover:bg-[#EFF8FF] text-fin-text-muted hover:text-[#175CD3] transition-colors"><Edit size={12} /></Button>
+                           <Button variant="ghost" size="icon" onClick={() => handleDelete(h.id)} className="h-7 w-7 rounded-lg hover:bg-[#FEF3F2] text-fin-text-muted hover:text-[#B42318] transition-colors"><Trash2 size={12} /></Button>
                          </div>
                       </div>
                    </div>
@@ -447,7 +445,7 @@ export default function SetoranPajakPage() {
                )}
              </div>
 
-             <div className="p-4 border-t border-[#F2F4F7] bg-[#F8F9FA]/50 flex items-center justify-between">
+             <div className="p-4 border-t border-[#F2F4F7] bg-fin-page/50 flex items-center justify-between">
                 <Button 
                   variant="ghost" 
                   size="sm" 
@@ -457,7 +455,7 @@ export default function SetoranPajakPage() {
                 >
                   <ChevronLeft size={14} className="mr-1" /> Prev
                 </Button>
-                <span className="text-[10px] font-bold text-[#475467]">Hal {historyPage} / {pagination.totalPages}</span>
+                <span className="text-[10px] font-bold text-fin-text-secondary">Hal {historyPage} / {pagination.totalPages}</span>
                 <Button 
                   variant="ghost" 
                   size="sm"
@@ -470,7 +468,7 @@ export default function SetoranPajakPage() {
              </div>
           </Card>
 
-          <Card className="p-6 bg-[#101828] text-white rounded-xl border-none shadow-lg relative overflow-hidden group">
+          <Card className="p-6 bg-ds-primary text-white rounded-xl border-none shadow-lg relative overflow-hidden group">
              <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform duration-700">
                <Activity size={100} />
              </div>
@@ -500,13 +498,13 @@ export default function SetoranPajakPage() {
 
 function SummaryItem({ label, value, color, icon, bg, isCurrency = true }: any) {
   return (
-    <Card className="p-4 sm:p-6 rounded-xl border border-[#E9ECEF] shadow-sm bg-white transition-all hover:border-[#2E90FA] overflow-hidden">
+    <Card className="p-4 sm:p-6 rounded-xl border border-fin-border shadow-sm bg-white transition-all hover:border-[#2E90FA] overflow-hidden">
       <div className="flex items-center gap-3 sm:gap-4">
         <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shrink-0", bg, color)}>
           {icon}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold text-[#98A2B3] uppercase tracking-wider mb-1 truncate">{label}</p>
+          <p className="text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider mb-1 truncate">{label}</p>
           <p className={cn("text-base sm:text-lg lg:text-xl font-bold tracking-tight tabular-nums truncate", color)} title={isCurrency ? formatCurrency(value) : value}>
             {isCurrency ? formatCurrency(value) : value}
           </p>

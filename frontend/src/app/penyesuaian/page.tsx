@@ -90,7 +90,7 @@ export default function PenyesuaianPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-1000 pb-20">
       <div className="flex items-center gap-6">
-        <div className="w-16 h-16 bg-slate-900 rounded-3xl flex items-center justify-center text-white shadow-2xl shadow-slate-900/20 ring-4 ring-slate-900/5">
+        <div className="w-16 h-16 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-2xl shadow-slate-900/20 ring-4 ring-slate-900/5">
           <RefreshCcw size={32} />
         </div>
         <div>
@@ -101,15 +101,15 @@ export default function PenyesuaianPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-5">
-          <Card className="rounded-xl border border-[#E9ECEF] shadow-sm bg-white overflow-hidden">
-            <div className="p-6 border-b border-[#F2F4F7] bg-[#F8F9FA]/50 flex items-center justify-between">
+          <Card className="rounded-xl border border-fin-border shadow-sm bg-white overflow-hidden">
+            <div className="p-6 border-b border-[#F2F4F7] bg-fin-page/50 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-[#101828] rounded-lg flex items-center justify-center text-white">
+                <div className="w-10 h-10 bg-ds-primary rounded-lg flex items-center justify-center text-white">
                   <PlusSquare size={20} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-[#101828]">Entri Jurnal</h3>
-                  <p className="text-xs text-[#475467] font-medium">Koreksi & penyesuaian saldo</p>
+                  <h3 className="text-lg font-semibold text-fin-text-primary">Entri Jurnal</h3>
+                  <p className="text-xs text-fin-text-secondary font-medium">Koreksi & penyesuaian saldo</p>
                 </div>
               </div>
             </div>
@@ -122,7 +122,7 @@ export default function PenyesuaianPage() {
                     onClick={() => setFormData({...formData, jenis: 'MASUK'})}
                     className={cn(
                       "py-3 rounded-lg font-bold text-[10px] border transition-all uppercase tracking-wider",
-                      formData.jenis === 'MASUK' ? "bg-[#027A48] text-white border-[#027A48] shadow-sm" : "bg-[#F9FAFB] text-[#98A2B3] border-[#EAECF0]"
+                      formData.jenis === 'MASUK' ? "bg-[#027A48] text-white border-[#027A48] shadow-sm" : "bg-[#F9FAFB] text-fin-text-muted border-[#EAECF0]"
                     )}
                    >
                      Saldo Masuk (+)
@@ -132,7 +132,7 @@ export default function PenyesuaianPage() {
                     onClick={() => setFormData({...formData, jenis: 'KELUAR'})}
                     className={cn(
                       "py-3 rounded-lg font-bold text-[10px] border transition-all uppercase tracking-wider",
-                      formData.jenis === 'KELUAR' ? "bg-[#B42318] text-white border-[#B42318] shadow-sm" : "bg-[#F9FAFB] text-[#98A2B3] border-[#EAECF0]"
+                      formData.jenis === 'KELUAR' ? "bg-[#B42318] text-white border-[#B42318] shadow-sm" : "bg-[#F9FAFB] text-fin-text-muted border-[#EAECF0]"
                     )}
                    >
                      Saldo Keluar (-)
@@ -140,10 +140,10 @@ export default function PenyesuaianPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-[#475467] ml-1">Tanggal</label>
+                  <label className="text-xs font-semibold text-fin-text-secondary ml-1">Tanggal</label>
                   <Input 
                     type="date" 
-                    className="h-11 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-[#2E90FA]/20 focus-visible:border-[#2E90FA] font-bold text-sm"
+                    className="h-11 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-ds-focus-ring focus-visible:border-ds-focus-ring font-bold text-sm"
                     value={formData.tanggal}
                     onChange={(e) => setFormData({...formData, tanggal: e.target.value})}
                     required
@@ -151,9 +151,9 @@ export default function PenyesuaianPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-[#475467] ml-1">Sumber Dana</label>
+                  <label className="text-xs font-semibold text-fin-text-secondary ml-1">Sumber Dana</label>
                   <select 
-                    className="w-full h-11 px-4 bg-[#F9FAFB] border border-[#EAECF0] rounded-lg outline-none focus:ring-[#2E90FA]/20 focus:border-[#2E90FA] font-bold text-sm appearance-none cursor-pointer"
+                    className="w-full h-11 px-4 bg-[#F9FAFB] border border-[#EAECF0] rounded-lg outline-none focus:ring-ds-focus-ring focus:border-ds-focus-ring font-bold text-sm appearance-none cursor-pointer"
                     value={formData.id_sumber_dana}
                     onChange={(e) => setFormData({...formData, id_sumber_dana: e.target.value})}
                     required
@@ -166,12 +166,12 @@ export default function PenyesuaianPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-[#475467] ml-1">Nilai Penyesuaian (Rp)</label>
+                  <label className="text-xs font-semibold text-fin-text-secondary ml-1">Nilai Penyesuaian (Rp)</label>
                   <div className="relative">
-                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-[#98A2B3]">IDR</div>
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-fin-text-muted">IDR</div>
                     <Input 
                       type="text" 
-                      className="w-full h-11 pl-12 pr-4 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-[#2E90FA]/20 focus-visible:border-[#2E90FA] font-bold text-sm"
+                      className="w-full h-11 pl-12 pr-4 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-ds-focus-ring focus-visible:border-ds-focus-ring font-bold text-sm"
                       value={formatNumber(formData.nilai)}
                       onChange={(e) => setFormData({...formData, nilai: parseNumber(e.target.value)})}
                       required
@@ -180,9 +180,9 @@ export default function PenyesuaianPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-[#475467] ml-1">Sisi Pengaruh</label>
+                  <label className="text-xs font-semibold text-fin-text-secondary ml-1">Sisi Pengaruh</label>
                   <select 
-                    className="w-full h-11 px-4 bg-[#F9FAFB] border border-[#EAECF0] rounded-lg outline-none focus:ring-[#2E90FA]/20 focus:border-[#2E90FA] font-bold text-sm appearance-none cursor-pointer"
+                    className="w-full h-11 px-4 bg-[#F9FAFB] border border-[#EAECF0] rounded-lg outline-none focus:ring-ds-focus-ring focus:border-ds-focus-ring font-bold text-sm appearance-none cursor-pointer"
                     value={formData.sisi_pengaruh}
                     onChange={(e) => setFormData({...formData, sisi_pengaruh: e.target.value})}
                     required
@@ -194,9 +194,9 @@ export default function PenyesuaianPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-[#475467] ml-1">Keterangan / Uraian</label>
+                  <label className="text-xs font-semibold text-fin-text-secondary ml-1">Keterangan / Uraian</label>
                   <Textarea 
-                    className="px-4 py-3 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-[#2E90FA]/20 focus-visible:border-[#2E90FA] min-h-[100px] font-medium text-sm"
+                    className="px-4 py-3 bg-[#F9FAFB] border-[#EAECF0] rounded-lg focus-visible:ring-ds-focus-ring focus-visible:border-ds-focus-ring min-h-[100px] font-medium text-sm"
                     placeholder="Contoh: Koreksi salah catat atau pengembalian belanja..."
                     value={formData.uraian}
                     onChange={(e) => setFormData({...formData, uraian: e.target.value})}
@@ -207,7 +207,7 @@ export default function PenyesuaianPage() {
                 <Button 
                   type="submit"
                   disabled={saving}
-                  className="w-full h-12 bg-[#101828] hover:bg-[#1D2939] text-white rounded-lg font-bold shadow-sm flex items-center justify-center gap-2"
+                  className="w-full h-12 bg-ds-primary hover:bg-ds-primary-hover text-white rounded-lg font-bold shadow-sm flex items-center justify-center gap-2"
                 >
                   {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
                   <span className="uppercase tracking-widest text-[10px]">Simpan Penyesuaian</span>
@@ -218,38 +218,38 @@ export default function PenyesuaianPage() {
         </div>
 
         <div className="lg:col-span-7">
-          <Card className="rounded-xl border border-[#E9ECEF] shadow-sm bg-white overflow-hidden">
-             <div className="p-6 border-b border-[#F2F4F7] bg-[#F8F9FA]/50 flex justify-between items-center">
-               <h3 className="text-lg font-semibold text-[#101828]">Daftar Koreksi Terakhir</h3>
-               <ArrowRightLeft size={18} className="text-[#98A2B3]" />
+          <Card className="rounded-xl border border-fin-border shadow-sm bg-white overflow-hidden">
+             <div className="p-6 border-b border-[#F2F4F7] bg-fin-page/50 flex justify-between items-center">
+               <h3 className="text-lg font-semibold text-fin-text-primary">Daftar Koreksi Terakhir</h3>
+               <ArrowRightLeft size={18} className="text-fin-text-muted" />
              </div>
 
              <div className="overflow-x-auto min-h-[500px]">
                {loading ? (
-                 <div className="flex flex-col items-center justify-center py-40 text-[#98A2B3]">
+                 <div className="flex flex-col items-center justify-center py-40 text-fin-text-muted">
                    <Loader2 className="animate-spin mb-4" size={48} />
                    <p className="text-sm font-medium">Memuat data penyesuaian...</p>
                  </div>
                ) : data.length === 0 ? (
-                 <div className="py-40 text-center text-[#98A2B3] font-medium text-xs uppercase tracking-widest">Tidak ada data penyesuaian.</div>
+                 <div className="py-40 text-center text-fin-text-muted font-medium text-xs uppercase tracking-widest">Tidak ada data penyesuaian.</div>
                ) : (
                  <Table>
-                   <TableHeader className="bg-[#F8F9FA]">
-                     <TableRow className="border-b border-[#E9ECEF] hover:bg-transparent">
-                       <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider">Tanggal</TableHead>
-                       <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider">Uraian / Sumber</TableHead>
-                       <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider text-right">Nilai (Rp)</TableHead>
-                       <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider text-center">Tipe</TableHead>
+                   <TableHeader className="bg-fin-page">
+                     <TableRow className="border-b border-fin-border hover:bg-transparent">
+                       <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider">Tanggal</TableHead>
+                       <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider">Uraian / Sumber</TableHead>
+                       <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider text-right">Nilai (Rp)</TableHead>
+                       <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider text-center">Tipe</TableHead>
                      </TableRow>
                    </TableHeader>
                    <TableBody className="divide-y divide-[#E9ECEF]">
                      {data.map((item: any) => (
-                       <TableRow key={item.id} className="hover:bg-[#F8F9FA] transition-colors group">
+                       <TableRow key={item.id} className="hover:bg-fin-page transition-colors group">
                          <TableCell className="px-6 py-4 text-xs font-semibold text-[#667085]">
                             {format(new Date(item.tanggal), 'dd/MM/yyyy')}
                          </TableCell>
                          <TableCell className="px-6 py-4">
-                            <p className="text-sm font-bold text-[#101828] tracking-tight">{item.uraian}</p>
+                            <p className="text-sm font-bold text-fin-text-primary tracking-tight">{item.uraian}</p>
                             <p className="text-[10px] font-semibold text-[#2E90FA] mt-1 uppercase">{item.id_sumber_dana}</p>
                          </TableCell>
                          <TableCell className={cn(
@@ -260,8 +260,8 @@ export default function PenyesuaianPage() {
                          </TableCell>
                          <TableCell className="px-6 py-4 text-center">
                             <span className={cn(
-                              "text-[9px] font-bold px-2 py-1 rounded-md uppercase border",
-                              item.sisi_pengaruh === 'BUKU' ? "bg-[#F2F4F7] text-[#344054] border-[#D0D5DD]" : "bg-[#EFF8FF] text-[#175CD3] border-[#B2DDFF]"
+                              "text-[9px] font-bold px-2 py-1 rounded-lg uppercase border",
+                              item.sisi_pengaruh === 'BUKU' ? "bg-fin-subtle text-[#344054] border-fin-border-strong" : "bg-[#EFF8FF] text-[#175CD3] border-[#B2DDFF]"
                             )}>
                               {item.sisi_pengaruh}
                             </span>
@@ -281,13 +281,13 @@ export default function PenyesuaianPage() {
 
 function SummaryItem({ label, value, color, icon, bg, isCurrency = true }: any) {
   return (
-    <Card className="p-4 sm:p-6 rounded-xl border border-[#E9ECEF] shadow-sm bg-white transition-all hover:border-[#2E90FA] overflow-hidden">
+    <Card className="p-4 sm:p-6 rounded-xl border border-fin-border shadow-sm bg-white transition-all hover:border-[#2E90FA] overflow-hidden">
       <div className="flex items-center gap-3 sm:gap-4">
         <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shrink-0", bg, color)}>
           {icon}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold text-[#98A2B3] uppercase tracking-wider mb-1 truncate">{label}</p>
+          <p className="text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider mb-1 truncate">{label}</p>
           <p className={cn("text-base sm:text-lg lg:text-xl font-bold tracking-tight tabular-nums truncate", color)} title={isCurrency ? formatCurrency(value) : value}>
             {isCurrency ? formatCurrency(value) : value}
           </p>

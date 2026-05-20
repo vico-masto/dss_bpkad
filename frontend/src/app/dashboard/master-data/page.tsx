@@ -199,13 +199,13 @@ export default function MasterDataPage() {
         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)}>
           <div className="border-b border-fin-border p-4 bg-fin-page">
             <TabsList className="bg-fin-page rounded-lg p-1 h-10 border border-fin-border">
-              <TabsTrigger value="opd" className="px-6 py-1.5 rounded-md text-xs font-semibold data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+              <TabsTrigger value="opd" className="px-6 py-1.5 rounded-lg text-xs font-semibold data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
                 <Building2 size={14} /> Daftar OPD
               </TabsTrigger>
-              <TabsTrigger value="jenis" className="px-6 py-1.5 rounded-md text-xs font-semibold data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+              <TabsTrigger value="jenis" className="px-6 py-1.5 rounded-lg text-xs font-semibold data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
                 <FolderTree size={14} /> Jenis Belanja
               </TabsTrigger>
-              <TabsTrigger value="sumber" className="px-6 py-1.5 rounded-md text-xs font-semibold data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+              <TabsTrigger value="sumber" className="px-6 py-1.5 rounded-lg text-xs font-semibold data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
                 <Layers size={14} /> Sumber Dana
               </TabsTrigger>
             </TabsList>
@@ -232,7 +232,7 @@ export default function MasterDataPage() {
             <div className="space-y-2">
               <label className="text-xs font-semibold text-fin-text-muted ml-1">ID / Kode</label>
               <Input 
-                className="h-10 bg-fin-page border-fin-border rounded-lg text-sm font-semibold focus:border-[#2E90FA]" 
+                className="h-10 bg-fin-page border-fin-border rounded-lg text-sm font-semibold focus:border-ds-focus-ring" 
                 value={formData.id} 
                 onChange={(e) => setFormData({...formData, id: e.target.value})} 
                 disabled={modalState.mode === 'edit'}
@@ -242,7 +242,7 @@ export default function MasterDataPage() {
             <div className="space-y-2">
               <label className="text-xs font-semibold text-fin-text-muted ml-1">Nama / Deskripsi</label>
               <Input 
-                className="h-10 bg-fin-page border-fin-border rounded-lg text-sm font-semibold focus:border-[#2E90FA]" 
+                className="h-10 bg-fin-page border-fin-border rounded-lg text-sm font-semibold focus:border-ds-focus-ring" 
                 value={formData.nama} 
                 onChange={(e) => setFormData({...formData, nama: e.target.value})} 
                 placeholder="Masukkan nama deskripsi"
@@ -254,7 +254,7 @@ export default function MasterDataPage() {
                 <label className="text-xs font-semibold text-fin-text-muted ml-1">Kategori Sumber Dana</label>
                 <div className="relative">
                   <select 
-                    className="w-full h-10 px-4 bg-fin-page border border-fin-border rounded-lg text-sm font-semibold focus:outline-none focus:border-[#2E90FA] appearance-none cursor-pointer"
+                    className="w-full h-10 px-4 bg-fin-page border border-fin-border rounded-lg text-sm font-semibold focus:outline-none focus:border-ds-focus-ring appearance-none cursor-pointer"
                     value={formData.kategori}
                     onChange={(e) => setFormData({...formData, kategori: e.target.value})}
                   >
@@ -271,7 +271,7 @@ export default function MasterDataPage() {
             <Button 
               onClick={handleSave} 
               disabled={saving}
-              className="w-full h-11 bg-[#101828] hover:bg-[#1D2939] text-white rounded-lg font-semibold text-sm transition-all shadow-lg shadow-[#101828]/20"
+              className="w-full h-11 bg-ds-primary hover:bg-ds-primary-hover text-white rounded-lg font-semibold text-sm transition-all shadow-lg shadow-[#101828]/20"
             >
               {saving ? <Loader2 className="animate-spin" size={18} /> : 'Simpan Perubahan'}
             </Button>

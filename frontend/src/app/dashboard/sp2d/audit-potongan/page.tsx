@@ -24,9 +24,7 @@ import { formatCurrency, cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+import { Combobox } from "@/components/ui/combobox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -190,20 +188,23 @@ export default function AuditPotonganPage() {
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setAutoHeaderPreview(null)}
-              className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-semibold rounded-lg transition-colors"
+              className="px-3 bg-amber-100 hover:bg-amber-200 text-amber-800"
             >
               Batal
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
+              loading={fixingAutoHeader}
+              leftIcon={<CheckCircle2 size={12} />}
               onClick={handleFixAutoHeader}
-              disabled={fixingAutoHeader}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50"
+              className="px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold"
             >
-              {fixingAutoHeader ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
               Bersihkan Sekarang
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -281,36 +282,36 @@ export default function AuditPotonganPage() {
           {/* Filter Bar */}
           <div className="flex flex-wrap items-center gap-2 justify-between">
             <div className="flex flex-wrap gap-2">
-              <Select value={filters.tahun} onValueChange={(v) => handleFilter('tahun', v)}>
-                <SelectTrigger className="h-8 w-24 text-xs border-fin-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {YEARS.map((y) => <SelectItem key={y} value={y} className="text-xs">{y}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Combobox
+                value={filters.tahun}
+                onValueChange={(v) => handleFilter('tahun', v || '')}
+                className="h-8 w-24"
+                size="sm"
+                options={YEARS.map((y) => ({ value: y, label: y }))}
+              />
 
-              <Select value={filters.bulan || 'all'} onValueChange={(v) => handleFilter('bulan', v === 'all' ? '' : v)}>
-                <SelectTrigger className="h-8 w-36 text-xs border-fin-border">
-                  <SelectValue placeholder="Semua Bulan" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all" className="text-xs">Semua Bulan</SelectItem>
-                  {MONTHS.map((m) => <SelectItem key={m.value} value={m.value} className="text-xs">{m.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Combobox
+                value={filters.bulan || 'all'}
+                onValueChange={(v) => handleFilter('bulan', v === 'all' ? '' : v || '')}
+                placeholder="Semua Bulan"
+                className="h-8 w-36"
+                size="sm"
+                options={[{ value: 'all', label: 'Semua Bulan' }, ...MONTHS]}
+              />
 
-              <Select value={filters.status || 'all'} onValueChange={(v) => handleFilter('status', v === 'all' ? '' : v)}>
-                <SelectTrigger className="h-8 w-40 text-xs border-fin-border">
-                  <SelectValue placeholder="Semua Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all" className="text-xs">Semua Status</SelectItem>
-                  <SelectItem value="KURANG" className="text-xs">Kurang Rincian</SelectItem>
-                  <SelectItem value="LENGKAP" className="text-xs">Lengkap</SelectItem>
-                  <SelectItem value="LEBIH" className="text-xs">Rincian Melebihi</SelectItem>
-                </SelectContent>
-              </Select>
+              <Combobox
+                value={filters.status || 'all'}
+                onValueChange={(v) => handleFilter('status', v === 'all' ? '' : v || '')}
+                placeholder="Semua Status"
+                className="h-8 w-40"
+                size="sm"
+                options={[
+                  { value: 'all', label: 'Semua Status' },
+                  { value: 'KURANG', label: 'Kurang Rincian' },
+                  { value: 'LENGKAP', label: 'Lengkap' },
+                  { value: 'LEBIH', label: 'Rincian Melebihi' },
+                ]}
+              />
             </div>
 
             <Button variant="outline" size="sm" onClick={refresh} className="h-8 px-3 text-xs border-fin-border gap-1.5">
@@ -460,7 +461,7 @@ export default function AuditPotonganPage() {
                           <TableCell className="text-center">
                             <Link
                               href={`/dashboard/sp2d/create?edit=${row.id}`}
-                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 hover:underline transition-colors"
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-fin-info-text hover:text-indigo-800 hover:underline transition-colors"
                             >
                               Buka <ArrowRight size={11} />
                             </Link>

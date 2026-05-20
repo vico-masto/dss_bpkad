@@ -7,8 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-plus-jakarta), var(--font-inter), system-ui, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular;
+  --font-sans: var(--font-sans), system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco;
+  --font-numeric: var(--font-inter), system-ui, sans-serif;
 
   /* ═══ FINANCIAL ENTERPRISE DESIGN TOKENS ═══ */
   --fin-page: #F8F9FA;
@@ -148,7 +149,7 @@
     font-variant-numeric: tabular-nums;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    transition: font-family 0.4s ease, color 0.4s ease, background-color 0.4s ease;
+    transition: font-family 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s ease, background-color 0.3s ease;
   }
   * {
     @apply border-border outline-ring/50;
@@ -237,33 +238,39 @@
 
   /* ═══ Financial Typography ═══ */
   .fin-h1 {
-    @apply text-2xl font-semibold tracking-tight text-fin-text-primary;
+    @apply text-2xl md:text-3xl font-bold tracking-tight text-fin-text-primary leading-tight;
   }
 
   .fin-h2 {
-    @apply text-lg font-semibold text-fin-text-primary;
+    @apply text-lg font-semibold tracking-tight text-fin-text-primary leading-snug;
   }
 
   .fin-h3 {
-    @apply text-sm font-semibold text-fin-text-primary;
+    @apply text-sm font-semibold tracking-tight text-fin-text-primary;
   }
 
   .fin-label {
-    @apply text-xs font-medium text-fin-text-secondary uppercase tracking-wide;
+    @apply text-[11px] font-semibold text-fin-text-secondary uppercase tracking-wider;
   }
 
   .fin-body {
-    @apply text-sm text-fin-text-secondary leading-relaxed;
+    @apply text-sm text-fin-text-secondary leading-relaxed font-normal;
   }
 
   .fin-data {
-    @apply text-sm font-medium text-fin-text-primary;
-    font-variant-numeric: tabular-nums;
+    @apply text-[13px] md:text-sm font-medium text-fin-text-primary tabular-nums tracking-tight;
+    font-family: var(--font-numeric);
   }
 
   .fin-data-lg {
-    @apply text-2xl font-bold text-fin-text-primary;
-    font-variant-numeric: tabular-nums;
+    @apply text-2xl md:text-3xl font-bold text-fin-text-primary tabular-nums tracking-tight;
+    font-family: var(--font-numeric);
+  }
+
+  /* Apply Inter to all numeric table cells (BKU, Rekon, Bank tables) */
+  td.tabular-nums,
+  th.tabular-nums {
+    font-family: var(--font-numeric);
   }
 
   .fin-caption {
@@ -355,6 +362,7 @@
   body {
     background: white !important;
     color: black !important;
+    font-family: 'Times New Roman', Times, serif !important;
     -webkit-print-color-adjust: exact;
   }
 

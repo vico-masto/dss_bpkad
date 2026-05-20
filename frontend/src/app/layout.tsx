@@ -1,15 +1,11 @@
 import type { Metadata } from "next";
-import { Inter, Geist, Plus_Jakarta_Sans } from "next/font/google";
+import { Inter, Roboto } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
-});
-
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  variable: "--font-plus-jakarta",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -22,7 +18,12 @@ import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import AIChatBubble from "@/components/AIChatBubble";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+const roboto = Roboto({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "700"],
+  variable: "--font-sans",
+  display: "swap",
+});
 
 
 export default function RootLayout({
@@ -31,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className={cn("font-sans", geist.variable, plusJakartaSans.variable)} suppressHydrationWarning>
+    <html lang="id" className={cn("scroll-smooth", roboto.variable, inter.variable)} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{
           __html: `
@@ -49,7 +50,7 @@ export default function RootLayout({
         }} />
       </head>
       <body 
-        className={`${inter.variable} ${plusJakartaSans.variable} font-sans antialiased min-h-screen selection:bg-brand/10 selection:text-brand tabular-nums tracking-tight`}
+        className="font-sans antialiased min-h-screen selection:bg-brand/10 selection:text-brand tabular-nums tracking-tight"
         suppressHydrationWarning
       >
           <MainLayout>{children}</MainLayout>

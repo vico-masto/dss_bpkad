@@ -61,7 +61,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from 'sonner';
 import { NumericInput } from '@/components/NumericInput';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Dialog,
   DialogContent,
@@ -366,7 +366,7 @@ export default function CashSimulatorPage() {
                   variant="ghost"
                   onClick={() => setActiveScenarioIdx(idx)}
                   className={cn(
-                     "h-8 px-5 rounded-md text-[11px] font-medium transition-all",
+                     "h-8 px-5 rounded-lg text-[11px] font-medium transition-all",
                      activeScenarioIdx === idx 
                        ? "bg-fin-surface text-fin-text-primary shadow-sm" 
                        : "text-fin-text-muted hover:text-fin-text-primary"
@@ -403,7 +403,7 @@ export default function CashSimulatorPage() {
               <Button 
                 onClick={handleSaveScenario}
                 disabled={saving}
-                className="h-10 px-4 bg-[#101828] text-white rounded-lg font-bold text-xs flex items-center gap-2 hover:bg-[#1D2939] transition-all shadow-sm active:scale-95"
+                className="h-10 px-4 bg-ds-primary text-white rounded-lg font-bold text-xs flex items-center gap-2 hover:bg-ds-primary-hover transition-all shadow-sm active:scale-95"
               >
                 {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                 Simpan
@@ -489,7 +489,7 @@ export default function CashSimulatorPage() {
                   if (val) fetchSP2Ds();
                 }}>
                   <DialogTrigger render={
-                  <Button variant="outline" size="sm" className="h-8 px-2.5 text-[10px] font-bold border-indigo-200 text-indigo-600 hover:bg-indigo-50 gap-1.5 shadow-sm">
+                  <Button variant="outline" size="sm" className="h-8 px-2.5 text-[10px] font-bold border-indigo-200 text-fin-info-text hover:bg-indigo-50 gap-1.5 shadow-sm">
                     <Sparkles size={14} />
                     SMART INJECTION
                   </Button>
@@ -515,19 +515,17 @@ export default function CashSimulatorPage() {
                           }}
                         />
                       </div>
-                      <Select defaultValue="all" onValueChange={(val) => {
-                        // Logic Filter (Untuk Demo)
-                        fetchSP2Ds(sp2dSearch);
-                      }}>
-                        <SelectTrigger className="w-[140px] h-11 bg-fin-page border-fin-border text-xs font-semibold">
-                          <SelectValue placeholder="Semua OPD" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Semua OPD</SelectItem>
-                          <SelectItem value="pendidikan">Dinas Pendidikan</SelectItem>
-                          <SelectItem value="kesehatan">Dinas Kesehatan</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Combobox
+                        value="all"
+                        onValueChange={() => fetchSP2Ds(sp2dSearch)}
+                        placeholder="Semua OPD"
+                        className="w-[140px] h-11"
+                        options={[
+                          { value: 'all', label: 'Semua OPD' },
+                          { value: 'pendidikan', label: 'Dinas Pendidikan' },
+                          { value: 'kesehatan', label: 'Dinas Kesehatan' },
+                        ]}
+                      />
                     </div>
 
                     <div className="mt-4 space-y-2 max-h-[400px] overflow-y-auto pr-2 scrollbar-hide">
@@ -545,7 +543,7 @@ export default function CashSimulatorPage() {
                         availableSP2Ds.map((s) => (
                           <div key={s.id} className="flex items-center justify-between p-4 bg-fin-surface border border-fin-border rounded-xl hover:border-indigo-200 hover:bg-indigo-50/30 transition-all group">
                              <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-fin-page rounded-lg flex items-center justify-center text-fin-text-muted group-hover:bg-indigo-100 group-hover:text-indigo-600 transition-colors">
+                                <div className="w-10 h-10 bg-fin-page rounded-lg flex items-center justify-center text-fin-text-muted group-hover:bg-indigo-100 group-hover:text-fin-info-text transition-colors">
                                    <Building2 size={20} />
                                 </div>
                                 <div>
@@ -553,13 +551,13 @@ export default function CashSimulatorPage() {
                                    <p className="text-[10px] font-bold text-fin-text-muted line-clamp-1 max-w-[300px]">{s.uraian}</p>
                                    <div className="flex items-center gap-2 mt-1">
                                       <Badge variant="outline" className="text-[9px] h-4 px-1 border-fin-border text-fin-text-muted font-bold">{s.jenis}</Badge>
-                                      <span className="text-[10px] font-black text-indigo-600">{formatCurrency(s.nilai_bruto)}</span>
+                                      <span className="text-[10px] font-black text-fin-info-text">{formatCurrency(s.nilai_bruto)}</span>
                                    </div>
                                 </div>
                              </div>
                              <Button 
                                onClick={() => injectSP2D(s)}
-                               className="bg-indigo-600 hover:bg-indigo-700 text-white h-9 px-4 rounded-lg text-xs font-bold"
+                               className="bg-ds-primary hover:bg-ds-primary-hover text-white h-9 px-4 rounded-lg text-xs font-bold"
                              >
                                Suntikkan
                              </Button>
@@ -576,28 +574,26 @@ export default function CashSimulatorPage() {
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-fin-text-muted ml-1">Sumber Dana</label>
                     <div className="relative">
-                      <Select value={currentSelection.id} onValueChange={(val) => setCurrentSelection({...currentSelection, id: val})}>
-                        <SelectTrigger className="w-full h-10 bg-fin-page border-fin-border rounded-lg text-xs font-medium text-fin-text-primary focus:border-[#2E90FA] transition-all">
-                          <SelectValue placeholder="Pilih Sumber Dana" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {sumberDana.map(s => <SelectItem key={s.id} value={s.id}>{s.nama}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <Combobox
+                        value={currentSelection.id}
+                        onValueChange={(val) => setCurrentSelection({...currentSelection, id: val || ''})}
+                        placeholder="Pilih Sumber Dana"
+                        className="w-full h-10"
+                        options={sumberDana.map(s => ({ value: s.id, label: s.nama }))}
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-fin-text-muted ml-1">Prioritas Belanja</label>
                     <div className="relative">
-                      <Select value={currentSelection.priority} onValueChange={(val) => setCurrentSelection({...currentSelection, priority: val})}>
-                        <SelectTrigger className="w-full h-10 bg-fin-page border-fin-border rounded-lg text-xs font-medium text-fin-text-primary focus:border-[#2E90FA] transition-all">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="mandatory">MANDATORY (Wajib)</SelectItem>
-                          <SelectItem value="discretionary">DISCRETIONARY (Pilihan)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <select
+                        value={currentSelection.priority}
+                        onChange={(e) => setCurrentSelection({...currentSelection, priority: e.target.value})}
+                        className="w-full h-10 px-3 border border-fin-border rounded-lg bg-fin-surface text-fin-text-primary text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                      >
+                        <option value="mandatory" className="bg-fin-surface text-fin-text-primary">MANDATORY (Wajib)</option>
+                        <option value="discretionary" className="bg-fin-surface text-fin-text-primary">DISCRETIONARY (Pilihan)</option>
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -628,7 +624,7 @@ export default function CashSimulatorPage() {
                 <Button 
                   onClick={addSimulation}
                   disabled={!currentSelection.id || currentSelection.amount <= 0}
-                  className="w-full h-12 bg-[#101828] text-white rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
+                  className="w-full h-12 bg-ds-primary text-white rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
                 >
                   <Plus size={18} />
                   Tambahkan ke Skenario
@@ -666,7 +662,7 @@ export default function CashSimulatorPage() {
           </div>
 
           {/* Simulated List (OUTFLOW) with Priority Separation */}
-          <Card className="bg-[#101828] p-6 rounded-xl text-white overflow-hidden relative border border-[#1D2939] shadow-sm">
+          <Card className="bg-ds-primary p-6 rounded-xl text-white overflow-hidden relative border border-[#1D2939] shadow-sm">
             <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12 scale-150">
                <Activity size={100} />
             </div>
@@ -720,7 +716,7 @@ export default function CashSimulatorPage() {
 
         {/* Right: Analysis Panel */}
         <div className="space-y-6">
-            <Card className="p-6 md:p-8 rounded-2xl shadow-sm border border-fin-border relative overflow-hidden bg-fin-surface">
+            <Card className="p-6 md:p-8 rounded-xl shadow-sm border border-fin-border relative overflow-hidden bg-fin-surface">
               <div className="flex flex-col gap-8">
                  <div className="flex flex-col sm:flex-row items-center sm:items-start gap-8">
                     {/* Radial Progress */}
@@ -762,7 +758,7 @@ export default function CashSimulatorPage() {
                     </div>
                  </div>
 
-                 <div className="p-5 bg-fin-page rounded-2xl border border-fin-border relative overflow-hidden group">
+                 <div className="p-5 bg-fin-page rounded-xl border border-fin-border relative overflow-hidden group">
                     <div className="absolute top-0 left-0 w-1 h-full bg-fin-border group-hover:bg-indigo-400 transition-colors" />
                     <p className="text-xs text-fin-text-muted leading-relaxed font-medium italic pl-2">
                       "{risk.msg}"
@@ -811,7 +807,7 @@ export default function CashSimulatorPage() {
              finalKas < 0 ? "bg-[#B42318] text-white border-none" : "bg-fin-surface border-fin-border"
            )}>
               <div className="flex items-start gap-4 relative z-10">
-                 <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", finalKas < 0 ? "bg-fin-surface/20" : "bg-indigo-50 text-indigo-600")}>
+                 <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center", finalKas < 0 ? "bg-fin-surface/20" : "bg-indigo-50 text-fin-info-text")}>
                     <Sparkles size={20} />
                  </div>
                  <div className="flex-1">
@@ -842,7 +838,7 @@ export default function CashSimulatorPage() {
                      <div className="flex gap-3">
                         <Button 
                           onClick={applyEfficiencySaran}
-                          className={cn("h-9 px-4 rounded-lg text-[10px] font-black uppercase tracking-tight flex items-center gap-2", finalKas < 0 ? "bg-fin-surface text-rose-700 hover:bg-rose-50 border-none" : "bg-indigo-600 text-white")}
+                          className={cn("h-9 px-4 rounded-lg text-[10px] font-black uppercase tracking-tight flex items-center gap-2", finalKas < 0 ? "bg-fin-surface text-rose-700 hover:bg-rose-50 border-none" : "bg-ds-primary text-white")}
                         >
                            <Sparkles size={14} />
                            Terapkan Efisiensi

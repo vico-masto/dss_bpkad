@@ -116,7 +116,7 @@ export default function TaxLedgerPage() {
             <FileSpreadsheet size={16} className="mr-2" />
             Excel
           </Button>
-          <Button onClick={handlePreviewReport} className="h-10 bg-fin-text-primary text-fin-surface font-bold">
+          <Button variant="primary" onClick={handlePreviewReport} className="h-10">
             <Printer size={16} className="mr-2" />
             Cetak Laporan
           </Button>
@@ -173,11 +173,11 @@ export default function TaxLedgerPage() {
               </h3>
            </CardContent>
         </Card>
-        <Card className="border-fin-expense/20 shadow-sm bg-fin-expense/10 overflow-hidden relative group">
+        <Card className="border-fin-expense/20 shadow-sm bg-fin-expense-bg overflow-hidden relative group">
            <div className="absolute top-0 right-0 p-6 opacity-10 -mr-4 -mt-4 group-hover:scale-110 transition-transform">
               <ShieldAlert size={80} className="text-fin-expense" />
            </div>
-           <CardContent className="p-6">
+           <CardContent className="p-5">
               <p className="text-[10px] font-black text-fin-expense uppercase tracking-widest mb-1">Hutang Pajak (Outstanding)</p>
               <h3 className="text-2xl font-black text-fin-expense tabular-nums">
                 {isLoading ? '...' : formatCurrency(data?.summary?.outstandingTax || 0)}
@@ -229,7 +229,7 @@ export default function TaxLedgerPage() {
                         {format(new Date(item.tanggal), 'dd/MM/yyyy')}
                       </TableCell>
                       <TableCell>
-                        <span className="inline-flex px-2 py-1 bg-fin-page text-fin-text-primary text-[10px] font-black rounded-md tracking-wider">
+                        <span className="inline-flex px-2 py-1 bg-fin-page text-fin-text-primary text-[10px] font-black rounded-lg tracking-wider">
                           {item.bukti}
                         </span>
                       </TableCell>
@@ -279,7 +279,7 @@ export default function TaxLedgerPage() {
       {/* PDF PREVIEW MODAL */}
       {previewPdf && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-fin-surface rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-fin-surface rounded-xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden shadow-2xl">
             <div className="p-4 border-b border-fin-border flex items-center justify-between">
               <h3 className="font-black text-fin-text-primary text-sm uppercase">Pratinjau Buku Pembantu Pajak</h3>
               <Button variant="ghost" onClick={() => setPreviewPdf(null)}><X size={18} /></Button>

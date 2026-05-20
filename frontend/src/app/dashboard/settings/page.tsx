@@ -172,7 +172,7 @@ export default function SettingsPage() {
                   id="pemerintah" 
                   value={config.pemerintah} 
                   onChange={(e) => setConfig({...config, pemerintah: e.target.value.toUpperCase()})}
-                  className="bg-fin-page border-fin-border focus:ring-[#2E90FA]/20 font-medium"
+                  className="bg-fin-page border-fin-border focus:ring-ds-focus-ring font-medium"
                 />
               </div>
 
@@ -182,7 +182,7 @@ export default function SettingsPage() {
                   id="instansi" 
                   value={config.instansi} 
                   onChange={(e) => setConfig({...config, instansi: e.target.value.toUpperCase()})}
-                  className="bg-fin-page border-fin-border focus:ring-[#2E90FA]/20 font-medium"
+                  className="bg-fin-page border-fin-border focus:ring-ds-focus-ring font-medium"
                 />
               </div>
 
@@ -192,7 +192,7 @@ export default function SettingsPage() {
                   id="alamat" 
                   value={config.alamat} 
                   onChange={(e) => setConfig({...config, alamat: e.target.value})}
-                  className="bg-fin-page border-fin-border focus:ring-[#2E90FA]/20 font-medium"
+                  className="bg-fin-page border-fin-border focus:ring-ds-focus-ring font-medium"
                   placeholder="Jl. Raya No. 1, Email: instansi@go.id"
                 />
               </div>
@@ -314,7 +314,7 @@ export default function SettingsPage() {
 
         {/* Right Column: Preview Kop */}
         <div className="space-y-6">
-          <Card className="p-6 border-fin-border bg-[#101828] text-white shadow-xl space-y-4">
+          <Card className="p-6 border-fin-border bg-ds-primary text-white shadow-xl space-y-4">
              <h3 className="text-xs font-bold uppercase tracking-widest text-white/60">Live Preview Kop Surat</h3>
              <div className="bg-fin-surface rounded-lg p-4 text-fin-text-primary min-h-[120px] shadow-inner flex flex-col items-center justify-center text-center">
                 <div className="flex items-center gap-4 w-full">
@@ -327,8 +327,8 @@ export default function SettingsPage() {
                     <p className="text-[7px] font-medium text-slate-500 mt-1">{config.alamat}</p>
                   </div>
                 </div>
-                <div className="w-full h-[1.5px] bg-[#101828] mt-2"></div>
-                <div className="w-full h-[0.5px] bg-[#101828] mt-[1px]"></div>
+                <div className="w-full h-[1.5px] bg-ds-primary mt-2"></div>
+                <div className="w-full h-[0.5px] bg-ds-primary mt-[1px]"></div>
              </div>
              <p className="text-[10px] text-white/50 italic">*Tampilan di atas adalah simulasi posisi Kop pada dokumen PDF.</p>
           </Card>

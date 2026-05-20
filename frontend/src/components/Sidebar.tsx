@@ -28,6 +28,7 @@ import {
   ShieldAlert,
   BarChart3,
   CalendarCheck,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -51,7 +52,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
     );
   };
 
-  const sidebarVariants = {
+  const sidebarVariants: any = {
     expanded: { 
       width: '240px',
       x: 0,
@@ -107,12 +108,13 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
       items: [
         { name: 'Rekam Potongan', href: '/dashboard/pajak?tab=rekam', icon: PlusSquare },
         { name: 'Arsip & Monitoring', href: '/dashboard/pajak?tab=arsip', icon: ShieldCheck },
+        { name: 'Realisasi Potongan OPD', href: '/dashboard/ledgers/potongan-opd', icon: FileSpreadsheet },
       ]
     },
     {
       title: 'Rekonsiliasi Bank',
       icon: RefreshCw,
-      dotColor: 'bg-[#101828]',
+      dotColor: 'bg-ds-primary',
       items: [
         { name: 'Manajemen Rekening Koran', href: '/dashboard/rekon/bank', icon: Database },
         { name: 'Rekonsiliasi Cerdas', href: '/dashboard/rekon', icon: RefreshCw },
@@ -134,7 +136,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
     {
       title: 'Buku Pembantu',
       icon: Layers,
-      dotColor: 'bg-[#101828]',
+      dotColor: 'bg-ds-primary',
       items: [
         { name: 'BP Bank (Rekening)', href: '/dashboard/ledgers/bank', icon: Banknote },
         { name: 'BP Potongan (Pajak/IWP)', href: '/dashboard/ledgers/pajak', icon: Scale },
@@ -144,7 +146,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
     {
       title: 'Administrator',
       icon: Settings,
-      dotColor: 'bg-[#98A2B3]',
+      dotColor: 'bg-fin-text-muted',
       items: [
         { name: 'Master Data (Referensi)', href: '/dashboard/master-data', icon: Database },
         { name: 'Setup Saldo Awal', href: '/dashboard/saldo-awal', icon: Database },
@@ -154,6 +156,36 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
       ]
     }
   ];
+
+  const filteredMenuStructure = menuStructure.map(group => {
+    if (user?.role === 'Operator SP2D' && group.title === 'Transaksi Kas Keluar') {
+      return {
+        ...group,
+        items: group.items.filter(item => item.name !== 'Kelengkapan Pencairan')
+      };
+    }
+    return group;
+  }).filter(group => {
+    if (!user) return true; // Tampilkan semua saat memuat data profil awal
+    
+    const role = user.role;
+    
+    // Admin dapat melihat seluruh menu
+    if (role === 'admin') return true;
+    
+    // Operator Penerimaan hanya melihat Transaksi Kas Masuk
+    if (role === 'Operator Penerimaan') {
+      return group.title === 'Transaksi Kas Masuk';
+    }
+    
+    // Operator SP2D hanya melihat Transaksi Kas Keluar
+    if (role === 'Operator SP2D') {
+      return group.title === 'Transaksi Kas Keluar';
+    }
+    
+    // Default untuk peran lainnya
+    return true;
+  });
 
   return (
     <motion.aside 
@@ -166,7 +198,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
       {/* Institution Branding */}
       <div className="h-20 flex items-center px-5 border-b border-fin-border bg-fin-page/30 dark:bg-slate-950/20">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-fin-text-primary dark:bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/10 transition-transform hover:scale-105">
+          <div className="w-10 h-10 bg-fin-text-primary dark:bg-ds-primary rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/10 transition-transform hover:scale-105">
             <Activity size={20} className="text-white dark:text-indigo-50" />
           </div>
           <div>
@@ -186,7 +218,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 scrollbar-hide">
-        {menuStructure.map((group) => (
+        {filteredMenuStructure.map((group) => (
           <div key={group.title} className="mb-1">
             <div className="mx-3 h-px bg-fin-subtle mb-1 mt-2 first:hidden" />
             
@@ -280,8 +312,8 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
       {/* Creator Info */}
       <div className="px-4 py-3 bg-fin-page/50 border-t border-fin-border flex items-center justify-between">
         <div className="flex flex-col">
-           <p className="text-[10px] font-bold text-fin-text-secondary">ViGit MasRah</p>
-           <p className="text-[10px] text-fin-text-muted mt-0.5">Architect</p>
+           <p className="text-[10px] font-bold text-fin-text-secondary">© Vico Masbaitubun</p>
+           <p className="text-[10px] text-fin-text-muted mt-0.5">DSS BPKAD</p>
         </div>
         <div className="flex items-center gap-1.5">
            <div className="w-1.5 h-1.5 bg-[#2E90FA] rounded-full animate-pulse" />

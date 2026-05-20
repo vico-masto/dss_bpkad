@@ -54,13 +54,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Combobox } from "@/components/ui/combobox";
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import {
   Dialog,
@@ -704,13 +698,13 @@ export default function PendapatanPage() {
                 <TabsList className="bg-transparent h-auto p-0">
                   <TabsTrigger
                     value="rekam"
-                    className="px-5 py-2 rounded-md text-xs font-medium data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2"
+                    className="px-5 py-2 rounded-lg text-xs font-medium data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2"
                   >
                     <PlusSquare size={14} /> Perekaman Baru
                   </TabsTrigger>
                   <TabsTrigger
                     value="arsip"
-                    className="px-5 py-2 rounded-md text-xs font-medium data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2"
+                    className="px-5 py-2 rounded-lg text-xs font-medium data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2"
                   >
                     <Database size={14} /> Arsip Data
                   </TabsTrigger>
@@ -740,7 +734,7 @@ export default function PendapatanPage() {
           >
             {/* ── FORM ──────────────────────────────────────────────────── */}
             <div className="lg:col-span-8">
-              <div className="bg-fin-surface rounded-2xl shadow-sm border border-fin-border overflow-hidden relative group">
+              <div className="bg-fin-surface rounded-xl shadow-sm border border-fin-border overflow-hidden relative group">
                 <div className="absolute top-0 left-0 w-1.5 h-full bg-fin-subtle group-focus-within:bg-ds-accent transition-colors duration-300" />
                 <div className="p-8">
                   <div className="flex items-center justify-between mb-8">
@@ -793,23 +787,13 @@ export default function PendapatanPage() {
                     </div>
 
                     <FormField label="Sumber Dana Tujuan" required>
-                      <Select
+                      <Combobox
                         value={formData.id_sumber_dana}
-                        onValueChange={(v) =>
-                          setFormData({ ...formData, id_sumber_dana: v })
-                        }
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Pilih Sumber Dana..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {sumberDanaList.map((sd: any) => (
-                            <SelectItem key={sd.id} value={sd.id}>
-                              {sd.nama}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        onValueChange={(v) => setFormData({ ...formData, id_sumber_dana: v })}
+                        placeholder="Pilih Sumber Dana..."
+                        className="w-full h-input"
+                        options={sumberDanaList.map((sd: any) => ({ value: sd.id, label: sd.nama }))}
+                      />
                     </FormField>
 
                     <FormField label="Nilai Penerimaan (Rp)" required>
@@ -1155,27 +1139,17 @@ export default function PendapatanPage() {
                   >
                     <div className="p-5 grid grid-cols-1 md:grid-cols-4 gap-5">
                       <FormField label="Sumber Dana">
-                        <Select
+                        <Combobox
                           value={filters.id_sumber_dana || 'all'}
-                          onValueChange={(v) =>
-                            setFilters({
-                              ...filters,
-                              id_sumber_dana: v === 'all' ? '' : v,
-                            })
-                          }
-                        >
-                          <SelectTrigger size="sm" className="w-full">
-                            <SelectValue placeholder="Semua Sumber Dana" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Semua Sumber Dana</SelectItem>
-                            {sumberDanaList.map((sd: any) => (
-                              <SelectItem key={sd.id} value={sd.id}>
-                                {sd.nama}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          onValueChange={(v) => setFilters({ ...filters, id_sumber_dana: v === 'all' ? '' : v })}
+                          placeholder="Semua Sumber Dana"
+                          className="w-full"
+                          size="sm"
+                          options={[
+                            { value: 'all', label: 'Semua Sumber Dana' },
+                            ...sumberDanaList.map((sd: any) => ({ value: sd.id, label: sd.nama })),
+                          ]}
+                        />
                       </FormField>
 
                       <FormField label="Mulai Tanggal">
@@ -1400,7 +1374,7 @@ export default function PendapatanPage() {
                                 {item.file_url && (
                                   <Badge
                                     variant="outline"
-                                    className="w-fit text-[9px] font-bold text-fin-income-text bg-fin-income-bg border-fin-income/30 px-2 py-0.5 rounded-md"
+                                    className="w-fit text-[9px] font-bold text-fin-income-text bg-fin-income-bg border-fin-income/30 px-2 py-0.5 rounded-lg"
                                   >
                                     <ShieldCheck size={10} className="mr-1" />
                                     VERIFIED DOCUMENT
@@ -1448,7 +1422,7 @@ export default function PendapatanPage() {
                                   })
                                 }
                                 className={cn(
-                                  'inline-flex items-center px-2.5 py-1 rounded-md text-micro font-bold border mx-auto transition-all',
+                                  'inline-flex items-center px-2.5 py-1 rounded-lg text-micro font-bold border mx-auto transition-all',
                                   item.selisih_rekon != 0
                                     ? 'bg-fin-warning text-white border-fin-warning hover:opacity-90'
                                     : 'bg-fin-surface text-fin-text-muted border-fin-border hover:border-fin-info hover:text-fin-info'
@@ -1575,7 +1549,7 @@ export default function PendapatanPage() {
             exit={{ y: 100, opacity: 0 }}
             className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100]"
           >
-            <div className="bg-ds-primary text-ds-primary-fg px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-8 border border-white/10">
+            <div className="bg-ds-primary text-ds-primary-fg px-6 py-4 rounded-xl shadow-2xl flex items-center gap-8 border border-white/10">
               <div className="flex items-center gap-4 border-r border-white/10 pr-8">
                 <div className="w-10 h-10 bg-ds-accent rounded-xl flex items-center justify-center shadow-inner">
                   <Database size={20} />
@@ -1831,21 +1805,17 @@ export default function PendapatanPage() {
 
           <DialogBody className="space-y-5">
             <FormField label="Status Rekon">
-              <Select
+              <Combobox
                 value={rekonModal?.status || ''}
-                onValueChange={(v) =>
-                  setRekonModal((prev) => (prev ? { ...prev, status: v } : null))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="BELUM">BELUM REKON</SelectItem>
-                  <SelectItem value="SUDAH">SUDAH SESUAI</SelectItem>
-                  <SelectItem value="ANOMALI">ANOMALI / SELISIH</SelectItem>
-                </SelectContent>
-              </Select>
+                onValueChange={(v) => setRekonModal((prev) => (prev ? { ...prev, status: v } : null))}
+                placeholder="Pilih Status"
+                className="w-full h-input"
+                options={[
+                  { value: 'BELUM', label: 'BELUM REKON' },
+                  { value: 'SUDAH', label: 'SUDAH SESUAI' },
+                  { value: 'ANOMALI', label: 'ANOMALI / SELISIH' },
+                ]}
+              />
             </FormField>
 
             <FormField
@@ -1854,7 +1824,7 @@ export default function PendapatanPage() {
             >
               <NumericInput
                 value={rekonModal?.selisih || 0}
-                onChange={(val) =>
+                onValueChange={(val) =>
                   setRekonModal((prev) => (prev ? { ...prev, selisih: val } : null))
                 }
                 className="h-input bg-fin-page border-fin-border font-bold text-fin-expense"

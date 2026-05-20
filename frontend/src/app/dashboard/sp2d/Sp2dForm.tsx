@@ -332,15 +332,15 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Main Form Content */}
           <div className="lg:col-span-8 space-y-6">
-            <div className="bg-fin-surface p-8 rounded-2xl shadow-sm border border-fin-border relative overflow-hidden group">
-              <div className="absolute top-0 left-0 w-1.5 h-full bg-fin-subtle group-focus-within:bg-indigo-600 transition-colors"></div>
+            <div className="bg-fin-surface p-8 rounded-xl shadow-sm border border-fin-border relative overflow-hidden group">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-fin-subtle group-focus-within:bg-ds-primary transition-colors"></div>
               
               <div className="flex justify-between items-start mb-8">
                 <h3 className="text-sm font-semibold text-fin-text-primary flex items-center">
-                  <CheckCircle2 className="mr-3 text-indigo-600" size={16} />
+                  <CheckCircle2 className="mr-3 text-fin-info-text" size={16} />
                   Informasi Pengeluaran (SIPD-RI)
                 </h3>
-                {editId && <Badge variant="outline" className="bg-[#FFFAEB] text-[#B54708] border-[#FEDF89] px-3 py-1 rounded-md text-xs font-semibold">Mode Koreksi Aktif</Badge>}
+                {editId && <Badge variant="outline" className="bg-[#FFFAEB] text-[#B54708] border-[#FEDF89] px-3 py-1 rounded-lg text-xs font-semibold">Mode Koreksi Aktif</Badge>}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -349,7 +349,7 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
                     <div className="relative">
                       <select 
                         {...register("opd", { required: true })} 
-                        className="w-full h-14 px-8 bg-fin-page border border-fin-border rounded-xl outline-none focus:border-indigo-600 font-medium text-fin-text-primary text-sm appearance-none cursor-pointer transition-all"
+                        className="w-full h-14 px-8 bg-fin-page border border-fin-border rounded-xl outline-none focus:border-ds-focus-ring font-medium text-fin-text-primary text-sm appearance-none cursor-pointer transition-all"
                       >
                         <option value="">-- Pilih OPD --</option>
                         {opdList.map(o => <option key={o} value={o}>{o}</option>)}
@@ -365,7 +365,7 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
                       <Input 
                         {...register("nomor", { required: true })} 
                         placeholder="0001/SP2D/BPKAD/2026" 
-                        className={cn("h-14 pl-8 pr-12 bg-fin-page border rounded-xl focus:border-indigo-600 font-medium text-fin-text-primary text-sm transition-all", nomorAvailable === false ? "border-rose-500" : "border-fin-border")} 
+                        className={cn("h-14 pl-8 pr-12 bg-fin-page border rounded-xl focus:border-ds-focus-ring font-medium text-fin-text-primary text-sm transition-all", nomorAvailable === false ? "border-rose-500" : "border-fin-border")} 
                       />
                       <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
                          {checkingNomor ? (
@@ -378,7 +378,7 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
                                    navigator.clipboard.writeText(watchNomor);
                                    toast.success('Nomor SP2D Disalin');
                                  }}
-                                 className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                 className="p-2 text-slate-400 hover:text-fin-info-text hover:bg-indigo-50 rounded-lg transition-all"
                                  title="Salin Nomor"
                                >
                                  <Copy size={16} />
@@ -391,7 +391,7 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-fin-text-muted ml-2">Jenis Belanja / Pencairan (*)</label>
                     <div className="relative">
-                      <select {...register("jenis", { required: true })} className="w-full h-14 px-8 bg-fin-page border border-fin-border rounded-xl outline-none focus:border-indigo-600 font-medium text-fin-text-primary text-sm appearance-none cursor-pointer transition-all">
+                      <select {...register("jenis", { required: true })} className="w-full h-14 px-8 bg-fin-page border border-fin-border rounded-xl outline-none focus:border-ds-focus-ring font-medium text-fin-text-primary text-sm appearance-none cursor-pointer transition-all">
                         <option value="">Pilih Jenis...</option>
                         {jenisList.map(j => <option key={j} value={j}>{j}</option>)}
                       </select>
@@ -400,14 +400,14 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-fin-text-muted ml-2">Tanggal Terbit SIPD (*)</label>
-                    <Input type="date" {...register("tanggal", { required: true })} className="h-14 px-8 bg-fin-page border-fin-border rounded-xl focus:border-indigo-600 font-medium text-fin-text-primary text-sm transition-all" />
+                    <Input type="date" {...register("tanggal", { required: true })} className="h-14 px-8 bg-fin-page border-fin-border rounded-xl focus:border-ds-focus-ring font-medium text-fin-text-primary text-sm transition-all" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-indigo-600 ml-2 flex items-center">
+                    <label className="text-xs font-medium text-fin-info-text ml-2 flex items-center">
                        <Calendar size={14} className="mr-2" />
                        Tanggal Pencairan Bank (*)
                     </label>
-                    <Input type="date" {...register("tanggal_pencairan", { required: true })} className="h-14 px-8 bg-indigo-600/5 border-indigo-100 rounded-xl focus:border-indigo-600 font-medium text-indigo-900 text-sm transition-all dark:bg-indigo-900/20" />
+                    <Input type="date" {...register("tanggal_pencairan", { required: true })} className="h-14 px-8 bg-ds-primary/5 border-indigo-100 rounded-xl focus:border-ds-focus-ring font-medium text-indigo-900 text-sm transition-all dark:bg-indigo-900/20" />
                   </div>
                 </div>
 
@@ -417,7 +417,7 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
                   <Input 
                     {...register("penerima", { required: true })} 
                     placeholder="CV. MAJU BERSAMA" 
-                    className="h-14 px-8 bg-fin-page border-fin-border rounded-xl focus:border-indigo-600 font-medium text-fin-text-primary text-sm transition-all" 
+                    className="h-14 px-8 bg-fin-page border-fin-border rounded-xl focus:border-ds-focus-ring font-medium text-fin-text-primary text-sm transition-all" 
                   />
                 </div>
                 <div className="space-y-2">
@@ -425,16 +425,16 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
                   <Textarea 
                     {...register("uraian", { required: true })} 
                     placeholder="Pembayaran atas pekerjaan..." 
-                    className="px-8 py-6 bg-fin-page border-fin-border rounded-xl focus:border-indigo-600 min-h-[120px] font-medium text-fin-text-primary text-sm transition-all resize-none" 
+                    className="px-8 py-6 bg-fin-page border-fin-border rounded-xl focus:border-ds-focus-ring min-h-[120px] font-medium text-fin-text-primary text-sm transition-all resize-none" 
                   />
                 </div>
               </div>
             </div>
 
-            <div className="bg-fin-surface p-8 rounded-2xl shadow-sm border border-fin-border">
+            <div className="bg-fin-surface p-8 rounded-xl shadow-sm border border-fin-border">
               <div className="flex justify-between items-center mb-8">
                 <h3 className="text-sm font-semibold text-fin-text-primary flex items-center">
-                  <ClipboardCheck className="mr-3 text-indigo-600" size={16} />
+                  <ClipboardCheck className="mr-3 text-fin-info-text" size={16} />
                   Rincian Anggaran (Sumber Dana)
                 </h3>
                 <Button 
@@ -451,16 +451,16 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
                 {fields.map((field, index) => (
                   <div key={field.id} className={cn(
                     "grid grid-cols-1 md:grid-cols-12 gap-6 p-6 rounded-xl border items-end transition-all group/item shadow-sm",
-                    index === 0 ? "bg-indigo-600/5 border-indigo-100 dark:bg-indigo-900/10" : "bg-fin-page/50 border-fin-border hover:bg-fin-surface"
+                    index === 0 ? "bg-ds-primary/5 border-indigo-100 dark:bg-indigo-900/10" : "bg-fin-page/50 border-fin-border hover:bg-fin-surface"
                   )}>
                     <div className="md:col-span-7 space-y-2">
                       <div className="flex justify-between items-center">
                         <label className="text-xs font-medium text-fin-text-muted ml-2">Pilih Sumber Dana Anggaran</label>
-                        {index === 0 && <Badge className="bg-indigo-600 text-[9px] h-4">SUMBER UTAMA</Badge>}
+                        {index === 0 && <Badge className="bg-ds-primary text-[9px] h-4">SUMBER UTAMA</Badge>}
                       </div>
                       <select 
                         {...register(`details.${index}.id_sumber_dana` as const, { required: true })} 
-                        className="w-full px-6 py-3.5 bg-fin-surface border border-fin-border rounded-xl outline-none font-medium text-fin-text-primary text-xs cursor-pointer focus:border-indigo-600 transition-all"
+                        className="w-full px-6 py-3.5 bg-fin-surface border border-fin-border rounded-xl outline-none font-medium text-fin-text-primary text-xs cursor-pointer focus:border-ds-focus-ring transition-all"
                       >
                         <option value="">Pilih sumber...</option>
                         {sumberDanaList.map((sd: any) => <option key={sd.id} value={sd.id}>{sd.nama}</option>)}
@@ -470,7 +470,7 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
                       <label className="text-xs font-medium text-fin-text-muted ml-2">Nilai Bruto (Rp)</label>
                       <NumericInput 
                         className={cn(
-                          "h-11 px-6 bg-fin-surface border-fin-border rounded-xl focus:border-indigo-600 font-medium text-fin-text-primary text-xs transition-all",
+                          "h-11 px-6 bg-fin-surface border-fin-border rounded-xl focus:border-ds-focus-ring font-medium text-fin-text-primary text-xs transition-all",
                           index === 0 && fields.length > 1 && "bg-fin-page text-fin-text-muted cursor-not-allowed"
                         )}
                         readOnly={index === 0 && fields.length > 1}
@@ -498,7 +498,7 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
               </div>
             </div>
 
-            <div className="bg-fin-surface p-8 rounded-2xl shadow-sm border border-fin-border overflow-hidden relative">
+            <div className="bg-fin-surface p-8 rounded-xl shadow-sm border border-fin-border overflow-hidden relative">
               <h3 className="text-xs font-semibold text-fin-text-primary mb-8 flex items-center">
                 <Banknote className="mr-3 text-[#12B76A]" size={16} />
                 Ringkasan & Verifikasi Pembayaran
@@ -510,10 +510,10 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
                   <div className="space-y-3">
                     <div className="flex justify-between items-center px-1">
                       <label className="text-xs font-medium text-fin-text-muted">Potongan Pajak/Lainnya</label>
-                      <span className="text-xs font-semibold text-indigo-600 bg-indigo-600/5 px-2 py-0.5 rounded cursor-pointer hover:bg-indigo-600/10 transition-colors">Pilih Jenis Potongan...</span>
+                      <span className="text-xs font-semibold text-fin-info-text bg-ds-primary/5 px-2 py-0.5 rounded cursor-pointer hover:bg-ds-primary/10 transition-colors">Pilih Jenis Potongan...</span>
                     </div>
                     <NumericInput 
-                      className="h-14 px-6 bg-fin-page border-fin-border rounded-xl focus:border-indigo-600 font-semibold text-fin-text-primary text-lg transition-all" 
+                      className="h-14 px-6 bg-fin-page border-fin-border rounded-xl focus:border-ds-focus-ring font-semibold text-fin-text-primary text-lg transition-all" 
                       value={watchPotongan || 0} 
                       onValueChange={(val) => setValue("nilai_potongan", val)} 
                     />
@@ -529,7 +529,7 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
 
                 {/* NILAI BRUTO & NETO */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-fin-surface p-6 rounded-2xl border border-fin-border flex flex-col justify-center shadow-sm hover:border-indigo-100 transition-all">
+                  <div className="bg-fin-surface p-6 rounded-xl border border-fin-border flex flex-col justify-center shadow-sm hover:border-indigo-100 transition-all">
                     <div className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest mb-2 flex items-center gap-2">
                        <div className="w-1.5 h-1.5 rounded-full bg-fin-subtle" />
                        Total Nilai Bruto (SP2D)
@@ -540,11 +540,11 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
                          value={watchBrutoTotal || 0}
                          onValueChange={(val) => setValue("nilai_bruto", val)}
                        />
-                       <div className="absolute -bottom-1 left-0 w-0 h-0.5 bg-indigo-600 transition-all group-focus-within:w-full" />
+                       <div className="absolute -bottom-1 left-0 w-0 h-0.5 bg-ds-primary transition-all group-focus-within:w-full" />
                     </div>
                   </div>
 
-                  <div className="bg-fin-text-primary p-6 rounded-2xl shadow-lg shadow-black/10 text-fin-surface flex flex-col justify-center relative overflow-hidden group">
+                  <div className="bg-fin-text-primary p-6 rounded-xl shadow-lg shadow-black/10 text-fin-surface flex flex-col justify-center relative overflow-hidden group">
                     <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/5 rounded-full blur-3xl group-hover:bg-indigo-500/10 transition-all duration-1000"></div>
                     <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2 flex items-center gap-2">
                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
@@ -564,8 +564,8 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
                       E-Arsip (Dokumen PDF Terpindai)
                     </label>
                   </div>
-                  <label className="w-full flex items-center justify-center gap-6 py-10 bg-fin-page border-2 border-dashed border-fin-border rounded-2xl cursor-pointer hover:border-indigo-500 hover:bg-fin-surface transition-all group">
-                    <div className="w-16 h-16 bg-fin-surface rounded-xl flex items-center justify-center text-fin-text-muted/30 group-hover:text-indigo-600 shadow-sm border border-fin-border transition-all">
+                  <label className="w-full flex items-center justify-center gap-6 py-10 bg-fin-page border-2 border-dashed border-fin-border rounded-xl cursor-pointer hover:border-indigo-500 hover:bg-fin-surface transition-all group">
+                    <div className="w-16 h-16 bg-fin-surface rounded-xl flex items-center justify-center text-fin-text-muted/30 group-hover:text-fin-info-text shadow-sm border border-fin-border transition-all">
                       <FileText size={32} />
                     </div>
                     <div className="text-left">
@@ -587,13 +587,15 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
               </div>
 
               <div className="mt-10 pt-10 border-t border-fin-subtle flex flex-col gap-3">
-                <Button 
-                  type="submit" 
-                  disabled={loading || fetching} 
-                  className="w-full h-14 bg-fin-text-primary text-fin-surface rounded-xl font-semibold shadow-lg shadow-black/5 transition-all flex items-center justify-center gap-4 active:scale-95 disabled:opacity-50 text-sm hover:opacity-90"
+                <Button
+                  variant="primary"
+                  type="submit"
+                  loading={loading}
+                  disabled={loading || fetching}
+                  leftIcon={<Save size={20} />}
+                  className="w-full h-14 rounded-xl font-semibold shadow-lg text-sm"
                 >
-                  {loading ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                  <span>{editId ? 'Perbarui Data SP2D' : 'Simpan Data SP2D'}</span>
+                  {editId ? 'Perbarui Data SP2D' : 'Simpan Data SP2D'}
                 </Button>
                 <Button 
                   type="button" 
@@ -609,7 +611,7 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
 
           {/* Info Sidebar */}
           <div className="lg:col-span-4 space-y-4">
-            <Card className="bg-[#101828] p-6 rounded-xl text-white shadow-lg relative overflow-hidden group border-none">
+            <Card className="bg-ds-primary p-6 rounded-xl text-white shadow-lg relative overflow-hidden group border-none">
               <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:scale-110 transition-transform duration-1000">
                 <AlertCircle size={160} />
               </div>
@@ -630,8 +632,8 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
 
       {showTalanganModal && (
         <Dialog open={showTalanganModal} onOpenChange={setShowTalanganModal}>
-          <DialogContent className="max-w-md rounded-2xl shadow-2xl p-10 text-center bg-fin-surface border-fin-border">
-            <div className="w-20 h-20 bg-fin-expense/10 text-fin-expense rounded-2xl flex items-center justify-center mx-auto mb-8">
+          <DialogContent className="max-w-md rounded-xl shadow-2xl p-10 text-center bg-fin-surface border-fin-border">
+            <div className="w-20 h-20 bg-fin-expense/10 text-fin-expense rounded-xl flex items-center justify-center mx-auto mb-8">
               <ShieldAlert size={40} />
             </div>
             <DialogHeader>

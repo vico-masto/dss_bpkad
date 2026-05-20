@@ -33,7 +33,24 @@
       "Bash(node diagnose_belum_rekon_detail.js)",
       "Bash(node *)",
       "Bash(Get-Content \"backend\\\\.env\")",
-      "Bash(Select-String \"DATABASE_URL\")"
+      "Bash(Select-String \"DATABASE_URL\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(Get-ChildItem -Path \"D:\\\\Antigravity\\\\DSS_BPKAD\\\\frontend\" -Filter \"*cetak*\" -Recurse -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(npm run *)",
+      "Bash(npx tsc *)",
+      "Bash(xargs grep -l \"totalPengeluaran\\\\|bku\\\\|getBku\\\\|/api/bku\")",
+      "Bash(curl -s http://localhost:5000/api/reports/health)",
+      "Bash(curl -s \"http://localhost:5000/api/reports/bku?tgl_awal=2026-01-01&tgl_akhir=2026-01-31&page=1&limit=5\" -H \"Authorization: Bearer test\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5000/bku)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/bku)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/api/reports/bku)",
+      "Bash(curl *)",
+      "Bash(dir D:\\\\Antigravity\\\\DSS_BPKAD\\\\*.md /b)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(npx eslint *)"
     ]
   }
 }

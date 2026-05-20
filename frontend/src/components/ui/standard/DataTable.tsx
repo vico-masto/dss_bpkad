@@ -30,7 +30,7 @@ export function DataTable<T extends { id?: string | number }>({
   emptyMessage = "Tidak ada data ditemukan"
 }: DataTableProps<T>) {
   return (
-    <div className="overflow-x-auto rounded-[24px] border border-slate-200 shadow-sm bg-white">
+    <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white">
       <table className="w-full text-left border-collapse">
         <thead className="sticky top-0 z-10">
           <tr className="bg-slate-50/80 backdrop-blur-md border-b border-slate-200">

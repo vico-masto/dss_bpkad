@@ -11,7 +11,7 @@ import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Combobox } from "@/components/ui/combobox";
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
@@ -241,7 +241,7 @@ export default function DiscrepancyReportPage() {
       theme: 'grid',
       headStyles: { fillColor: [240, 240, 240], textColor: 0, fontStyle: 'bold' },
       styles: { fontSize: 8, cellPadding: 2 },
-      columnStyles: { 0: { width: 10, halign: 'center' }, 2: { halign: 'right', fontStyle: 'bold' } }
+      columnStyles: { 0: { cellWidth: 10, halign: 'center' as const }, 2: { halign: 'right' as const, fontStyle: 'bold' } } as any
     });
 
     // 7. C. RINCIAN SELISIH
@@ -312,7 +312,7 @@ export default function DiscrepancyReportPage() {
   const Section = ({ id, title, icon: Icon, color, children }: any) => {
     const isOpen = activeSection === id;
     return (
-      <Card className="rounded-2xl border border-fin-border shadow-sm overflow-hidden bg-fin-surface">
+      <Card className="rounded-xl border border-fin-border shadow-sm overflow-hidden bg-fin-surface">
         <button onClick={() => setActiveSection(isOpen ? null : id)} className="w-full flex items-center justify-between px-6 py-4 bg-fin-surface hover:bg-fin-page transition-colors">
           <div className="flex items-center gap-3">
             <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", color)}>
@@ -348,16 +348,17 @@ export default function DiscrepancyReportPage() {
         icon={<BarChart3 className="size-5" />}
         actions={
           <div className="flex flex-wrap items-center gap-3">
-            <Select value={year} onValueChange={setYear}>
-              <SelectTrigger className="w-32 h-10 text-sm font-semibold border-fin-border bg-fin-surface text-fin-text-primary">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-fin-surface border-fin-border">
-                {[2024, 2025, 2026].map(y => (
-                  <SelectItem key={y} value={String(y)} className="text-fin-text-primary">{y}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <select
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              className="w-32 h-10 px-3 border border-fin-border rounded-lg bg-fin-surface text-fin-text-primary text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+            >
+              {[2024, 2025, 2026].map(y => (
+                <option key={y} value={String(y)} className="bg-fin-surface text-fin-text-primary">
+                  {y}
+                </option>
+              ))}
+            </select>
             <Button variant="outline" size="sm" onClick={() => mutate()} className="h-10 gap-2 border-fin-border bg-fin-surface text-fin-text-primary">
               <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
               Refresh
@@ -366,7 +367,7 @@ export default function DiscrepancyReportPage() {
               <Download size={14} />
               Excel
             </Button>
-            <Button onClick={() => setShowBarModal(true)} disabled={!data} className="h-10 bg-indigo-600 text-white gap-2 hover:bg-indigo-700 shadow-md shadow-indigo-900/20">
+            <Button onClick={() => setShowBarModal(true)} disabled={!data} className="h-10 bg-ds-primary text-white gap-2 hover:bg-ds-primary-hover shadow-md shadow-ds-primary/20">
               <FileText size={14} />
               Generate BAR
             </Button>
@@ -383,7 +384,7 @@ export default function DiscrepancyReportPage() {
           { label: 'Potongan Blm Match', value: formatCurrency(totalPotonganBelum), sub: 'Rincian Pajak', color: 'border-b-fin-surplus', icon: ShieldCheck, iconColor: 'text-fin-surplus' },
           { label: 'OPD Selisih', value: `${opdDenganSelisih} OPD`, sub: 'Audit Perlu', color: 'border-b-fin-text-muted', icon: Building2, iconColor: 'text-fin-text-muted' },
         ].map((c, i) => (
-          <Card key={i} className={cn("p-5 rounded-2xl border border-fin-border bg-fin-surface shadow-sm border-b-2", c.color)}>
+          <Card key={i} className={cn("p-5 rounded-xl border border-fin-border bg-fin-surface shadow-sm border-b-2", c.color)}>
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest">{c.label}</p>
@@ -496,7 +497,7 @@ export default function DiscrepancyReportPage() {
             </div>
           </Section>
 
-          <Section id="matched-discrepancy" title="Daftar Selisih (Outstanding Items)" icon={AlertTriangle} color="bg-indigo-600">
+          <Section id="matched-discrepancy" title="Daftar Selisih (Outstanding Items)" icon={AlertTriangle} color="bg-ds-primary">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -531,8 +532,8 @@ export default function DiscrepancyReportPage() {
 
       {/* RESOLUTION MODAL */}
       <Dialog open={!!selectedAnomaly} onOpenChange={(open) => !open && setSelectedAnomaly(null)}>
-        <DialogContent className="max-w-md bg-fin-surface border-fin-border rounded-2xl p-0 overflow-hidden">
-           <DialogHeader className="p-6 bg-[#101828] text-white relative">
+        <DialogContent className="max-w-md bg-fin-surface border-fin-border rounded-xl p-0 overflow-hidden">
+           <DialogHeader className="p-6 bg-ds-primary text-white relative">
               <DialogTitle className="text-xl font-black flex items-center gap-2"><ShieldCheck className="text-emerald-400" /> Resolusi Audit</DialogTitle>
               <DialogDescription className="text-slate-400 text-xs mt-1 uppercase tracking-widest font-black">Investigasi Selisih</DialogDescription>
            </DialogHeader>
@@ -553,7 +554,7 @@ export default function DiscrepancyReportPage() {
            </div>
            <DialogFooter className="p-6 bg-fin-page border-t border-fin-border flex gap-3">
               <Button variant="ghost" onClick={() => setSelectedAnomaly(null)} className="flex-1 font-black text-xs uppercase text-fin-text-muted">Batal</Button>
-              <Button className="flex-1 bg-[#101828] hover:bg-slate-800 text-white font-black text-xs uppercase" onClick={async () => {
+              <Button className="flex-1 bg-ds-primary hover:bg-slate-800 text-white font-black text-xs uppercase" onClick={async () => {
                  if (!selectedAnomaly) return;
                  if (!selectedAnomaly.id) {
                    toast.error('ID data tidak ditemukan — tidak dapat menyimpan resolusi.');
@@ -588,7 +589,7 @@ export default function DiscrepancyReportPage() {
 
       {/* BAR MODAL */}
       <Dialog open={showBarModal} onOpenChange={setShowBarModal}>
-        <DialogContent className="sm:max-w-[1000px] w-[95vw] max-h-[90vh] bg-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl flex flex-col">
+        <DialogContent className="sm:max-w-[1000px] w-[95vw] max-h-[90vh] bg-white rounded-xl p-0 overflow-hidden border-none shadow-2xl flex flex-col">
             <DialogHeader className="p-6 bg-gradient-to-r from-indigo-600 to-violet-700 text-white relative shrink-0">
                <div className="absolute right-8 top-6 opacity-20"><FileSignature size={60} /></div>
                <DialogTitle className="text-xl font-black tracking-tight">Konfigurasi Berita Acara (BAR)</DialogTitle>
@@ -596,23 +597,20 @@ export default function DiscrepancyReportPage() {
             </DialogHeader>
 
             <div className="p-8 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
-               <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 shadow-inner grid grid-cols-3 gap-5">
+               <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 shadow-inner grid grid-cols-3 gap-5">
                   <div className="space-y-1.5">
                      <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider ml-1">Nomor BAR</label>
                      <Input value={barConfig.noBar} onChange={e => setBarConfig({...barConfig, noBar: e.target.value})} className="text-xs font-bold h-10 bg-white border-slate-200 rounded-xl shadow-sm" />
                   </div>
                   <div className="space-y-1.5">
                      <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider ml-1">Bulan Yang Direkon</label>
-                     <Select value={barConfig.bulanRekon} onValueChange={val => setBarConfig({...barConfig, bulanRekon: val})}>
-                        <SelectTrigger className="h-10 text-xs font-bold bg-white border-slate-200 rounded-xl shadow-sm">
-                           <SelectValue placeholder="Pilih Bulan" />
-                        </SelectTrigger>
-                        <SelectContent>
-                           {MONTHS.map((m, idx) => (
-                              <SelectItem key={idx} value={String(idx + 1)} className="text-xs font-bold">{m}</SelectItem>
-                           ))}
-                        </SelectContent>
-                     </Select>
+                     <Combobox
+                       value={barConfig.bulanRekon}
+                       onValueChange={val => setBarConfig({...barConfig, bulanRekon: val || ''})}
+                       placeholder="Pilih Bulan"
+                       className="h-10"
+                       options={MONTHS.map((m, idx) => ({ value: String(idx + 1), label: m }))}
+                     />
                   </div>
                   <div className="space-y-1.5">
                      <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider ml-1">Tanggal Rekon (Manual)</label>
@@ -622,11 +620,11 @@ export default function DiscrepancyReportPage() {
 
                <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider ml-1 flex items-center gap-2"><ShieldCheck size={14} className="text-indigo-500" /> Dasar Hukum BAR</label>
-                  <Textarea value={barConfig.dasarHukum} onChange={e => setBarConfig({...barConfig, dasarHukum: e.target.value})} className="text-xs font-bold min-h-[80px] bg-white border-slate-200 rounded-2xl p-4 shadow-sm" />
+                  <Textarea value={barConfig.dasarHukum} onChange={e => setBarConfig({...barConfig, dasarHukum: e.target.value})} className="text-xs font-bold min-h-[80px] bg-white border-slate-200 rounded-xl p-4 shadow-sm" />
                </div>
 
                <div className="grid grid-cols-3 gap-6">
-                  <div className="space-y-4 p-5 bg-indigo-50/30 rounded-2xl border border-indigo-100/50">
+                  <div className="space-y-4 p-5 bg-indigo-50/30 rounded-xl border border-indigo-100/50">
                      <label className="text-[11px] font-black uppercase text-indigo-700 tracking-widest flex items-center gap-2">Pihak Pertama (BPKAD)</label>
                      <div className="space-y-2">
                         <Input value={barConfig.jabatan1} onChange={e => setBarConfig({...barConfig, jabatan1: e.target.value})} placeholder="Jabatan" className="text-[10px] h-8 bg-white" />
@@ -634,7 +632,7 @@ export default function DiscrepancyReportPage() {
                         <Input value={barConfig.nip1} onChange={e => setBarConfig({...barConfig, nip1: e.target.value})} placeholder="NIP" className="text-[10px] h-8 bg-white" />
                      </div>
                   </div>
-                  <div className="space-y-4 p-5 bg-emerald-50/30 rounded-2xl border border-emerald-100/50">
+                  <div className="space-y-4 p-5 bg-emerald-50/30 rounded-xl border border-emerald-100/50">
                      <label className="text-[11px] font-black uppercase text-emerald-700 tracking-widest flex items-center gap-2">Pihak Kedua (BANK)</label>
                      <div className="space-y-2">
                         <Input value={barConfig.jabatan2} onChange={e => setBarConfig({...barConfig, jabatan2: e.target.value})} placeholder="Jabatan" className="text-[10px] h-8 bg-white" />
@@ -642,7 +640,7 @@ export default function DiscrepancyReportPage() {
                         <Input value={barConfig.nip2} onChange={e => setBarConfig({...barConfig, nip2: e.target.value})} placeholder="ID / NIP" className="text-[10px] h-8 bg-white" />
                      </div>
                   </div>
-                  <div className="space-y-4 p-5 bg-amber-50/30 rounded-2xl border border-amber-100/50">
+                  <div className="space-y-4 p-5 bg-amber-50/30 rounded-xl border border-amber-100/50">
                      <label className="text-[11px] font-black uppercase text-amber-700 tracking-widest flex items-center gap-2">Mengetahui (BPKAD)</label>
                      <div className="space-y-2">
                         <Input value={barConfig.jabatan3} onChange={e => setBarConfig({...barConfig, jabatan3: e.target.value})} placeholder="Jabatan" className="text-[10px] h-8 bg-white" />
@@ -654,8 +652,8 @@ export default function DiscrepancyReportPage() {
             </div>
 
             <DialogFooter className="p-6 bg-slate-50 border-t border-slate-100 flex gap-4 justify-end shrink-0">
-               <Button variant="ghost" onClick={() => setShowBarModal(false)} className="h-11 px-8 rounded-2xl font-black text-xs uppercase">Batal</Button>
-               <Button onClick={() => { handleGenerateBAR(); setShowBarModal(false); }} className="h-11 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase px-10 shadow-lg">
+               <Button variant="ghost" onClick={() => setShowBarModal(false)} className="h-11 px-8 rounded-xl font-black text-xs uppercase">Batal</Button>
+               <Button onClick={() => { handleGenerateBAR(); setShowBarModal(false); }} className="h-11 bg-ds-primary hover:bg-ds-primary-hover text-white rounded-xl font-black text-xs uppercase px-10 shadow-lg">
                   <Download size={16} className="mr-2" /> Unduh BAR (PDF)
                </Button>
             </DialogFooter>

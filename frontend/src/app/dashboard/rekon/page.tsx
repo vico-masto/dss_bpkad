@@ -49,7 +49,7 @@ import { toast } from 'sonner';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Badge } from "@/components/ui/badge";
 import { 
   Dialog, 
@@ -97,6 +97,7 @@ export default function ReconciliationPage() {
   );
 
   // 2. UI CONTROL STATES
+  const [selectedBulanRekon, setSelectedBulanRekon] = useState('');
   const [showFilters, setShowFilters] = useState(true);
   const [activeTab, setActiveTab] = useState('bku');
   const [isMatching, setIsMatching] = useState(false);
@@ -107,16 +108,6 @@ export default function ReconciliationPage() {
   const [batchProgress, setBatchProgress] = useState<{ current: number, total: number, isOpen: boolean }>({ current: 0, total: 0, isOpen: false });
   const [manualPairingMap, setManualPairingMap] = useState<Record<number, number>>({}); // Maps Bank Sequence (#1, #2...) to BKU ID
   const [bankTypeFilter, setBankTypeFilter] = useState<'ALL' | 'PENERIMAAN' | 'PENGELUARAN'>('ALL');
-
-  // ── NEURON LINK STATE & REFS (2.0) ──────────────────────────────────────────
-  const [neuronDragging, setNeuronDragging] = useState<{bankId: number, fromX: number, fromY: number} | null>(null);
-  const [neuronMouse, setNeuronMouse] = useState<{x: number, y: number}>({x: 0, y: 0});
-  const [neuronLinks, setNeuronLinks] = useState<{bankId: number, bkuId: string, isBalanced: boolean}[]>([]);
-  const [neuronTick, setNeuronTick] = useState(0);
-  // Refs untuk menghindari getBoundingClientRect() di dalam render (mencegah layout reflow)
-  const neuronLinksRef  = useRef<{bankId: number, bkuId: string, isBalanced: boolean}[]>([]);
-  const neuronCacheRef  = useRef<Map<string, {x: number, y: number, visible: boolean}>>(new Map());
-  const neuronRafRef    = useRef<number | null>(null);
 
   // Computed totals for value-based filtering/matching
   const totalSelectedBku = data?.bku?.filter((b: any) => selectedBkuIds.includes(b.id))
@@ -404,13 +395,15 @@ export default function ReconciliationPage() {
   // 3. RECON MODAL STATES
   const [rekonModal, setRekonModal] = useState<{
     id: number;
-    type: 'SP2D' | 'PENDAPATAN' | 'POTONGAN';
+    type?: 'SP2D' | 'PENDAPATAN' | 'POTONGAN';
     nilaiBku: number;
     nilaiBank: number;
     selisih: number;
-    keterangan: string;
+    keterangan?: string;
     tanggalPencairan: string;
     manualTag?: string;
+    nomor?: string;
+    opd?: string;
   } | null>(null);
   
   const [magicMatchProgress, setMagicMatchProgress] = useState<{
@@ -419,6 +412,8 @@ export default function ReconciliationPage() {
     current: number;
     success: number;
     fails: number;
+    status?: string;
+    message?: string;
   } | null>(null);
 
   const [refMatchModal, setRefMatchModal] = useState<{
@@ -448,7 +443,7 @@ export default function ReconciliationPage() {
     // Toggle: If all are already selected, deselect them. Otherwise, select all.
     const allSelected = identicalIds.every((id: number) => selectedBankIds.includes(id));
     if (allSelected) {
-       setSelectedBankIds(selectedBankIds.filter(id => !identicalIds.includes(id)));
+       setSelectedBankIds(selectedBankIds.filter((id: number) => !identicalIds.includes(id)));
     } else {
        setSelectedBankIds([...new Set([...selectedBankIds, ...identicalIds])]);
     }
@@ -683,80 +678,9 @@ export default function ReconciliationPage() {
     } else if (type === 'selisih') {
       setFilters({ ...filters, status: 'SELISIH' }); // Filter data SUDAH tapi berselisih
     } else if (type === 'reset') {
-      setFilters({ opd: '', search: '', startDate: format(now, 'yyyy-MM-01'), endDate: format(now, 'yyyy-MM-dd'), status: 'BELUM' });
+      setFilters({ search: '', startDate: format(now, 'yyyy-MM-01'), endDate: format(now, 'yyyy-MM-dd'), status: 'BELUM' });
     }
     setCurrentPage(1);
-  };
-
-  // ── NEURON LINK 2.0 — COORDINATE CACHE + RAF THROTTLE ──────────────────────
-  // Sync state → ref agar updateNeuronCache bisa baca data terbaru tanpa closure stale
-  useEffect(() => { neuronLinksRef.current = neuronLinks; }, [neuronLinks]);
-
-  // Baca semua koordinat DOM dalam satu batch (tanpa interleave read/write = zero thrashing)
-  const updateNeuronCache = useCallback(() => {
-    const panelEls = document.querySelectorAll('.neuron-scroll-panel');
-    const panelBounds = Array.from(panelEls).map(el => el.getBoundingClientRect());
-    // Elemen dianggap visible jika setidaknya sebagian masuk dalam batas panel scroll
-    const isElVisible = (r: DOMRect) =>
-      panelBounds.length === 0 || panelBounds.some(pb => r.bottom > pb.top + 8 && r.top < pb.bottom - 8);
-
-    const cache = new Map<string, {x: number, y: number, visible: boolean}>();
-    neuronLinksRef.current.forEach(link => {
-      const srcEl = document.getElementById(`neuron-src-${link.bankId}`);
-      const dstEl = document.getElementById(`neuron-dst-${link.bkuId}`);
-      if (srcEl) {
-        const r = srcEl.getBoundingClientRect();
-        cache.set(`src-${link.bankId}`, { x: r.right + 2, y: r.top + r.height / 2, visible: isElVisible(r) });
-      }
-      if (dstEl) {
-        const r = dstEl.getBoundingClientRect();
-        cache.set(`dst-${link.bkuId}`, { x: r.left - 2, y: r.top + r.height / 2, visible: isElVisible(r) });
-      }
-    });
-    neuronCacheRef.current = cache;
-    setNeuronTick(t => t + 1);
-  }, []); // empty deps — baca dari refs, tidak butuh resubscribe
-
-  // RAF-throttled scheduler: maksimum 1 update per frame (60fps), tidak pernah lebih
-  const scheduleNeuronUpdate = useCallback(() => {
-    if (neuronRafRef.current !== null) return;
-    neuronRafRef.current = requestAnimationFrame(() => {
-      neuronRafRef.current = null;
-      updateNeuronCache();
-    });
-  }, [updateNeuronCache]);
-
-  // Mouse drag effect — hanya aktif saat sedang drag
-  useEffect(() => {
-    if (!neuronDragging) return;
-    const onMove = (e: MouseEvent) => setNeuronMouse({ x: e.clientX, y: e.clientY });
-    const onUp = () => setNeuronDragging(null);
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-    return () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-  }, [neuronDragging]);
-
-  // Scroll & resize — gunakan passive listener + RAF untuk performa optimal
-  useEffect(() => {
-    if (neuronLinks.length === 0) return;
-    const panels = document.querySelectorAll('.neuron-scroll-panel');
-    panels.forEach(el => el.addEventListener('scroll', scheduleNeuronUpdate, { passive: true }));
-    window.addEventListener('resize', scheduleNeuronUpdate, { passive: true });
-    scheduleNeuronUpdate(); // Isi cache saat link pertama kali dibuat
-    return () => {
-      panels.forEach(el => el.removeEventListener('scroll', scheduleNeuronUpdate));
-      window.removeEventListener('resize', scheduleNeuronUpdate);
-      if (neuronRafRef.current) { cancelAnimationFrame(neuronRafRef.current); neuronRafRef.current = null; }
-    };
-  }, [neuronLinks, scheduleNeuronUpdate]);
-
-  // Bezier 2.0: kelengkungan organik — ketat untuk jarak dekat, menggelayut untuk jarak jauh
-  const calcNeuronBezier = (x1: number, y1: number, x2: number, y2: number) => {
-    const cx = Math.min(180, Math.max(40, Math.abs(x2 - x1) * 0.45));
-    return `M${x1},${y1} C${x1 + cx},${y1} ${x2 - cx},${y2} ${x2},${y2}`;
   };
 
   return (
@@ -773,23 +697,47 @@ export default function ReconciliationPage() {
         description="Audit integritas data pengeluaran (SP2D) vs Mutasi RKUD"
         icon={<Activity className="size-5" />}
         actions={
-          <div className="flex items-center gap-2">
-            <Button onClick={openResetModal} variant="ghost" className="h-10 px-4 text-rose-400 hover:text-rose-600 hover:bg-rose-500/10 rounded-xl font-black text-[9px] uppercase transition-all flex items-center gap-1.5">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <Button 
+              onClick={openResetModal} 
+              variant="ghost" 
+              size="md"
+              className="text-fin-text-muted hover:text-fin-expense-text hover:bg-fin-expense-bg font-bold text-xs uppercase rounded-lg flex items-center gap-1.5"
+            >
               <RefreshCw size={14} /> Reset All
             </Button>
-            <Button onClick={() => setConfirmSmartMatch(true)} className="h-10 px-5 bg-indigo-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 shadow-lg shadow-indigo-900/20 transition-all flex items-center gap-2 group">
-              <Sparkles size={14} className="text-amber-400 group-hover:rotate-12 transition-transform" />
-              <span>Magic Match AI</span>
+            <Button 
+              variant="primary" 
+              size="md" 
+              onClick={() => setConfirmSmartMatch(true)} 
+              className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-lg text-xs font-bold font-sans shadow-sm border-none group flex items-center"
+              leftIcon={<Sparkles size={14} className="text-amber-300 group-hover:rotate-12 transition-transform" />}
+            >
+              Magic Match AI
             </Button>
-            <Button onClick={() => setRefMatchModal({ isOpen: true, value: '' })} variant="outline" className="h-10 px-4 border-fin-border text-indigo-400 rounded-xl font-black text-[10px] uppercase bg-indigo-500/5 hover:bg-indigo-500/10 transition-all shadow-sm flex items-center gap-1.5">
-              <Hash size={14} /> Match No. Bukti
+            <Button 
+              onClick={() => setRefMatchModal({ isOpen: true, value: '' })} 
+              variant="outline" 
+              size="md"
+              className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5 text-fin-text-primary"
+            >
+              <Hash size={14} className="text-indigo-500" /> Match No. Bukti
             </Button>
             {selectedBankIds.length > 0 && filters.status !== 'BELUM' && (
-              <Button onClick={() => handleBatchUnmatch(selectedBankIds)} variant="destructive" className="h-10 px-4 rounded-xl font-black text-[10px] uppercase shadow-md animate-in zoom-in duration-200 flex items-center gap-1.5">
+              <Button 
+                onClick={() => handleBatchUnmatch(selectedBankIds)} 
+                variant="destructive" 
+                size="md"
+                className="rounded-lg text-xs font-bold font-sans shadow-sm flex items-center gap-1.5 animate-in zoom-in duration-200"
+              >
                 <Trash2 size={14} /> Unmatch ({selectedBankIds.length})
               </Button>
             )}
-            <Button variant="outline" className="h-10 px-4 border-fin-border text-fin-text-primary rounded-xl font-semibold text-xs bg-fin-surface hover:bg-fin-page flex items-center gap-1.5">
+            <Button 
+              variant="outline" 
+              size="md"
+              className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5 text-fin-text-primary"
+            >
               <Download size={14} /> Export
             </Button>
           </div>
@@ -797,63 +745,58 @@ export default function ReconciliationPage() {
       />
 
       {/* SUMMARY STATS (The Gold Standard) */}
-      {/* SUMMARY STATS (The Gold Standard) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="bg-fin-surface p-4 rounded-xl border border-fin-border shadow-sm group hover:scale-[1.02] transition-all">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-500/10 text-emerald-500 rounded-lg flex items-center justify-center shadow-sm shrink-0">
-              <TrendingUp size={20} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest truncate">Total Penerimaan (BKU)</p>
-              <p className="text-lg font-black text-fin-text-primary mt-0.5 truncate tabular-nums">{formatCurrency(data?.summary?.totalBkuMasuk || 0)}</p>
-            </div>
-          </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
+        <Card className="bg-fin-surface p-5 rounded-xl border border-fin-border shadow-sm">
+           <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest mb-1">Total Penerimaan (BKU)</p>
+           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-fin-text-primary tabular-nums truncate">
+             {isLoading ? '...' : formatCurrency(data?.summary?.totalBkuMasuk || 0)}
+           </h3>
+           <div className="flex items-center gap-2 mt-2">
+              <TrendingUp size={12} className="text-emerald-500" />
+              <span className="text-[9px] font-bold text-emerald-500 uppercase">Penerimaan Kas</span>
+           </div>
         </Card>
 
-        <Card className="bg-fin-surface p-4 rounded-xl border border-fin-border shadow-sm group hover:scale-[1.02] transition-all">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-fin-info-bg text-fin-info-text rounded-lg flex items-center justify-center shadow-sm shrink-0">
-              <Database size={20} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[9px] font-bold text-fin-info-text uppercase tracking-widest truncate">Total Belanja (BKU)</p>
-              <p className="text-lg font-black text-fin-text-primary mt-0.5 truncate tabular-nums">{formatCurrency(data?.summary?.totalBku || 0)}</p>
-            </div>
-          </div>
+        <Card className="bg-fin-surface p-5 rounded-xl border border-fin-border shadow-sm">
+           <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest mb-1">Total Belanja (BKU)</p>
+           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-fin-text-primary tabular-nums truncate">
+             {isLoading ? '...' : formatCurrency(data?.summary?.totalBku || 0)}
+           </h3>
+           <div className="flex items-center gap-2 mt-2">
+              <Database size={12} className="text-fin-info-text" />
+              <span className="text-[9px] font-bold text-fin-info-text uppercase">Pengeluaran Kas</span>
+           </div>
         </Card>
 
-        <Card className="bg-fin-surface p-4 rounded-xl border border-fin-border shadow-sm group hover:scale-[1.02] transition-all">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-rose-500/10 text-rose-500 rounded-lg flex items-center justify-center shadow-sm shrink-0">
-              <AlertTriangle size={20} />
-            </div>
-            <div className="min-w-0">
-               <p className="text-[9px] font-bold text-rose-500 uppercase tracking-widest truncate">BKU Belum Rekon</p>
-               <p className="text-lg font-black text-rose-500 mt-0.5 truncate tabular-nums">{formatCurrency(data?.summary?.totalUnmatched || 0)}</p>
-            </div>
-          </div>
+        <Card className="bg-fin-surface p-5 rounded-xl border border-fin-border shadow-sm">
+           <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest mb-1">BKU Belum Rekon</p>
+           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-rose-500 tabular-nums truncate">
+             {isLoading ? '...' : formatCurrency(data?.summary?.totalUnmatched || 0)}
+           </h3>
+           <div className="flex items-center gap-2 mt-2">
+              <AlertTriangle size={12} className="text-rose-500" />
+              <span className="text-[9px] font-bold text-rose-500 uppercase">Menunggu Audit</span>
+           </div>
         </Card>
 
-        <Card className="bg-fin-surface p-4 rounded-xl border border-fin-border shadow-sm group hover:scale-[1.02] transition-all">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-amber-500/10 text-amber-500 rounded-lg flex items-center justify-center shadow-sm shrink-0">
-              <ShieldCheck size={20} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[9px] font-bold text-amber-500 uppercase tracking-widest truncate">Saldo RKUD (Real)</p>
-              <p className="text-lg font-black text-fin-text-primary mt-0.5 truncate tabular-nums">{formatCurrency(data?.summary?.bankBalance || 0)}</p>
-            </div>
-          </div>
+        <Card className="bg-fin-surface p-5 rounded-xl border border-fin-border border-t-4 border-t-amber-500 shadow-sm">
+           <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-1">Saldo RKUD (Real)</p>
+           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-fin-text-primary tabular-nums truncate">
+             {isLoading ? '...' : formatCurrency(data?.summary?.bankBalance || 0)}
+           </h3>
+           <div className="flex items-center gap-2 mt-2">
+              <ShieldCheck size={12} className="text-amber-500" />
+              <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest">Validated Bank Position</span>
+           </div>
         </Card>
       </div>
 
       {/* FILTER BAR (Modernized Gold Standard) */}
-      <Card className="rounded-2xl border border-fin-border shadow-sm overflow-hidden bg-fin-surface">
+      <Card className="rounded-xl border border-fin-border shadow-sm overflow-hidden bg-fin-surface">
         <div className="h-14 flex items-center justify-between px-6 bg-fin-surface border-b border-fin-border">
            <div className="flex items-center gap-6">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-900/20">
+                <div className="w-8 h-8 rounded-lg bg-ds-primary flex items-center justify-center shadow-md shadow-ds-primary/10">
                     <Filter size={14} className="text-white" />
                 </div>
                 <h2 className="text-[11px] font-black text-fin-text-primary uppercase tracking-wider">Parameter Audit & Pencarian</h2>
@@ -866,99 +809,94 @@ export default function ReconciliationPage() {
                 <span className="text-[10px] font-black text-indigo-400 tabular-nums">{data?.summary?.accuracy || 0}%</span>
               </div>
            </div>
-           <div className="flex bg-fin-page p-1 rounded-xl">
+           <div className="flex bg-fin-page p-1 rounded-lg">
              <button 
                onClick={() => setFilters(prev => ({ ...prev, status: 'BELUM' }))}
                className={cn(
-                 "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all",
-                 filters.status === 'BELUM' || filters.status === '' ? "bg-fin-surface text-rose-400 shadow-sm ring-1 ring-fin-border" : "text-fin-text-muted hover:text-fin-text-primary"
+                 "px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+                 filters.status === 'BELUM' || filters.status === '' ? "bg-fin-surface text-rose-500 shadow-sm border border-fin-border" : "text-fin-text-muted hover:text-fin-text-primary"
                )}
              >Belum</button>
              <button 
                onClick={() => setFilters(prev => ({ ...prev, status: 'SELISIH' }))}
                className={cn(
-                 "px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all",
-                 filters.status === 'SELISIH' ? "bg-fin-surface text-amber-400 shadow-sm ring-1 ring-fin-border" : "text-fin-text-muted hover:text-fin-text-primary"
+                 "px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+                 filters.status === 'SELISIH' ? "bg-fin-surface text-amber-500 shadow-sm border border-fin-border" : "text-fin-text-muted hover:text-fin-text-primary"
                )}
              >Selisih</button>
              <button 
                onClick={() => setFilters(prev => ({ ...prev, status: 'SUDAH' }))}
                className={cn(
-                 "px-5 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all duration-300",
-                 filters.status === 'SUDAH' ? "bg-fin-surface text-emerald-400 shadow-sm ring-1 ring-fin-border" : "text-fin-text-muted hover:text-fin-text-primary"
+                 "px-4 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all",
+                 filters.status === 'SUDAH' ? "bg-fin-surface text-emerald-500 shadow-sm border border-fin-border" : "text-fin-text-muted hover:text-fin-text-primary"
                )}
              >Selesai</button>
            </div>
         </div>
         <div className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-end">
-          <div className="lg:col-span-3 space-y-2.5">
-            <label className="text-[10px] font-black text-indigo-400 uppercase tracking-wider flex items-center gap-2 ml-1">
-              <Search size={13} /> Cari Transaksi
+          <div className="lg:col-span-4 space-y-2">
+            <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider flex items-center gap-1.5 ml-1">
+              <Search size={13} className="text-indigo-500" /> Cari Transaksi
             </label>
             <Input 
               placeholder="Nomor SP2D / STS..." 
-              className="h-11 bg-fin-page border-fin-border rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500/10 text-fin-text-primary placeholder:text-fin-text-muted/30"
+              className="h-10 border-fin-border rounded-lg text-xs font-semibold focus:ring-2 focus:ring-ds-focus-ring/10 text-fin-text-primary placeholder:text-fin-text-muted/30 animate-none"
               value={filters.search}
               onChange={(e) => setFilters(prev => ({...prev, search: e.target.value}))}
             />
           </div>
 
-
           <div className="lg:col-span-2 space-y-2">
-            <label className="text-[10px] font-black text-indigo-400/80 uppercase tracking-widest flex items-center gap-2 ml-1">
-              <Calendar size={12} /> Rekon Bulanan
+            <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider flex items-center gap-1.5 ml-1">
+              <Calendar size={12} className="text-indigo-500" /> Rekon Bulanan
             </label>
-            <Select onValueChange={(v) => {
-              if (v === 'none') return;
-              const now = new Date();
-              const year = now.getFullYear();
-              const month = parseInt(v); // idx: 0=Jan, 1=Feb, ...
-              const start = new Date(year, month, 1);
-              const end = new Date(year, month + 1, 0);
-              setCurrentPage(1); // Reset ke halaman 1 saat ganti bulan
-              setFilters(prev => ({
-                ...prev,
-                startDate: format(start, 'yyyy-MM-dd'),
-                endDate: format(end, 'yyyy-MM-dd')
-              }));
-            }}>
-              <SelectTrigger className="h-11 bg-fin-page border-fin-border rounded-xl text-[11px] font-bold text-fin-text-primary hover:border-indigo-500/50 transition-all">
-                <SelectValue placeholder="Pilih Bulan" />
-              </SelectTrigger>
-              <SelectContent className="bg-fin-surface border-fin-border shadow-2xl">
-                {['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'].map((m, idx) => (
-                  <SelectItem key={m} value={idx.toString()} className="text-[10px] font-bold uppercase">{m}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <select
+              value={selectedBulanRekon}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "") return;
+                setSelectedBulanRekon(v);
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = parseInt(v);
+                const start = new Date(year, month, 1);
+                const end = new Date(year, month + 1, 0);
+                setCurrentPage(1);
+                setFilters(prev => ({
+                  ...prev,
+                  startDate: format(start, 'yyyy-MM-dd'),
+                  endDate: format(end, 'yyyy-MM-dd'),
+                }));
+              }}
+              className="h-10 w-full px-3 border border-fin-border rounded-lg bg-fin-surface text-fin-text-primary text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+            >
+              <option value="">Pilih Bulan</option>
+              {['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'].map((m, idx) => (
+                <option key={idx} value={idx.toString()} className="bg-fin-surface text-fin-text-primary">
+                  {m}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className="lg:col-span-3 space-y-2">
-            <label className="text-[10px] font-black text-indigo-400/80 uppercase tracking-widest flex items-center gap-2 ml-1">
-              <Calendar size={12} /> Rentang Tanggal
+          <div className="lg:col-span-4 space-y-2">
+            <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider flex items-center gap-1.5 ml-1">
+              <Calendar size={12} className="text-indigo-500" /> Rentang Tanggal
             </label>
-            <div className="flex items-center bg-fin-page border border-fin-border rounded-xl px-3 h-11 shadow-sm transition-all focus-within:ring-2 focus-within:ring-indigo-500/10 focus-within:border-indigo-500/50">
-              <div className="flex items-center w-full gap-2 relative group">
-                <Calendar size={14} className="text-indigo-500 shrink-0" />
-                <input 
-                  type="date" 
-                  className="bg-transparent text-[10px] font-bold w-full outline-none text-fin-text-primary cursor-pointer [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
-                  value={filters.startDate} 
-                  onChange={(e) => setFilters(prev => ({...prev, startDate: e.target.value}))} 
-                />
-              </div>
-              
-              <div className="px-1 text-fin-text-muted text-[10px] font-bold">to</div>
-              
-              <div className="flex items-center w-full gap-2 relative group">
-                <input 
-                  type="date" 
-                  className="bg-transparent text-[10px] font-bold w-full outline-none text-right text-fin-text-primary cursor-pointer [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer" 
-                  value={filters.endDate} 
-                  onChange={(e) => setFilters(prev => ({...prev, endDate: e.target.value}))} 
-                />
-                <Calendar size={14} className="text-indigo-500 shrink-0" />
-              </div>
+            <div className="flex items-center gap-2">
+              <Input 
+                type="date" 
+                className="h-10 border-fin-border rounded-lg text-xs font-semibold animate-none"
+                value={filters.startDate}
+                onChange={(e) => setFilters(prev => ({...prev, startDate: e.target.value}))}
+              />
+              <span className="text-xs font-bold text-fin-text-muted">s/d</span>
+              <Input 
+                type="date" 
+                className="h-10 border-fin-border rounded-lg text-xs font-semibold animate-none"
+                value={filters.endDate}
+                onChange={(e) => setFilters(prev => ({...prev, endDate: e.target.value}))}
+              />
             </div>
           </div>
 
@@ -966,20 +904,23 @@ export default function ReconciliationPage() {
             <Button 
               onClick={() => { setCurrentPage(1); mutate(); }} 
               disabled={isLoading}
-              className="group w-full h-11 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 active:scale-95 transition-all gap-3 border-t border-white/10"
+              variant="primary"
+              size="md"
+              className="w-full text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-2"
+              loading={isLoading}
             >
-              <RefreshCw size={14} className={isLoading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-700"} />
-              {isLoading ? 'Memuat...' : 'Tampilkan'}
+              <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+              <span>Tampilkan</span>
             </Button>
           </div>
         </div>
       </Card>
 
       {/* MAIN RECONCILIATION AREA - 3 PANELS SYSTEM */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
         
         <div className="xl:col-span-3 flex flex-col">
-          <div className="h-14 flex items-center justify-between px-5 bg-fin-surface border-b border-fin-border rounded-t-2xl relative overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)] z-10">
+          <div className="h-14 flex items-center justify-between px-5 bg-fin-surface border-b border-fin-border rounded-t-xl relative overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)] z-10">
              {/* SUM-LOCK INDICATOR BAR (Dynamic) */}
              {selectedBankIds.length > 0 && (
                 <motion.div 
@@ -987,57 +928,57 @@ export default function ReconciliationPage() {
                    animate={{ y: 0 }}
                    className={cn(
                       "absolute inset-0 z-30 flex items-center justify-between px-5 transition-colors duration-500",
-                      Math.abs(totalBkuForDisplay - totalSelectedBank) < 1 ? "bg-emerald-600 text-white shadow-lg" : "bg-indigo-600 text-white shadow-lg"
+                      Math.abs(totalBkuForDisplay - totalSelectedBank) < 1 ? "bg-emerald-600 text-white shadow-lg" : "bg-ds-primary text-white shadow-lg"
                    )}
                 >
                    <div className="flex items-center gap-4">
                       <div className="flex flex-col">
-                         <span className="text-[7px] font-black uppercase opacity-70 leading-none">Target Bank</span>
-                         <span className="text-[11px] font-black tabular-nums">{formatCurrency(totalSelectedBank)}</span>
+                         <span className="text-[7px] font-bold uppercase opacity-70 leading-none">Target Bank</span>
+                         <span className="text-[11px] font-bold tabular-nums">{formatCurrency(totalSelectedBank)}</span>
                       </div>
                       <ArrowRight size={14} className={Math.abs(totalBkuForDisplay - totalSelectedBank) < 1 ? "animate-bounce-x" : "opacity-40"} />
                       <div className="flex flex-col">
-                         <span className="text-[7px] font-black uppercase opacity-70 leading-none">Selected BKU</span>
-                         <span className="text-[11px] font-black tabular-nums">{formatCurrency(totalBkuForDisplay)}</span>
+                         <span className="text-[7px] font-bold uppercase opacity-70 leading-none">Selected BKU</span>
+                         <span className="text-[11px] font-bold tabular-nums">{formatCurrency(totalBkuForDisplay)}</span>
                       </div>
                    </div>
                 </motion.div>
              )}
 
             <div className="flex items-center gap-3">
-               <div className="w-8 h-8 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 shadow-sm">
-                  <Database size={16} className="text-indigo-400" />
+               <div className="w-7 h-7 rounded-lg bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 shadow-sm shrink-0">
+                  <Database size={14} className="text-indigo-400" />
                </div>
-               <div className="flex flex-col">
-                  <h2 className="text-[11px] font-black text-fin-text-primary uppercase tracking-wider leading-none">Audit BKU</h2>
-                  <span className="text-fin-text-muted uppercase tracking-widest leading-none mt-1.5">{data?.counts?.totalBku ?? data?.bku?.length ?? 0} Entri ditemukan</span>
+               <div className="flex flex-col min-w-0">
+                  <h2 className="text-[11px] font-bold text-fin-text-primary uppercase tracking-wider leading-none truncate">Audit BKU</h2>
+                  <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest leading-none mt-1.5 truncate">{data?.counts?.totalBku ?? data?.bku?.length ?? 0} Entri ditemukan</span>
                </div>
             </div>
           </div>
           
-          <div className="p-4 space-y-4 h-[750px] overflow-hidden flex flex-col bg-fin-surface border border-fin-border border-t-0 rounded-b-2xl shadow-sm">
+          <div className="p-4 space-y-4 h-[750px] overflow-hidden flex flex-col bg-fin-surface border border-fin-border border-t-0 rounded-b-xl shadow-sm">
             <Tabs defaultValue="SP2D" className="w-full flex-1 flex flex-col">
-              <TabsList className="grid w-full grid-cols-3 bg-fin-page p-1 rounded-xl h-11 shrink-0 border border-fin-border">
-                <TabsTrigger value="SP2D" className="rounded-lg text-[9px] font-black uppercase tracking-widest data-[state=active]:bg-fin-surface data-[state=active]:shadow-sm data-[state=active]:text-indigo-400 data-[state=active]:ring-1 data-[state=active]:ring-fin-border flex items-center gap-1">
+              <TabsList className="grid w-full grid-cols-3 bg-fin-page p-1 rounded-lg h-10 shrink-0 border border-fin-border">
+                <TabsTrigger value="SP2D" className="rounded-md text-[10px] font-bold uppercase tracking-widest data-[state=active]:bg-fin-surface data-[state=active]:shadow-sm data-[state=active]:text-indigo-500 data-[state=active]:ring-1 data-[state=active]:ring-fin-border flex items-center gap-1">
                   SP2D
                   {(data?.counts?.sp2d ?? 0) > 0 && (
-                    <span className="bg-indigo-500 text-white text-[7px] font-black rounded-full px-1 min-w-[14px] text-center leading-tight py-px">
+                    <span className="bg-indigo-500 text-white text-[8px] font-bold rounded-full px-1 min-w-[16px] text-center leading-tight py-0.5">
                       {data.counts.sp2d}
                     </span>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="PENDAPATAN" className="rounded-lg text-[9px] font-black uppercase tracking-widest data-[state=active]:bg-fin-surface data-[state=active]:shadow-sm data-[state=active]:text-indigo-400 data-[state=active]:ring-1 data-[state=active]:ring-fin-border flex items-center gap-1">
+                <TabsTrigger value="PENDAPATAN" className="rounded-md text-[10px] font-bold uppercase tracking-widest data-[state=active]:bg-fin-surface data-[state=active]:shadow-sm data-[state=active]:text-indigo-500 data-[state=active]:ring-1 data-[state=active]:ring-fin-border flex items-center gap-1">
                   STS
                   {(data?.counts?.pendapatan ?? 0) > 0 && (
-                    <span className="bg-indigo-500 text-white text-[7px] font-black rounded-full px-1 min-w-[14px] text-center leading-tight py-px">
+                    <span className="bg-indigo-500 text-white text-[8px] font-bold rounded-full px-1 min-w-[16px] text-center leading-tight py-0.5">
                       {data.counts.pendapatan}
                     </span>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="POTONGAN" className="rounded-lg text-[9px] font-black uppercase tracking-widest data-[state=active]:bg-fin-surface data-[state=active]:shadow-sm data-[state=active]:text-indigo-400 data-[state=active]:ring-1 data-[state=active]:ring-fin-border flex items-center gap-1">
+                <TabsTrigger value="POTONGAN" className="rounded-md text-[10px] font-bold uppercase tracking-widest data-[state=active]:bg-fin-surface data-[state=active]:shadow-sm data-[state=active]:text-indigo-500 data-[state=active]:ring-1 data-[state=active]:ring-fin-border flex items-center gap-1">
                   POT
                   {(data?.counts?.potongan ?? 0) > 0 && (
-                    <span className="bg-indigo-500 text-white text-[7px] font-black rounded-full px-1 min-w-[14px] text-center leading-tight py-px">
+                    <span className="bg-indigo-500 text-white text-[8px] font-bold rounded-full px-1 min-w-[16px] text-center leading-tight py-0.5">
                       {data.counts.potongan}
                     </span>
                   )}
@@ -1053,7 +994,7 @@ export default function ReconciliationPage() {
                     tabValue === 'PENDAPATAN' ? i.source === 'PENDAPATAN' :
                     (i.source === 'POTONGAN' || i.source === 'SETORAN')
                   ).length === 0 ? (
-                  <div className="py-16 text-center border-2 border-dashed rounded-2xl flex flex-col items-center gap-2 px-4">
+                  <div className="py-16 text-center border-2 border-dashed rounded-xl flex flex-col items-center gap-2 px-4">
                     <CheckCircle2 size={28} className="text-emerald-400 opacity-60" />
                     <p className="text-[9px] font-black text-fin-text-muted uppercase tracking-widest">
                       {filters.status === 'BELUM' ? 'Semua data telah direkonsiliasi' : 'Tidak ada data'}
@@ -1079,7 +1020,7 @@ export default function ReconciliationPage() {
                       onClick={(e) => handleBkuClick(e, item.id, filteredBku)}
                       className={cn(
                         "p-3 cursor-pointer border-2 transition-all duration-200 group relative",
-                        selectedBkuIds.includes(item.id) ? "border-indigo-600 bg-fin-info-bg/30 shadow-lg scale-[1.02]" : "border-fin-border hover:border-indigo-500/50 bg-fin-surface"
+                        selectedBkuIds.includes(item.id) ? "border-ds-focus-ring bg-fin-info-bg/30 shadow-lg scale-[1.02]" : "border-fin-border hover:border-indigo-500/50 bg-fin-surface"
                       )}
                     >
                       <div className="space-y-2">
@@ -1087,7 +1028,7 @@ export default function ReconciliationPage() {
                           <div className="flex items-center gap-2">
                              <span className="text-[8px] font-black text-fin-text-muted uppercase tracking-tighter">#{item.id.toString().substring(0,6)}</span>
                              {selectedBkuIds.includes(item.id) && (
-                                <Badge className="bg-indigo-600 text-white border-none h-4 px-1 text-[8px] font-black animate-in zoom-in">
+                                <Badge className="bg-ds-primary text-white border-none h-4 px-1 text-[8px] font-black animate-in zoom-in">
                                    #{selectedBkuIds.indexOf(item.id) + 1}
                                 </Badge>
                              )}
@@ -1122,7 +1063,7 @@ export default function ReconciliationPage() {
                         <p className="text-[10px] font-black text-fin-text-primary leading-tight line-clamp-2 uppercase italic">{item.bukti}</p>
                         <div className="flex justify-between items-end">
                           <div className="space-y-0.5">
-                            <p className="text-[11px] font-black text-indigo-600 tabular-nums">{formatCurrency(item.nilai)}</p>
+                            <p className="text-[11px] font-black text-fin-info-text tabular-nums">{formatCurrency(item.nilai)}</p>
                             {/* Tampilkan nilai selisih jika ada */}
                             {item.selisih_rekon != null && Number(item.selisih_rekon) !== 0 && (
                               <div className="flex items-center gap-1">
@@ -1154,46 +1095,46 @@ export default function ReconciliationPage() {
 
         {/* PANEL 2: BANK STATEMENTS (TENGAH - 50%) */}
         <div className="xl:col-span-5 flex flex-col">
-          <div className="h-14 flex items-center justify-between px-5 bg-fin-surface border-b border-fin-border rounded-t-2xl shadow-[0_1px_2px_rgba(0,0,0,0.02)] z-10">
-            <div className="flex items-center gap-5">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shadow-sm">
-                   <Activity size={16} className="text-emerald-400" />
+          <div className="h-14 flex items-center justify-between px-5 bg-fin-surface border-b border-fin-border rounded-t-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)] z-10">
+            <div className="flex items-center gap-5 min-w-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 shadow-sm shrink-0">
+                   <Activity size={14} className="text-emerald-500" />
                 </div>
-                <div className="flex flex-col">
-                   <h2 className="text-[11px] font-black text-fin-text-primary uppercase tracking-wider leading-none">Mutasi Bank</h2>
-                   <div className="flex items-center gap-2 mt-1.5">
+                <div className="flex flex-col min-w-0">
+                   <h2 className="text-[11px] font-bold text-fin-text-primary uppercase tracking-wider leading-none truncate">Mutasi Bank</h2>
+                   <div className="flex items-center gap-2 mt-1.5 shrink-0">
                       <div className="flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-500/20">
                          <div className="w-1 h-1 rounded-full bg-emerald-500" />
-                         <span className="text-[7px] font-black text-emerald-400 uppercase tabular-nums">{data?.summary?.matchedCount || 0} OK</span>
+                         <span className="text-[8px] font-bold text-emerald-600 uppercase tabular-nums">{data?.summary?.matchedCount || 0} OK</span>
                       </div>
                       <div className="flex items-center gap-1 bg-rose-500/10 px-1.5 py-0.5 rounded-full border border-rose-500/20">
                          <div className="w-1 h-1 rounded-full bg-rose-500" />
-                         <span className="text-[7px] font-black text-rose-400 uppercase tabular-nums">{data?.summary?.unmatchedCount || 0} NO</span>
+                         <span className="text-[8px] font-bold text-rose-600 uppercase tabular-nums">{data?.summary?.unmatchedCount || 0} NO</span>
                       </div>
                    </div>
                 </div>
               </div>
               
-              <div className="flex bg-fin-page p-1 rounded-xl border border-fin-border shadow-inner">
+              <div className="flex bg-fin-page p-1 rounded-lg border border-fin-border shadow-inner">
                 <button 
                   onClick={() => setBankTypeFilter('ALL')}
                   className={cn(
-                    "px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all duration-300",
-                    bankTypeFilter === 'ALL' ? "bg-fin-surface text-indigo-400 shadow-sm ring-1 ring-fin-border" : "text-fin-text-muted hover:text-fin-text-primary"
+                    "px-4 py-1.5 rounded-md text-[10px] font-bold uppercase transition-all duration-300",
+                    bankTypeFilter === 'ALL' ? "bg-fin-surface text-indigo-500 shadow-sm border border-fin-border" : "text-fin-text-muted hover:text-fin-text-primary"
                   )}
                 >Semua</button>
                 <button 
                   onClick={() => setBankTypeFilter('PENERIMAAN')}
                   className={cn(
-                    "px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all duration-300",
+                    "px-4 py-1.5 rounded-md text-[10px] font-bold uppercase transition-all duration-300",
                     bankTypeFilter === 'PENERIMAAN' ? "bg-emerald-600 text-white shadow-md shadow-emerald-900/20" : "text-fin-text-muted hover:text-fin-text-primary"
                   )}
                 >Masuk</button>
                 <button 
                   onClick={() => setBankTypeFilter('PENGELUARAN')}
                   className={cn(
-                    "px-4 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all duration-300",
+                    "px-4 py-1.5 rounded-md text-[10px] font-bold uppercase transition-all duration-300",
                     bankTypeFilter === 'PENGELUARAN' ? "bg-rose-500 text-white shadow-md shadow-rose-900/20" : "text-fin-text-muted hover:text-fin-text-primary"
                   )}
                 >Keluar</button>
@@ -1228,9 +1169,9 @@ export default function ReconciliationPage() {
                       onClick={() => {
                         const items = smartGroupValue !== null ? smartGroupBankItems : filteredBank;
                         const allIds = items?.map((b: any) => b.id) || [];
-                        const allSelected = allIds.every(id => selectedBankIds.includes(id));
+                        const allSelected = allIds.every((id: number) => selectedBankIds.includes(id));
                         if (allSelected) {
-                          setSelectedBankIds(selectedBankIds.filter(id => !allIds.includes(id)));
+                          setSelectedBankIds(selectedBankIds.filter((id: number) => !allIds.includes(id)));
                         } else {
                           setSelectedBankIds([...new Set([...selectedBankIds, ...allIds])]);
                         }
@@ -1241,7 +1182,7 @@ export default function ReconciliationPage() {
                       <MousePointer2 size={14} />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-[10px] font-bold bg-[#101828] border-none text-white">
+                  <TooltipContent side="bottom" className="text-[10px] font-bold bg-ds-primary border-none text-white">
                     {(smartGroupValue !== null ? smartGroupBankItems : filteredBank)?.every((b: any) => selectedBankIds.includes(b.id)) 
                       ? 'Batalkan Pilihan Semua' 
                       : 'Pilih Semua yang Terlihat'}
@@ -1371,8 +1312,8 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                           >
                              <TableCell className="p-3 pl-4 text-[9px] font-black text-fin-text-muted group-hover:text-indigo-400 transition-colors">
                                 <span className={cn(
-                                  "inline-flex items-center justify-center w-6 h-6 rounded-md",
-                                  smartGroupValue !== null ? "bg-indigo-600 text-white shadow-sm" : "bg-fin-page"
+                                  "inline-flex items-center justify-center w-6 h-6 rounded-lg",
+                                  smartGroupValue !== null ? "bg-ds-primary text-white shadow-sm" : "bg-fin-page"
                                 )}>
                                   #{groupIndex}
                                 </span>
@@ -1381,7 +1322,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                 <div className="flex items-center gap-2">
                                    <div className={cn(
                                       "w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all",
-                                      selectedBankIds.includes(bank.id) ? "bg-indigo-600 border-indigo-600 text-white scale-110" : "border-fin-border bg-fin-surface"
+                                      selectedBankIds.includes(bank.id) ? "bg-ds-primary border-ds-focus-ring text-white scale-110" : "border-fin-border bg-fin-surface"
                                    )}>
                                       {selectedBankIds.includes(bank.id) && <CheckCircle2 size={12} strokeWidth={3} />}
                                    </div>
@@ -1429,35 +1370,11 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                             e.stopPropagation();
                                             selectIdenticalBankValues(bankVal);
                                          }}
-                                         className="text-[7px] font-black uppercase text-indigo-600 hover:text-white hover:bg-indigo-600 border border-indigo-100 bg-indigo-50/50 px-2 py-1 rounded-md flex items-center gap-1 transition-all"
+                                         className="text-[7px] font-black uppercase text-fin-info-text hover:text-white hover:bg-ds-primary border border-indigo-100 bg-indigo-50/50 px-2 py-1 rounded-lg flex items-center gap-1 transition-all"
                                       >
                                          <MousePointer2 size={8} /> Group Nilai Sama
                                       </button>
                                    )}
-                                   {/* Neuron Node — sumber kabel holografik */}
-                                   <button
-                                      id={`neuron-src-${bank.id}`}
-                                      title="Seret → BKU untuk membuat Neuron Link"
-                                      onMouseDown={(e) => {
-                                         e.stopPropagation();
-                                         e.preventDefault();
-                                         const rect = e.currentTarget.getBoundingClientRect();
-                                         setNeuronDragging({ bankId: bank.id, fromX: rect.right, fromY: rect.top + rect.height / 2 });
-                                         setNeuronMouse({ x: rect.right, y: rect.top + rect.height / 2 });
-                                      }}
-                                      onClick={(e) => {
-                                         e.stopPropagation();
-                                         // Klik (bukan drag): hapus link yang ada
-                                         setNeuronLinks(prev => prev.filter(l => l.bankId !== bank.id));
-                                      }}
-                                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center cursor-crosshair transition-all select-none ${
-                                         neuronLinks.some(l => l.bankId === bank.id)
-                                           ? 'bg-emerald-500 border-emerald-400 shadow-[0_0_8px_rgba(0,255,136,0.7)]'
-                                           : 'bg-transparent border-emerald-500/40 hover:border-emerald-400 hover:bg-emerald-500/20 hover:shadow-[0_0_6px_rgba(0,255,136,0.4)]'
-                                      }`}
-                                   >
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 block" />
-                                   </button>
                                 </div>
                              </TableCell>
                           </TableRow>
@@ -1471,24 +1388,24 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
         </div>
 
         <div className="xl:col-span-4 flex flex-col">
-          <div className="h-14 flex items-center justify-between px-5 bg-fin-surface border-b border-fin-border rounded-t-2xl shadow-[0_1px_2px_rgba(0,0,0,0.02)] z-10">
-            <div className="flex flex-col">
-              <h2 className="text-[11px] font-black text-fin-text-primary uppercase tracking-wider flex items-center gap-2">
-                <Zap size={14} className="text-amber-500 fill-amber-500" />
+          <div className="h-14 flex items-center justify-between px-5 bg-fin-surface border-b border-fin-border rounded-t-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)] z-10">
+            <div className="flex flex-col min-w-0">
+              <h2 className="text-[11px] font-bold text-fin-text-primary uppercase tracking-wider flex items-center gap-2 truncate">
+                <Zap size={14} className="text-amber-500 fill-amber-500 shrink-0" />
                 Audit Intelligence
               </h2>
-              <span className="text-[8px] font-bold text-fin-text-muted uppercase tracking-tighter mt-0.5">Analisis pencocokan otomatis</span>
+              <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-tighter mt-0.5 truncate">Analisis pencocokan otomatis</span>
             </div>
             <div className="flex items-center gap-2">
                {selectedBankIds.length > 0 && (
-                  <Badge className="bg-fin-info-bg text-fin-info-text border-none text-[8px] font-black h-5 uppercase px-1.5 animate-pulse">
+                  <Badge className="bg-fin-info-bg text-fin-info-text border-none text-[9px] font-bold h-5 uppercase px-2 animate-pulse">
                      Live Analysis
                   </Badge>
                )}
             </div>
           </div>
 
-          <Card className="rounded-t-none rounded-b-2xl border border-fin-border border-t-0 shadow-2xl shadow-indigo-900/10 overflow-hidden bg-fin-surface h-[750px]">
+          <Card className="rounded-t-none rounded-b-xl border border-fin-border border-t-0 shadow-2xl shadow-indigo-900/10 overflow-hidden bg-fin-surface h-[750px]">
             <div className="p-5 space-y-5 h-full overflow-hidden flex flex-col">
                  {selectedBankIds.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -1607,41 +1524,17 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                            className={cn(
                                               "p-3 border-fin-border hover:border-indigo-500/50 transition-all cursor-pointer group shadow-sm hover:shadow-md relative overflow-hidden",
                                               pairedWith ? "border-emerald-500 bg-emerald-600/10 shadow-[0_0_15px_rgba(16,185,129,0.1)]" : "bg-fin-surface",
-                                              selectedBkuIds.includes(sug.id) && !pairedWith && "border-indigo-600 bg-fin-info-bg/30",
+                                              selectedBkuIds.includes(sug.id) && !pairedWith && "border-ds-focus-ring bg-fin-info-bg/30",
                                               sug.suggestion_type === 'EXACT' && !pairedWith && "border-emerald-500/30 bg-emerald-500/10"
                                            )}
                                            onClick={() => {
                                               if (selectedBkuIds.includes(sug.id)) {
-                                                 setSelectedBkuIds(selectedBkuIds.filter(id => id !== sug.id));
+                                                 setSelectedBkuIds(selectedBkuIds.filter((id: number) => id !== sug.id));
                                               } else {
                                                  setSelectedBkuIds([...selectedBkuIds, sug.id]);
                                               }
                                            }}
                                         >
-                                           {/* Neuron Target Node — soket penerima kabel holografik */}
-                                           <div
-                                              id={`neuron-dst-${sug.id}`}
-                                              title="Lepas kabel Neuron Link di sini"
-                                              className={`absolute left-[-7px] top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 z-40 transition-all ${
-                                                 neuronLinks.some(l => l.bkuId === sug.id)
-                                                   ? 'bg-cyan-400 border-cyan-300 shadow-[0_0_8px_rgba(0,229,255,0.8)]'
-                                                   : 'bg-fin-surface border-emerald-500/40'
-                                              } ${neuronDragging ? 'border-emerald-400 bg-emerald-500/20 shadow-[0_0_6px_rgba(0,255,136,0.5)] scale-125' : ''}`}
-                                              style={{ pointerEvents: neuronDragging ? 'auto' : 'none' }}
-                                              onMouseUp={(e) => {
-                                                 if (!neuronDragging) return;
-                                                 e.stopPropagation();
-                                                 const bkuVal = sug.match_mode === 'bruto' ? Number(sug.nilai_bruto) : Number(sug.nilai_neto);
-                                                 const balanced = Math.abs(bkuVal - (suggestionsData?.totalBankValue ?? 0)) < 1;
-                                                 setNeuronLinks(prev => [
-                                                   ...prev.filter(l => l.bankId !== neuronDragging.bankId && l.bkuId !== sug.id),
-                                                   { bankId: neuronDragging.bankId, bkuId: sug.id, isBalanced: balanced }
-                                                 ]);
-                                                 setNeuronDragging(null);
-                                                 // Auto-pilih BKU ini
-                                                 setSelectedBkuIds(prev => [...new Set([...prev, sug.id])]);
-                                              }}
-                                           />
                                            {/* Status Badge (Locked Slot) */}
                                            {pairedWith && (
                                               <div className="absolute top-0 left-0 bg-red-600 text-black text-[8px] font-black px-2 py-1 rounded-br-lg shadow-sm flex items-center gap-1 z-20">
@@ -1651,7 +1544,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                            )}
                                            {/* Pairing Toolbar (Manual Labeling) */}
                                            <div className="absolute top-2 right-2 z-30 opacity-0 group-hover:opacity-100 transition-opacity">
-                                               <Select
+                                               <Combobox
                                                   value={pairedWith || "none"}
                                                   onValueChange={(val) => {
                                                      if (val === "none") {
@@ -1662,43 +1555,30 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                                               delete next[Number(keyToDel)];
                                                               return next;
                                                            });
-                                                           // Don't deselect BKU immediately, let user do it if they want
                                                         }
                                                         return;
                                                      }
-                                                     
                                                      const seq = Number(val);
                                                      setManualPairingMap(prev => {
                                                         const next = { ...prev };
-                                                        // Remove this BKU from any other seq if it was there
                                                         Object.keys(next).forEach(k => { if(next[Number(k)] === sug.id) delete next[Number(k)]; });
                                                         next[seq] = sug.id;
                                                         setSelectedBkuIds(prevIds => [...new Set([...prevIds, sug.id])]);
                                                         return next;
                                                      });
                                                   }}
-                                               >
-                                                  <SelectTrigger className="h-7 w-28 text-[9px] font-black bg-fin-surface/95 border-fin-border shadow-sm">
-                                                     <SelectValue placeholder="Pair with..." />
-                                                  </SelectTrigger>
-                                                  <SelectContent className="bg-fin-surface border-fin-border">
-                                                     <SelectItem value="none" className="text-[10px]">Lepas Pairing</SelectItem>
-                                                     {selectedBankIds.map((_, idx) => {
+                                                  placeholder="Pair with..."
+                                                  className="h-7 w-28"
+                                                  size="sm"
+                                                  options={[
+                                                     { value: 'none', label: 'Lepas Pairing' },
+                                                     ...selectedBankIds.map((_, idx) => {
                                                         const s = (idx + 1).toString();
                                                         const isPairedToOther = Object.keys(manualPairingMap).includes(s) && manualPairingMap[Number(s)] !== sug.id;
-                                                        return (
-                                                           <SelectItem 
-                                                              key={idx} 
-                                                              value={s} 
-                                                              disabled={isPairedToOther}
-                                                              className="text-[10px]"
-                                                           >
-                                                              Slot Bank #{s} {isPairedToOther ? "(Used)" : ""}
-                                                           </SelectItem>
-                                                        );
-                                                     })}
-                                                  </SelectContent>
-                                               </Select>
+                                                        return { value: s, label: `Slot Bank #${s}${isPairedToOther ? ' (Used)' : ''}`, disabled: isPairedToOther };
+                                                     }),
+                                                  ]}
+                                               />
                                               {/* OLD BUTTONS REMOVED */}
                                                {false && selectedBankIds.map((_, idx) => {
                                                  const seq = idx + 1;
@@ -1714,7 +1594,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                                              const next = { ...prev };
                                                              if (isThisSeq) {
                                                                 delete next[seq];
-                                                                setSelectedBkuIds(prevIds => prevIds.filter(id => id !== sug.id));
+                                                                setSelectedBkuIds(prevIds => prevIds.filter((id: number) => id !== sug.id));
                                                              } else {
                                                                 Object.keys(next).forEach(k => { if(next[Number(k)] === sug.id) delete next[Number(k)]; });
                                                                 next[seq] = sug.id;
@@ -1737,8 +1617,8 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
 
 
                                            {/* Progress bar matching background */}
-                                           <div className="absolute bottom-0 left-0 h-1 bg-indigo-600/10 w-full">
-                                              <div className="h-full bg-indigo-600" style={{ width: `${matchPercent}%` }}></div>
+                                           <div className="absolute bottom-0 left-0 h-1 bg-ds-primary/10 w-full">
+                                              <div className="h-full bg-ds-primary" style={{ width: `${matchPercent}%` }}></div>
                                            </div>
 
                                            <div className="space-y-2">
@@ -1746,7 +1626,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                                  <div className="flex items-center gap-1.5 min-w-0">
                                                     <Badge className={cn(
                                                        "text-[7px] h-3.5 px-1 font-black border-none shrink-0",
-                                                       sug.suggestion_type === 'EXACT' ? "bg-emerald-500" : "bg-indigo-600"
+                                                       sug.suggestion_type === 'EXACT' ? "bg-emerald-500" : "bg-ds-primary"
                                                     )}>{sug.suggestion_type === 'EXACT' ? 'MATCH' : sug.source}</Badge>
                                                     <span className="text-[9px] font-black text-fin-text-muted uppercase tracking-tighter truncate max-w-[100px]">{sug.bukti}</span>
                                                      {sug.integrity_mismatch && (
@@ -1766,7 +1646,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                                      )}
                                                  </div>
                                                  <div className="flex items-center gap-1 shrink-0">
-                                                    <div className="text-[8px] font-black bg-fin-info-bg text-fin-info-text px-1.5 py-0.5 rounded-md border border-fin-info/20">
+                                                    <div className="text-[8px] font-black bg-fin-info-bg text-fin-info-text px-1.5 py-0.5 rounded-lg border border-fin-info/20">
                                                        {matchPercent.toFixed(0)}%
                                                      </div>
                                                      {sug.totalConfidence > 100 && (
@@ -1870,7 +1750,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                                              <Button 
                                                                 size="icon" 
                                                                 variant="outline"
-                                                                className="w-6 h-6 rounded-lg border-fin-border hover:bg-fin-page text-fin-text-muted hover:text-indigo-600"
+                                                                className="w-6 h-6 rounded-lg border-fin-border hover:bg-fin-page text-fin-text-muted hover:text-fin-info-text"
                                                                 onClick={(e) => {
                                                                    e.stopPropagation();
                                                                    setRekonModal({
@@ -1898,7 +1778,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                   })}
                                </div>
                             ) : (
-                               <div className="flex flex-col items-center justify-center py-12 text-center bg-fin-page/50 rounded-2xl border border-dashed border-fin-border">
+                               <div className="flex flex-col items-center justify-center py-12 text-center bg-fin-page/50 rounded-xl border border-dashed border-fin-border">
                                   <AlertCircle size={24} className="text-fin-text-muted/40 mb-3" />
                                   <p className="text-[9px] font-black text-fin-text-muted uppercase tracking-widest">Tidak Ada Saran</p>
                                   <p className="text-[8px] font-bold text-fin-text-muted/40 max-w-[150px] mt-1 leading-relaxed">Nilai atau tanggal mutasi bank tidak memiliki pasangan yang relevan di BKU.</p>
@@ -1916,9 +1796,9 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
       <AnimatePresence>
          {rekonModal && (
            <Dialog open={!!rekonModal} onOpenChange={() => setRekonModal(null)}>
-             <DialogContent className="sm:max-w-md rounded-[24px]">
+             <DialogContent className="sm:max-w-md rounded-xl">
                <DialogHeader>
-                 <DialogTitle className="flex items-center gap-2 text-indigo-600">
+                 <DialogTitle className="flex items-center gap-2 text-fin-info-text">
                     <Sparkles size={20} /> Audit Integritas Data
                  </DialogTitle>
                  <DialogDescription className="text-xs">
@@ -1935,7 +1815,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                         </div>
                      </div>
                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-indigo-600 uppercase">Nilai Bank</label>
+                        <label className="text-[10px] font-black text-fin-info-text uppercase">Nilai Bank</label>
                         <Input 
                            value={formatNumber(rekonModal.nilaiBank)}
                            onChange={(e) => {
@@ -1978,7 +1858,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                   <div className="space-y-2">
                      <label className="text-[10px] font-black text-fin-text-muted uppercase">Catatan Audit</label>
                      <textarea 
-                        className="w-full min-h-[80px] p-3 text-xs font-medium bg-fin-page border border-fin-border rounded-xl outline-none focus:border-indigo-500/50 transition-all text-fin-text-primary placeholder:text-fin-text-muted/30"
+                        className="w-full min-h-[80px] p-3 text-xs font-medium bg-fin-page border border-fin-border rounded-xl outline-none focus:border-ds-focus-ring/50 transition-all text-fin-text-primary placeholder:text-fin-text-muted/30"
                         placeholder="Alasan selisih (contoh: Kesalahan NTPN atau pembulatan bank)..."
                         value={rekonModal.keterangan}
                         onChange={(e) => setRekonModal({...rekonModal, keterangan: e.target.value})}
@@ -1988,12 +1868,12 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
 
                <DialogFooter>
                   <Button variant="ghost" onClick={() => setRekonModal(null)} className="rounded-xl text-xs font-bold text-fin-text-muted hover:text-fin-text-primary">Batal</Button>
-                  <Button 
+                  <Button
                     onClick={handleSaveRekon}
-                    disabled={savingRekon}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold px-6 gap-2 shadow-lg shadow-indigo-900/20"
+                    loading={savingRekon}
+                    leftIcon={<CheckCircle2 size={14} />}
+                    className="rounded-xl text-xs font-bold px-6 shadow-lg shadow-ds-primary/20"
                   >
-                    {savingRekon ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
                     Simpan & Verifikasi
                   </Button>
                </DialogFooter>
@@ -2055,7 +1935,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                 className={cn(
                   "h-9 px-6 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all shadow-xl",
                   (isBalancedForDisplay || (smartGroupValue !== null && Object.keys(manualPairingMap).length > 0)) && selectedBankIds.length > 0
-                    ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-900/20 active:scale-95" 
+                    ? "bg-ds-primary hover:bg-ds-primary-hover text-white shadow-ds-primary/20 active:scale-95" 
                     : "bg-white/10 text-white/50 cursor-not-allowed opacity-50"
                 )}
               >
@@ -2084,11 +1964,11 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
 
       {/* SMART MATCH DIALOG (BY REFERENCE) */}
       <Dialog open={refMatchModal.isOpen} onOpenChange={(open) => setRefMatchModal(prev => ({ ...prev, isOpen: open }))}>
-        <DialogContent className="max-w-md bg-fin-surface rounded-3xl p-0 overflow-hidden border border-fin-border shadow-2xl">
-          <div className="bg-indigo-600 p-8 text-white relative overflow-hidden">
+        <DialogContent className="max-w-md bg-fin-surface rounded-xl p-0 overflow-hidden border border-fin-border shadow-2xl">
+          <div className="bg-ds-primary p-8 text-white relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
             <div className="relative z-10 flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-md border border-white/30">
+              <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center mb-4 backdrop-blur-md border border-white/30">
                 <Hash size={32} className="text-white" />
               </div>
               <h2 className="text-xl font-black uppercase tracking-widest">Smart Match</h2>
@@ -2102,7 +1982,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
               <div className="relative">
                 <Input 
                   placeholder="Contoh: 00123/SP2D/..." 
-                  className="h-14 pl-4 bg-fin-page border-fin-border rounded-2xl font-black text-fin-text-primary placeholder:text-fin-text-muted/30 focus:ring-indigo-500/20 focus:border-indigo-500/50 transition-all uppercase"
+                  className="h-14 pl-4 bg-fin-page border-fin-border rounded-xl font-black text-fin-text-primary placeholder:text-fin-text-muted/30 focus:ring-ds-focus-ring/20 focus:border-ds-focus-ring/50 transition-all uppercase"
                   value={refMatchModal.value}
                   onChange={(e) => setRefMatchModal(prev => ({ ...prev, value: e.target.value }))}
                 />
@@ -2113,18 +1993,19 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
             </div>
 
             <div className="flex gap-3">
-              <Button 
+              <Button
                 onClick={handleRefMatch}
-                disabled={!refMatchModal.value || isMatching}
-                className="flex-1 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-200 transition-all active:scale-95"
+                disabled={!refMatchModal.value}
+                loading={isMatching}
+                leftIcon={<Zap className="fill-current" size={14} />}
+                className="flex-1 h-14 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-200 transition-all active:scale-95"
               >
-                {isMatching ? <Loader2 className="animate-spin mr-2" /> : <Zap className="mr-2 fill-current" size={14} />}
                 Mulai Pencocokan
               </Button>
               <Button 
                 variant="ghost" 
                 onClick={() => setRefMatchModal({ isOpen: false, value: '' })}
-                className="h-14 px-6 rounded-2xl font-black text-[10px] uppercase text-fin-text-muted hover:bg-fin-page"
+                className="h-14 px-6 rounded-xl font-black text-[10px] uppercase text-fin-text-muted hover:bg-fin-page"
               >
                 Batal
               </Button>
@@ -2135,11 +2016,11 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
 
       {/* CONFIRM SMART MATCH DIALOG */}
       <Dialog open={confirmSmartMatch} onOpenChange={setConfirmSmartMatch}>
-        <DialogContent className="max-w-md bg-fin-surface rounded-3xl p-0 overflow-hidden border border-fin-border shadow-2xl">
-          <div className="bg-[#101828] p-8 text-white relative overflow-hidden">
+        <DialogContent className="max-w-md bg-fin-surface rounded-xl p-0 overflow-hidden border border-fin-border shadow-2xl">
+          <div className="bg-ds-primary p-8 text-white relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
             <div className="relative z-10 flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-md border border-white/10">
+              <div className="w-16 h-16 bg-white/5 rounded-xl flex items-center justify-center mb-4 backdrop-blur-md border border-white/10">
                 <Sparkles size={32} className="text-indigo-400" />
               </div>
               <h2 className="text-xl font-black uppercase tracking-widest">Aktivasi Smart Engine</h2>
@@ -2176,19 +2057,19 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
             </div>
 
             <div className="flex gap-3 pt-2">
-              <Button 
+              <Button
                 onClick={() => {
                    setConfirmSmartMatch(false);
                    handleMagicMatch();
                 }}
-                className="flex-1 h-14 bg-[#101828] hover:bg-fin-info-bg/20 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all active:scale-95"
+                className="flex-1 h-14 rounded-xl font-black text-xs uppercase tracking-widest shadow-xl transition-all active:scale-95"
               >
                 Mulai Proses
               </Button>
               <Button 
                 variant="ghost" 
                 onClick={() => setConfirmSmartMatch(false)}
-                className="h-14 px-6 rounded-2xl font-black text-[10px] uppercase text-fin-text-muted hover:bg-fin-page"
+                className="h-14 px-6 rounded-xl font-black text-[10px] uppercase text-fin-text-muted hover:bg-fin-page"
               >
                 Batal
               </Button>
@@ -2199,17 +2080,17 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
 
       {/* MAGIC MATCH PROGRESS DIALOG */}
       <Dialog open={!!magicMatchProgress} onOpenChange={(open) => !open && setMagicMatchProgress(null)}>
-        <DialogContent className="max-w-md bg-[#101828] text-white rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+        <DialogContent className="max-w-md bg-ds-primary text-white rounded-xl p-0 overflow-hidden border-none shadow-2xl">
           <div className="p-8 space-y-8 relative overflow-hidden">
              {/* Background glows */}
-             <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-3xl -mr-32 -mt-32 animate-pulse"></div>
+             <div className="absolute top-0 right-0 w-64 h-64 bg-ds-primary/20 rounded-full blur-3xl -mr-32 -mt-32 animate-pulse"></div>
              <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-600/20 rounded-full blur-3xl -ml-32 -mb-32 animate-pulse" style={{ animationDelay: '1s' }}></div>
 
              <div className="relative z-10 flex flex-col items-center text-center space-y-6">
                 <div className="w-24 h-24 relative flex items-center justify-center">
-                   <div className="absolute inset-0 bg-indigo-600/20 rounded-3xl rotate-12 animate-reverse-spin"></div>
-                   <div className="absolute inset-0 bg-emerald-600/20 rounded-3xl -rotate-12 animate-spin"></div>
-                   <div className="w-16 h-16 bg-white/10 backdrop-blur-xl rounded-2xl flex items-center justify-center border border-white/20 shadow-xl">
+                   <div className="absolute inset-0 bg-ds-primary/20 rounded-xl rotate-12 animate-reverse-spin"></div>
+                   <div className="absolute inset-0 bg-emerald-600/20 rounded-xl -rotate-12 animate-spin"></div>
+                   <div className="w-16 h-16 bg-white/10 backdrop-blur-xl rounded-xl flex items-center justify-center border border-white/20 shadow-xl">
                       <Sparkles size={32} className="text-indigo-400 animate-bounce" />
                    </div>
                 </div>
@@ -2219,15 +2100,15 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                    <p className="text-fin-text-muted text-[10px] font-bold uppercase tracking-[0.2em]">Automated Intelligence in Progress</p>
                 </div>
 
-                {magicMatchProgress?.current >= magicMatchProgress?.total && magicMatchProgress?.status === 'done' ? (
+                {magicMatchProgress && magicMatchProgress.current >= magicMatchProgress.total && magicMatchProgress.status === 'done' ? (
                    <div className="w-full space-y-6 animate-in zoom-in duration-500">
-                      <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6">
+                      <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-6">
                          <p className="text-emerald-400 text-3xl font-black tabular-nums">{magicMatchProgress.success}</p>
                          <p className="text-emerald-500/60 text-[10px] font-black uppercase mt-1 tracking-widest">Transaksi Berhasil Dicocokkan</p>
                       </div>
                       <Button 
                          onClick={() => setMagicMatchProgress(null)}
-                         className="w-full h-14 bg-white text-[#101828] hover:bg-fin-page rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all"
+                         className="w-full h-14 bg-white text-fin-text-primary hover:bg-fin-page rounded-xl font-black text-xs uppercase tracking-widest shadow-xl transition-all"
                       >
                          Selesai & Tutup
                       </Button>
@@ -2246,7 +2127,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                             <span className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest animate-pulse">
                                {magicMatchProgress?.message || 'Scanning Database...'}
                             </span>
-                            {magicMatchProgress?.total > 0 && (
+                            {magicMatchProgress && magicMatchProgress.total > 0 && (
                                <span className="text-[9px] font-bold text-fin-text-muted uppercase mt-1">
                                   Progress: {magicMatchProgress.current} / {magicMatchProgress.total} Transaksi
                                </span>
@@ -2265,11 +2146,11 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
 
       {/* RESET ALL DIALOG */}
       <Dialog open={resetModal.isOpen} onOpenChange={(open) => setResetModal(prev => ({ ...prev, isOpen: open }))}>
-        <DialogContent className="max-w-md bg-fin-surface rounded-3xl p-0 overflow-hidden border border-fin-border shadow-2xl">
+        <DialogContent className="max-w-md bg-fin-surface rounded-xl p-0 overflow-hidden border border-fin-border shadow-2xl">
           <div className="bg-rose-600 p-8 text-white relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
             <div className="relative z-10 flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-md border border-white/30">
+              <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center mb-4 backdrop-blur-md border border-white/30">
                 <AlertTriangle size={32} className="text-white" />
               </div>
               <h2 className="text-xl font-black uppercase tracking-widest text-white">Reset Seluruh Data</h2>
@@ -2285,21 +2166,21 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
               </div>
             ) : resetPreview && (
               <div className="grid grid-cols-3 gap-2">
-                <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-3 text-center">
+                <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 text-center">
                   <p className="text-xl font-black text-rose-400">{resetPreview.sp2d_sudah_rekon.toLocaleString('id-ID')}</p>
                   <p className="text-[8px] text-rose-400/70 uppercase font-bold mt-1">SP2D Ter-rekon</p>
                 </div>
-                <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-3 text-center">
+                <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 text-center">
                   <p className="text-xl font-black text-rose-400">{resetPreview.pendapatan_sudah_rekon.toLocaleString('id-ID')}</p>
                   <p className="text-[8px] text-rose-400/70 uppercase font-bold mt-1">Pendapatan Ter-rekon</p>
                 </div>
-                <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-3 text-center">
+                <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 text-center">
                   <p className="text-xl font-black text-rose-400">{resetPreview.bank_sudah_match.toLocaleString('id-ID')}</p>
                   <p className="text-[8px] text-rose-400/70 uppercase font-bold mt-1">Bank Ter-match</p>
                 </div>
               </div>
             )}
-            <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 text-center">
+            <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-4 text-center">
               <p className="text-[10px] font-bold text-rose-400 uppercase leading-relaxed">
                 Anda akan menghapus semua status rekonsiliasi tahun {new Date().getFullYear()}. <br/>
                 Ketik <span className="font-black underline">RESET REKON {new Date().getFullYear()}</span> untuk konfirmasi.
@@ -2309,7 +2190,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
             <div className="space-y-2">
               <Input 
                 placeholder={`RESET REKON ${new Date().getFullYear()}`}
-                className="h-14 text-center bg-fin-page border-fin-border rounded-2xl font-black text-fin-text-primary placeholder:text-fin-text-muted/30 focus:ring-rose-500/20 focus:border-rose-500/50 transition-all"
+                className="h-14 text-center bg-fin-page border-fin-border rounded-xl font-black text-fin-text-primary placeholder:text-fin-text-muted/30 focus:ring-rose-500/20 focus:border-rose-500/50 transition-all"
                 value={resetModal.value}
                 onChange={(e) => setResetModal(prev => ({ ...prev, value: e.target.value }))}
               />
@@ -2322,7 +2203,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                   if (success) setResetModal({ isOpen: false, value: '' });
                 }}
                 disabled={resetModal.value !== `RESET REKON ${new Date().getFullYear()}` || isMatching}
-                className="flex-1 h-14 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-900/20 transition-all active:scale-95"
+                className="flex-1 h-14 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-900/20 transition-all active:scale-95"
               >
                 {isMatching ? <Loader2 className="animate-spin mr-2" /> : <RefreshCw className="mr-2" size={14} />}
                 Reset Permanen
@@ -2330,7 +2211,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
               <Button 
                 variant="ghost" 
                 onClick={() => setResetModal({ isOpen: false, value: '' })}
-                className="h-14 px-6 rounded-2xl font-black text-[10px] uppercase text-fin-text-muted hover:bg-fin-page"
+                className="h-14 px-6 rounded-xl font-black text-[10px] uppercase text-fin-text-muted hover:bg-fin-page"
               >
                 Batal
               </Button>
@@ -2351,93 +2232,6 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
             </div>
          </div>
       </div>
-      {/* NEURON LINK SVG CANVAS ─ Fixed overlay, pointer-events none kecuali pada target node */}
-      {(neuronDragging || neuronLinks.length > 0) && (
-        <div className="fixed inset-0 z-[400] pointer-events-none" aria-hidden>
-          <svg width="100%" height="100%" style={{ overflow: 'visible' }}>
-            <defs>
-              <filter id="neuron-glow-green" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="4" result="blur" />
-                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-              </filter>
-              <filter id="neuron-glow-red" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="4" result="blur" />
-                <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-              </filter>
-              <linearGradient id="neuron-grad-green" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#00ff88" stopOpacity="0.9" />
-                <stop offset="100%" stopColor="#00e5ff" stopOpacity="0.9" />
-              </linearGradient>
-              <linearGradient id="neuron-grad-red" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#ff6b6b" stopOpacity="0.9" />
-                <stop offset="100%" stopColor="#ffd93d" stopOpacity="0.9" />
-              </linearGradient>
-            </defs>
-
-            {/* Completed neuron links — posisi dibaca dari cache (zero layout reflow) */}
-            {neuronLinks.map((link) => {
-              const src = neuronCacheRef.current.get(`src-${link.bankId}`);
-              const dst = neuronCacheRef.current.get(`dst-${link.bkuId}`);
-              if (!src || !dst) return null;
-              const x1 = src.x, y1 = src.y;
-              const x2 = dst.x, y2 = dst.y;
-              // Fade kabel jika sumber atau target di luar area scroll (Dynamic Clipping 2.0)
-              const opacity = (!src.visible || !dst.visible) ? 0.12 : 1;
-              const d = calcNeuronBezier(x1, y1, x2, y2);
-              const grad = link.isBalanced ? 'url(#neuron-grad-green)' : 'url(#neuron-grad-red)';
-              const glowId = link.isBalanced ? 'url(#neuron-glow-green)' : 'url(#neuron-glow-red)';
-              return (
-                <g key={`${link.bankId}-${link.bkuId}`} opacity={opacity} style={{transition: 'opacity 0.25s ease'}}>
-                  {/* Glow halo */}
-                  <path d={d} stroke={grad} strokeWidth="6" fill="none" strokeOpacity="0.25" filter={glowId} />
-                  {/* Main cable */}
-                  <path d={d} stroke={grad} strokeWidth="2" fill="none" filter={glowId}>
-                    <animate attributeName="stroke-dashoffset" from="60" to="0" dur="1.2s" repeatCount="indefinite" />
-                    <animate attributeName="stroke-dasharray" from="12 6" to="12 6" dur="0s" />
-                  </path>
-                  {/* Flowing electricity pulses */}
-                  <path d={d} stroke={grad} strokeWidth="1.5" fill="none" strokeDasharray="6 18" strokeOpacity="0.7">
-                    <animate attributeName="stroke-dashoffset" from="0" to="-24" dur="0.8s" repeatCount="indefinite" />
-                  </path>
-                  {/* Source dot */}
-                  <circle cx={x1} cy={y1} r="4" fill={link.isBalanced ? '#00ff88' : '#ff6b6b'} filter={glowId} opacity="0.9" />
-                  {/* Target dot */}
-                  <circle cx={x2} cy={y2} r="4" fill={link.isBalanced ? '#00e5ff' : '#ffd93d'} filter={glowId} opacity="0.9" />
-                  {/* Balance label */}
-                  {link.isBalanced && (
-                    <text
-                      x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 10}
-                      textAnchor="middle" fill="#00ff88" fontSize="8" fontWeight="900"
-                      fontFamily="monospace" opacity="0.9" filter={glowId}
-                    >
-                      ⚡ 100% BALANCED
-                    </text>
-                  )}
-                </g>
-              );
-            })}
-
-            {/* Active dragging cable */}
-            {neuronDragging && (
-              <g>
-                <path
-                  d={calcNeuronBezier(neuronDragging.fromX, neuronDragging.fromY, neuronMouse.x, neuronMouse.y)}
-                  stroke="#00ff88" strokeWidth="2" fill="none"
-                  strokeDasharray="8 5" strokeOpacity="0.7"
-                  filter="url(#neuron-glow-green)"
-                >
-                  <animate attributeName="stroke-dashoffset" from="26" to="0" dur="0.6s" repeatCount="indefinite" />
-                </path>
-                <circle cx={neuronDragging.fromX} cy={neuronDragging.fromY} r="5"
-                  fill="none" stroke="#00ff88" strokeWidth="2" filter="url(#neuron-glow-green)">
-                  <animate attributeName="r" values="4;7;4" dur="1s" repeatCount="indefinite" />
-                </circle>
-              </g>
-            )}
-          </svg>
-        </div>
-      )}
-
       {/* BATCH PROGRESS OVERLAY */}
       <AnimatePresence>
         {batchProgress.isOpen && (
@@ -2447,7 +2241,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
              exit={{ opacity: 0, y: 50 }}
              className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] w-96"
           >
-             <Card className="bg-fin-surface border-fin-border text-fin-text-primary p-6 shadow-2xl rounded-2xl">
+             <Card className="bg-fin-surface border-fin-border text-fin-text-primary p-6 shadow-2xl rounded-xl">
                 <div className="flex flex-col items-center text-center space-y-4">
                    <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/20">
                       <RefreshCw size={24} className="text-emerald-400 animate-spin" />

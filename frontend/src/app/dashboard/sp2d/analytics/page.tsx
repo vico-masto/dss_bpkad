@@ -70,12 +70,12 @@ export default function Sp2dAnalyticsPage() {
   };
 
   if (loading || !data) return (
-    <div className="flex flex-col items-center justify-center h-[80vh] text-[#98A2B3] animate-in fade-in duration-500">
+    <div className="flex flex-col items-center justify-center h-[80vh] text-fin-text-muted animate-in fade-in duration-500">
       <motion.div 
         animate={{ scale: [1, 1.1, 1], rotate: [0, 10, -10, 0] }}
         transition={{ duration: 2, repeat: Infinity }}
       >
-        <Loader2 className="animate-spin mb-4 text-indigo-600" size={48} />
+        <Loader2 className="animate-spin mb-4 text-fin-info-text" size={48} />
       </motion.div>
       <p className="text-xs font-black uppercase tracking-[0.2em]">Menganalisis Realisasi Belanja...</p>
     </div>
@@ -99,7 +99,7 @@ export default function Sp2dAnalyticsPage() {
 
   const lineData = {
     labels: months,
-    datasets: types.map((type, idx) => ({
+    datasets: types.map((type: string, idx: number) => ({
       label: type as string,
       data: months.map((_, mIdx) => {
         const matches = trends.filter((t: any) => 
@@ -123,7 +123,7 @@ export default function Sp2dAnalyticsPage() {
   const doughnutData = {
     labels: types,
     datasets: [{
-      data: types.map(type => trends.filter((t: any) => 
+      data: types.map((type: string) => trends.filter((t: any) => 
         t.jenis === type || (type === 'LS GAJI' && t.jenis === 'LS-GAJI')
       ).reduce((acc: number, t: any) => acc + parseFloat(t.total), 0)),
       backgroundColor: colors,
@@ -142,18 +142,18 @@ export default function Sp2dAnalyticsPage() {
 
   const itemVariants = {
     hidden: { y: 20, opacity: 0 },
-    visible: { y: 0, opacity: 1, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } }
+    visible: { y: 0, opacity: 1, transition: { duration: 0.6 } }
   };
 
   return (
     <div className="max-w-[1440px] mx-auto space-y-12 pb-24 bg-fin-page min-h-screen px-4 lg:px-10">
       
       <PageHeader
-        title={<span className="font-black uppercase">Analisis <span className="text-indigo-600">Realisasi</span> Belanja</span>}
+        title={<span className="font-black uppercase">Analisis <span className="text-fin-info-text">Realisasi</span> Belanja</span>}
         description="Monitoring Transparansi & Efisiensi Pengeluaran Daerah"
         icon={<Activity className="size-5" />}
         actions={
-          <div className="flex items-center gap-3 bg-fin-surface/60 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-3 bg-fin-surface/60 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-xl border border-slate-100">
               <Calendar size={14} className="text-slate-400" />
               <select
@@ -164,7 +164,7 @@ export default function Sp2dAnalyticsPage() {
                 {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
-            <Button size="icon" onClick={fetchData} className="h-10 w-10 bg-[#101828] text-white rounded-xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-100">
+            <Button size="icon" onClick={fetchData} className="h-10 w-10 bg-ds-primary text-white rounded-xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-100">
               <RefreshCw size={18} className={cn(loading && "animate-spin")} />
             </Button>
           </div>
@@ -178,7 +178,7 @@ export default function Sp2dAnalyticsPage() {
         animate="visible"
         className="grid grid-cols-1 md:grid-cols-3 gap-6"
       >
-        <StatCard title="Total Arsip SP2D" value={summary.total_dokumen} icon={<FileText size={20} />} label="Dokumen Terintegrasi" color="bg-indigo-50 text-indigo-600" delay={0} />
+        <StatCard title="Total Arsip SP2D" value={summary.total_dokumen} icon={<FileText size={20} />} label="Dokumen Terintegrasi" color="bg-indigo-50 text-fin-info-text" delay={0} />
         <StatCard title="Total Nilai Bruto" value={formatCurrency(summary.total_bruto)} icon={<Banknote size={20} />} label="Realisasi Kas Daerah" color="bg-emerald-50 text-emerald-600" delay={0.1} isCurrency />
         <StatCard title="Aktivitas Bulan Ini" value={summary.dokumen_bulan_ini} icon={<Sparkles size={20} />} label="Dokumen Berjalan" color="bg-amber-50 text-amber-600" delay={0.2} />
       </motion.div>
@@ -186,15 +186,15 @@ export default function Sp2dAnalyticsPage() {
       {/* CHARTS SECTION */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <motion.div variants={itemVariants} initial="hidden" animate="visible" className="lg:col-span-8">
-          <Card className="h-full rounded-2xl border-fin-border shadow-sm shadow-slate-200 overflow-hidden bg-fin-surface">
+          <Card className="h-full rounded-xl border-fin-border shadow-sm shadow-slate-200 overflow-hidden bg-fin-surface">
             <div className="p-8 border-b border-slate-50 flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
+                <div className="w-10 h-10 bg-indigo-50 text-fin-info-text rounded-xl flex items-center justify-center">
                   <TrendingUp size={20} />
                 </div>
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">Tren Realisasi Bulanan</h3>
               </div>
-              <Badge className="bg-indigo-50 text-indigo-600 border-none font-bold text-[10px]">TA {tahun}</Badge>
+              <Badge className="bg-indigo-50 text-fin-info-text border-none font-bold text-[10px]">TA {tahun}</Badge>
             </div>
             <div className="p-8">
               <div className="h-[400px]">
@@ -225,7 +225,7 @@ export default function Sp2dAnalyticsPage() {
                 />
               </div>
               <div className="mt-8 flex flex-wrap gap-6 justify-center">
-                 {types.map((type, i) => (
+                 {types.map((type: string, i: number) => (
                    <div key={type as string} className="flex items-center gap-3 group cursor-default">
                      <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: colors[i % colors.length] }}></div>
                      <span className="text-[11px] text-fin-text-muted font-black uppercase tracking-tight group-hover:text-fin-text-primary transition-colors">{type as string}</span>
@@ -237,7 +237,7 @@ export default function Sp2dAnalyticsPage() {
         </motion.div>
 
         <motion.div variants={itemVariants} initial="hidden" animate="visible" className="lg:col-span-4">
-          <Card className="h-full rounded-2xl border-fin-border shadow-sm shadow-slate-200 overflow-hidden bg-fin-surface">
+          <Card className="h-full rounded-xl border-fin-border shadow-sm shadow-slate-200 overflow-hidden bg-fin-surface">
             <div className="p-8 border-b border-slate-50 flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
@@ -269,7 +269,7 @@ export default function Sp2dAnalyticsPage() {
                     
                     const percentage = (val / (summary.total_bruto || 1)) * 100;
                     return (
-                      <div key={jenisName} className="group flex items-center justify-between p-3 rounded-2xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100">
+                      <div key={jenisName} className="group flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100">
                          <div className="flex items-center gap-3">
                             <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: colors[i % colors.length] }}></div>
                             <div className="flex flex-col">
@@ -292,10 +292,10 @@ export default function Sp2dAnalyticsPage() {
 
       {/* OPD DETAILS TABLE */}
       <motion.div variants={itemVariants} initial="hidden" animate="visible">
-        <Card className="rounded-2xl border-fin-border shadow-sm shadow-slate-200 overflow-hidden bg-fin-surface">
+        <Card className="rounded-xl border-fin-border shadow-sm shadow-slate-200 overflow-hidden bg-fin-surface">
           <div className="px-8 py-6 border-b border-slate-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-[#101828] text-white rounded-xl flex items-center justify-center shadow-lg shadow-slate-200">
+              <div className="w-10 h-10 bg-ds-primary text-white rounded-xl flex items-center justify-center shadow-lg shadow-slate-200">
                 <Building2 size={20} />
               </div>
               <div>
@@ -308,7 +308,7 @@ export default function Sp2dAnalyticsPage() {
               <input 
                 type="text" 
                 placeholder="CARI UNIT KERJA / OPD..." 
-                className="w-full pl-12 pr-6 h-11 bg-slate-50 border border-slate-100 rounded-2xl focus:bg-fin-surface focus:border-indigo-600 focus:ring-4 focus:ring-indigo-600/5 outline-none text-xs font-black text-slate-700 tracking-wider transition-all" 
+                className="w-full pl-12 pr-6 h-11 bg-slate-50 border border-slate-100 rounded-xl focus:bg-fin-surface focus:border-ds-focus-ring focus:ring-4 focus:ring-ds-focus-ring/5 outline-none text-xs font-black text-slate-700 tracking-wider transition-all" 
                 value={searchTerm} 
                 onChange={(e) => setSearchTerm(e.target.value)} 
               />
@@ -329,7 +329,7 @@ export default function Sp2dAnalyticsPage() {
                   <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-8 py-5">
                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                          <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-indigo-50 group-hover:text-fin-info-text transition-colors">
                              <Layers size={14} />
                           </div>
                           <p className="font-black text-slate-700 text-[11px] uppercase tracking-tight">{opd.opd}</p>
@@ -342,7 +342,7 @@ export default function Sp2dAnalyticsPage() {
                        {formatCurrency(opd.total_nilai)}
                     </td>
                     <td className="px-8 py-5 text-center">
-                       <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all">
+                       <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl text-slate-300 hover:text-fin-info-text hover:bg-indigo-50 transition-all">
                           <ArrowUpRight size={18} />
                        </Button>
                     </td>
@@ -368,10 +368,10 @@ function StatCard({ title, value, icon, label, color, delay, isCurrency }: any) 
     <motion.div
       initial={{ y: 20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ delay, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ delay, duration: 0.6 }}
       className="h-full"
     >
-      <Card className="h-full p-6 rounded-2xl border-fin-border shadow-sm shadow-slate-200 bg-fin-surface group hover:border-indigo-600 transition-all cursor-default overflow-hidden">
+      <Card className="h-full p-6 rounded-xl border-fin-border shadow-sm shadow-slate-200 bg-fin-surface group hover:border-ds-focus-ring transition-all cursor-default overflow-hidden">
         <div className="flex justify-between items-start mb-6">
           <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shadow-sm transition-transform group-hover:scale-110", color)}>
             {icon}
@@ -383,7 +383,7 @@ function StatCard({ title, value, icon, label, color, delay, isCurrency }: any) 
         </div>
         <h4 className={cn(
           "text-2xl font-black text-fin-text-primary tracking-tighter truncate",
-          isCurrency && "text-indigo-600"
+          isCurrency && "text-fin-info-text"
         )}>
           {typeof value === 'number' && !isCurrency ? value.toLocaleString() : value}
         </h4>

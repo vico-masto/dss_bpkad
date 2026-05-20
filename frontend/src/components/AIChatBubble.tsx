@@ -161,10 +161,10 @@ export default function AIChatBubble() {
             animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
             exit={{ opacity: 0, y: 20, scale: 0.9, filter: 'blur(10px)' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed bottom-6 right-6 z-50 w-[400px] h-[650px] max-h-[85vh] bg-[#0B0F1A]/80 backdrop-blur-2xl rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10 flex flex-col overflow-hidden"
+            className="fixed bottom-6 right-6 z-50 w-[400px] h-[650px] max-h-[85vh] bg-[#0B0F1A]/80 backdrop-blur-2xl rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10 flex flex-col overflow-hidden"
           >
             {/* Animated Gradient Border */}
-            <div className="absolute inset-0 pointer-events-none rounded-3xl border-2 border-transparent bg-gradient-to-br from-fin-info/20 via-transparent to-fin-surplus/20 opacity-50" />
+            <div className="absolute inset-0 pointer-events-none rounded-xl border-2 border-transparent bg-gradient-to-br from-fin-info/20 via-transparent to-fin-surplus/20 opacity-50" />
             {/* Header */}
             <div className="relative px-6 py-5 bg-gradient-to-r from-fin-subtle/50 to-transparent text-fin-text-primary flex items-center justify-between border-b border-white/5">
               <div className="flex items-center gap-4">
@@ -213,7 +213,7 @@ export default function AIChatBubble() {
                   </div>
                   
                   <div className={cn(
-                    "px-5 py-4 rounded-2xl max-w-[85%] text-sm leading-relaxed relative group",
+                    "px-5 py-4 rounded-xl max-w-[85%] text-sm leading-relaxed relative group",
                     msg.role === 'user' 
                       ? "bg-fin-info text-fin-surface rounded-tr-none shadow-[0_10px_20px_rgba(46,144,250,0.2)]" 
                       : "bg-white/5 backdrop-blur-md text-fin-text-primary border border-white/10 rounded-tl-none shadow-xl"
@@ -256,7 +256,7 @@ export default function AIChatBubble() {
                   <div className="w-8 h-8 rounded-full bg-fin-subtle text-fin-info flex items-center justify-center shrink-0 border border-fin-info/20">
                     <Bot size={14} />
                   </div>
-                  <div className="px-5 py-3.5 rounded-2xl bg-fin-subtle border border-fin-border rounded-tl-none shadow-sm flex items-center gap-1.5">
+                  <div className="px-5 py-3.5 rounded-xl bg-fin-subtle border border-fin-border rounded-tl-none shadow-sm flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 bg-fin-info rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <div className="w-1.5 h-1.5 bg-fin-info rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
                     <div className="w-1.5 h-1.5 bg-fin-info rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
@@ -301,7 +301,7 @@ export default function AIChatBubble() {
                 </Button>
               </form>
               <div className="mt-3 text-center">
-                <p className="text-[10px] font-medium text-[#98A2B3]">
+                <p className="text-[10px] font-medium text-fin-text-muted">
                   AI dapat membuat kesalahan. Harap periksa kembali data penting.
                 </p>
               </div>

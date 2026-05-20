@@ -285,15 +285,15 @@ export default function CreateSp2dPage() {
           {/* Main Form Content */}
           <div className="lg:col-span-8 space-y-6">
             {/* Informasi Pengeluaran */}
-            <div className="bg-fin-surface p-8 rounded-2xl shadow-sm border border-fin-border relative overflow-hidden group">
-              <div className="absolute top-0 left-0 w-1.5 h-full bg-slate-100 group-focus-within:bg-indigo-600 transition-colors"></div>
+            <div className="bg-fin-surface p-8 rounded-xl shadow-sm border border-fin-border relative overflow-hidden group">
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-slate-100 group-focus-within:bg-ds-primary transition-colors"></div>
               
               <div className="flex justify-between items-start mb-8">
                 <h3 className="text-xs font-semibold text-slate-900 flex items-center">
-                  <CheckCircle2 className="mr-3 text-indigo-600" size={16} />
+                  <CheckCircle2 className="mr-3 text-fin-info-text" size={16} />
                   Informasi Pengeluaran (SIPD-RI)
                 </h3>
-                {editId && <Badge variant="outline" className="bg-[#FFFAEB] text-[#B54708] border-[#FEDF89] px-3 py-1 rounded-md text-[10px] font-semibold">Mode Koreksi Aktif</Badge>}
+                {editId && <Badge variant="outline" className="bg-[#FFFAEB] text-[#B54708] border-[#FEDF89] px-3 py-1 rounded-lg text-[10px] font-semibold">Mode Koreksi Aktif</Badge>}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -303,7 +303,7 @@ export default function CreateSp2dPage() {
                       {...register("opd", { required: true })} 
                       list="opd-suggestions" 
                       placeholder="Pilih atau ketik OPD..." 
-                      className="h-14 px-8 bg-fin-page border-fin-border rounded-xl focus:border-indigo-600 font-medium text-slate-700 text-sm transition-all" 
+                      className="h-14 px-8 bg-fin-page border-fin-border rounded-xl focus:border-ds-focus-ring font-medium text-slate-700 text-sm transition-all" 
                     />
                     <datalist id="opd-suggestions">
                       {opdList.map(o => <option key={o} value={o} />)}
@@ -315,7 +315,7 @@ export default function CreateSp2dPage() {
                       <Input 
                         {...register("nomor", { required: true })} 
                         placeholder="0001/SP2D/BPKAD/2026" 
-                        className={cn("h-14 pl-8 pr-12 bg-fin-page border rounded-xl focus:border-indigo-600 font-medium text-slate-800 text-sm transition-all", nomorAvailable === false ? "border-rose-500" : "border-fin-border")} 
+                        className={cn("h-14 pl-8 pr-12 bg-fin-page border rounded-xl focus:border-ds-focus-ring font-medium text-slate-800 text-sm transition-all", nomorAvailable === false ? "border-rose-500" : "border-fin-border")} 
                       />
                       <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
                          {checkingNomor ? (
@@ -328,7 +328,7 @@ export default function CreateSp2dPage() {
                                    navigator.clipboard.writeText(watchNomor);
                                    toast.success('Nomor SP2D Disalin');
                                  }}
-                                 className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                 className="p-2 text-slate-400 hover:text-fin-info-text hover:bg-indigo-50 rounded-lg transition-all"
                                  title="Salin Nomor"
                                >
                                  <Copy size={16} />
@@ -341,7 +341,7 @@ export default function CreateSp2dPage() {
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-slate-500 ml-2">Jenis Belanja / Pencairan (*)</label>
                     <div className="relative">
-                      <select {...register("jenis", { required: true })} className="w-full h-14 px-8 bg-fin-page border border-fin-border rounded-xl outline-none focus:border-indigo-600 font-medium text-slate-700 text-sm appearance-none cursor-pointer transition-all">
+                      <select {...register("jenis", { required: true })} className="w-full h-14 px-8 bg-fin-page border border-fin-border rounded-xl outline-none focus:border-ds-focus-ring font-medium text-slate-700 text-sm appearance-none cursor-pointer transition-all">
                         <option value="">Pilih Jenis...</option>
                         {jenisList.map(j => <option key={j} value={j}>{j}</option>)}
                       </select>
@@ -350,14 +350,14 @@ export default function CreateSp2dPage() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-slate-500 ml-2">Tanggal Terbit SIPD (*)</label>
-                    <Input type="date" {...register("tanggal", { required: true })} className="h-14 px-8 bg-fin-page border-fin-border rounded-xl focus:border-indigo-600 font-medium text-slate-700 text-sm transition-all" />
+                    <Input type="date" {...register("tanggal", { required: true })} className="h-14 px-8 bg-fin-page border-fin-border rounded-xl focus:border-ds-focus-ring font-medium text-slate-700 text-sm transition-all" />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-indigo-600 ml-2 flex items-center">
+                    <label className="text-xs font-medium text-fin-info-text ml-2 flex items-center">
                        <Calendar size={14} className="mr-2" />
                        Tanggal Pencairan Bank (*)
                     </label>
-                    <Input type="date" {...register("tanggal_pencairan", { required: true })} className="h-14 px-8 bg-indigo-50/30 border-indigo-100 rounded-xl focus:border-indigo-600 font-medium text-indigo-900 text-sm transition-all" />
+                    <Input type="date" {...register("tanggal_pencairan", { required: true })} className="h-14 px-8 bg-indigo-50/30 border-indigo-100 rounded-xl focus:border-ds-focus-ring font-medium text-indigo-900 text-sm transition-all" />
                   </div>
                 </div>
 
@@ -367,7 +367,7 @@ export default function CreateSp2dPage() {
                   <Input 
                     {...register("penerima", { required: true })} 
                     placeholder="CV. MAJU BERSAMA" 
-                    className="h-14 px-8 bg-fin-page border-fin-border rounded-xl focus:border-indigo-600 font-medium text-slate-800 text-sm transition-all" 
+                    className="h-14 px-8 bg-fin-page border-fin-border rounded-xl focus:border-ds-focus-ring font-medium text-slate-800 text-sm transition-all" 
                   />
                 </div>
                 <div className="space-y-2">
@@ -375,23 +375,23 @@ export default function CreateSp2dPage() {
                   <Textarea 
                     {...register("uraian", { required: true })} 
                     placeholder="Pembayaran atas pekerjaan..." 
-                    className="px-8 py-6 bg-fin-page border-fin-border rounded-xl focus:border-indigo-600 min-h-[120px] font-medium text-slate-700 text-sm transition-all resize-none" 
+                    className="px-8 py-6 bg-fin-page border-fin-border rounded-xl focus:border-ds-focus-ring min-h-[120px] font-medium text-slate-700 text-sm transition-all resize-none" 
                   />
                 </div>
               </div>
             </div>
 
             {/* Rincian Anggaran */}
-            <div className="bg-fin-surface p-8 rounded-2xl shadow-sm border border-fin-border">
+            <div className="bg-fin-surface p-8 rounded-xl shadow-sm border border-fin-border">
               <div className="flex justify-between items-center mb-8">
                 <h3 className="text-sm font-semibold text-slate-900 flex items-center">
-                  <ClipboardCheck className="mr-3 text-indigo-600" size={16} />
+                  <ClipboardCheck className="mr-3 text-fin-info-text" size={16} />
                   Rincian Anggaran (Sumber Dana)
                 </h3>
                 <Button 
                   type="button" 
                   onClick={() => append({ id_sumber_dana: '', nilai_bruto: 0 })} 
-                  className="h-10 px-4 bg-[#101828] text-white rounded-lg font-semibold text-xs hover:bg-slate-800 transition-all shadow-sm active:scale-95 gap-2"
+                  className="h-10 px-4 bg-ds-primary text-white rounded-lg font-semibold text-xs hover:bg-slate-800 transition-all shadow-sm active:scale-95 gap-2"
                 >
                   <Plus size={14} />
                   <span>Tambah Rincian</span>
@@ -405,7 +405,7 @@ export default function CreateSp2dPage() {
                       <label className="text-xs font-medium text-slate-500 ml-2">Pilih Sumber Dana Anggaran</label>
                       <select 
                         {...register(`details.${index}.id_sumber_dana` as const, { required: true })} 
-                        className="w-full px-6 py-3.5 bg-fin-surface border border-slate-200 rounded-xl outline-none font-medium text-slate-700 text-xs cursor-pointer focus:border-indigo-600 transition-all"
+                        className="w-full px-6 py-3.5 bg-fin-surface border border-slate-200 rounded-xl outline-none font-medium text-slate-700 text-xs cursor-pointer focus:border-ds-focus-ring transition-all"
                       >
                         <option value="">Pilih sumber...</option>
                         {sumberDanaList.map((sd: any) => <option key={sd.id} value={sd.id}>{sd.nama}</option>)}
@@ -415,7 +415,7 @@ export default function CreateSp2dPage() {
                       <label className="text-xs font-medium text-slate-500 ml-2">Nilai Bruto (Rp)</label>
                       <Input 
                         type="text" 
-                        className="h-11 px-6 bg-fin-surface border-slate-200 rounded-xl focus:border-indigo-600 font-medium text-slate-800 text-xs transition-all" 
+                        className="h-11 px-6 bg-fin-surface border-slate-200 rounded-xl focus:border-ds-focus-ring font-medium text-slate-800 text-xs transition-all" 
                         value={formatNumber(watchDetails[index]?.nilai_bruto || 0)} 
                         onChange={(e) => setValue(`details.${index}.nilai_bruto`, parseNumber(e.target.value))} 
                       />
@@ -429,7 +429,7 @@ export default function CreateSp2dPage() {
             </div>
 
             {/* Ringkasan */}
-            <div className="bg-fin-surface p-8 rounded-2xl shadow-sm border border-fin-border overflow-hidden relative">
+            <div className="bg-fin-surface p-8 rounded-xl shadow-sm border border-fin-border overflow-hidden relative">
               <h3 className="text-xs font-semibold text-slate-900 mb-8 flex items-center">
                 <Banknote className="mr-3 text-[#12B76A]" size={16} />
                 Ringkasan & Verifikasi Pembayaran
@@ -441,11 +441,11 @@ export default function CreateSp2dPage() {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center px-1">
                       <label className="text-xs font-medium text-slate-500">Potongan Pajak/Lainnya</label>
-                      <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded cursor-pointer hover:bg-indigo-100 transition-colors">Pilih Jenis Potongan...</span>
+                      <span className="text-[10px] font-semibold text-fin-info-text bg-indigo-50 px-2 py-0.5 rounded cursor-pointer hover:bg-indigo-100 transition-colors">Pilih Jenis Potongan...</span>
                     </div>
                     <Input 
                       type="text" 
-                      className="h-14 px-6 bg-fin-page border-fin-border rounded-xl focus:border-indigo-600 font-semibold text-slate-700 text-lg transition-all" 
+                      className="h-14 px-6 bg-fin-page border-fin-border rounded-xl focus:border-ds-focus-ring font-semibold text-slate-700 text-lg transition-all" 
                       value={formatNumber(watchPotongan)} 
                       onChange={(e) => setValue("nilai_potongan", parseNumber(e.target.value))} 
                     />
@@ -461,12 +461,12 @@ export default function CreateSp2dPage() {
 
                 {/* NILAI BRUTO & NETO */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="bg-fin-page p-8 rounded-2xl border border-fin-border flex flex-col justify-center">
+                  <div className="bg-fin-page p-8 rounded-xl border border-fin-border flex flex-col justify-center">
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Total Nilai Bruto</p>
                     <p className="text-3xl font-bold text-slate-900 tracking-tight">{formatCurrency(watch("nilai_bruto"))}</p>
                   </div>
 
-                  <div className="bg-[#101828] p-8 rounded-2xl shadow-xl shadow-[#101828]/20 text-white flex flex-col justify-center relative overflow-hidden group">
+                  <div className="bg-ds-primary p-8 rounded-xl shadow-xl shadow-[#101828]/20 text-white flex flex-col justify-center relative overflow-hidden group">
                     <div className="absolute -top-10 -right-10 w-32 h-32 bg-fin-surface/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000"></div>
                     <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Nilai Neto yang Dicairkan</p>
                     <p className="text-4xl font-bold tracking-tight">{formatCurrency(watch("nilai_neto"))}</p>
@@ -498,8 +498,8 @@ export default function CreateSp2dPage() {
                       E-Arsip (Dokumen PDF Terpindai)
                     </label>
                   </div>
-                  <label className="w-full flex items-center justify-center gap-6 py-10 bg-fin-page border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:border-indigo-500 hover:bg-fin-surface transition-all group">
-                    <div className="w-16 h-16 bg-fin-surface rounded-xl flex items-center justify-center text-slate-300 group-hover:text-indigo-600 shadow-sm border border-fin-border transition-all">
+                  <label className="w-full flex items-center justify-center gap-6 py-10 bg-fin-page border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-indigo-500 hover:bg-fin-surface transition-all group">
+                    <div className="w-16 h-16 bg-fin-surface rounded-xl flex items-center justify-center text-slate-300 group-hover:text-fin-info-text shadow-sm border border-fin-border transition-all">
                       <FileText size={32} />
                     </div>
                     <div className="text-left">
@@ -524,7 +524,7 @@ export default function CreateSp2dPage() {
                 <Button 
                   type="submit" 
                   disabled={loading || fetching} 
-                  className="w-full h-14 bg-[#101828] text-white rounded-xl font-semibold shadow-lg shadow-[#101828]/20 transition-all flex items-center justify-center gap-4 active:scale-95 disabled:opacity-50 text-sm hover:bg-slate-800"
+                  className="w-full h-14 bg-ds-primary text-white rounded-xl font-semibold shadow-lg shadow-[#101828]/20 transition-all flex items-center justify-center gap-4 active:scale-95 disabled:opacity-50 text-sm hover:bg-slate-800"
                 >
                   {loading ? <Loader2 className="animate-spin" size={20} /> : editId ? <RefreshCw size={20} /> : <Save size={20} />}
                   <span>{editId ? 'Perbarui Data SP2D' : 'Simpan Data SP2D'}</span>
@@ -543,7 +543,7 @@ export default function CreateSp2dPage() {
 
           {/* Info Sidebar */}
           <div className="lg:col-span-4 space-y-4">
-            <Card className="bg-[#101828] p-6 rounded-xl text-white shadow-lg relative overflow-hidden group border-none">
+            <Card className="bg-ds-primary p-6 rounded-xl text-white shadow-lg relative overflow-hidden group border-none">
               <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:scale-110 transition-transform duration-1000">
                 <AlertCircle size={160} />
               </div>
@@ -564,13 +564,13 @@ export default function CreateSp2dPage() {
 
       {showTalanganModal && (
         <Dialog open={showTalanganModal} onOpenChange={setShowTalanganModal}>
-          <DialogContent className="max-w-md rounded-2xl shadow-2xl p-10 text-center bg-fin-surface">
-            <div className="w-20 h-20 bg-[#FEF3F2] text-[#F04438] rounded-2xl flex items-center justify-center mx-auto mb-8">
+          <DialogContent className="max-w-md rounded-xl shadow-2xl p-10 text-center bg-fin-surface">
+            <div className="w-20 h-20 bg-[#FEF3F2] text-[#F04438] rounded-xl flex items-center justify-center mx-auto mb-8">
               <ShieldAlert size={40} />
             </div>
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-[#101828] mb-2 text-center">Defisit Anggaran!</DialogTitle>
-              <DialogDescription className="text-[#475467] text-sm leading-relaxed mb-8 px-2 text-center">
+              <DialogTitle className="text-xl font-bold text-fin-text-primary mb-2 text-center">Defisit Anggaran!</DialogTitle>
+              <DialogDescription className="text-fin-text-secondary text-sm leading-relaxed mb-8 px-2 text-center">
                 Pagu sumber dana tidak mencukupi. Lanjutkan proses sebagai talangan kas daerah?
               </DialogDescription>
             </DialogHeader>
@@ -585,7 +585,7 @@ export default function CreateSp2dPage() {
               <Button 
                 variant="ghost"
                 onClick={() => setShowTalanganModal(false)}
-                className="w-full h-12 bg-[#F2F4F7] text-[#344054] rounded-lg font-semibold hover:bg-[#E4E7EB] transition-all active:scale-95"
+                className="w-full h-12 bg-fin-subtle text-[#344054] rounded-lg font-semibold hover:bg-[#E4E7EB] transition-all active:scale-95"
               >
                 Batalkan
               </Button>

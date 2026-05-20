@@ -152,7 +152,7 @@ export const generatePDF = (headers: string[], data: any[][], title: string, foo
     columnStyles: columnStyles,
     margin: { top: 20, left: 14, right: 14 }, // Margin global diperkecil untuk Hal 2+
     didDrawPage: (data) => {
-      const str = 'Halaman ' + doc.internal.getNumberOfPages();
+      const str = 'Halaman ' + (doc.internal as any).getNumberOfPages();
       doc.setFontSize(7);
       doc.setTextColor(150);
       const pageSize = doc.internal.pageSize;
@@ -165,7 +165,7 @@ export const generatePDF = (headers: string[], data: any[][], title: string, foo
   });
 
   // 4. Footer (Signature Section)
-  const pageCount = doc.internal.getNumberOfPages();
+  const pageCount = (doc.internal as any).getNumberOfPages();
   doc.setPage(pageCount);
 
   const finalY = (doc as any).lastAutoTable.finalY + 12;

@@ -39,7 +39,8 @@ import {
   Sparkles,
   CheckCircle2,
   Info,
-  LayoutTemplate
+  LayoutTemplate,
+  ShieldCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -80,7 +81,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
 import { NumericInput } from '@/components/NumericInput';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { 
   Table, 
@@ -252,11 +253,11 @@ export default function DashboardPage() {
         
         {/* PAGE HEADER */}
         <PageHeader
-          title={<span className="font-black uppercase">Control <span className="text-indigo-600">Center</span></span>}
+          title={<span className="font-black uppercase">Control <span className="text-fin-info-text">Center</span></span>}
           description="Monitoring Executive Financial Intelligence"
           icon={<LayoutGrid className="size-5" />}
           actions={
-            <div className="flex flex-wrap items-center gap-3 bg-fin-surface p-2 rounded-2xl border border-fin-border shadow-sm">
+            <div className="flex flex-wrap items-center gap-3 bg-fin-surface p-2 rounded-xl border border-fin-border shadow-sm">
               {/* SYNC STATUS BADGES */}
               <div className="flex flex-col items-start px-1 border-r border-fin-border pr-4">
                 <div className="flex items-center gap-2">
@@ -279,21 +280,25 @@ export default function DashboardPage() {
                 </div>
               </div>
               {/* YEAR DROPDOWN */}
-              <div className="relative group">
-                <div className="flex items-center gap-2 px-3 py-2 bg-fin-page rounded-xl border border-fin-border group-hover:border-indigo-200 transition-colors">
-                  <Calendar size={14} className="text-fin-text-muted" />
-                  <select className="bg-transparent outline-none font-black text-fin-text-primary text-xs cursor-pointer appearance-none pr-4" value={tahun} onChange={(e) => setTahun(Number(e.target.value))}>
-                    {[2024, 2025, 2026].map(y => <option key={y} value={y}>TA {y}</option>)}
-                  </select>
-                  <ChevronDown size={10} className="absolute right-3 text-fin-text-muted pointer-events-none" />
-                </div>
+              <div className="relative group w-32">
+                <select
+                  value={tahun.toString()}
+                  onChange={(e) => setTahun(Number(e.target.value))}
+                  className="h-9 w-32 px-3 border border-fin-border rounded-lg bg-fin-surface text-fin-text-primary text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                >
+                  {[2024, 2025, 2026].map(y => (
+                    <option key={y} value={y.toString()} className="bg-fin-surface text-fin-text-primary">
+                      TA {y}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" onClick={fetchAllData} className="h-9 w-9 bg-fin-surface border-fin-border rounded-xl text-fin-text-muted hover:text-indigo-600 hover:border-indigo-100 transition-all shadow-sm">
+                <Button variant="outline" size="icon" onClick={fetchAllData} className="h-9 w-9 bg-fin-surface border-fin-border rounded-xl text-fin-text-muted hover:text-fin-info-text hover:border-indigo-100 transition-all shadow-sm">
                   <RefreshCw size={16} className={cn(loading && "animate-spin")} />
                 </Button>
-                <Button onClick={handlePrint} className="h-9 px-5 bg-fin-text-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all shadow-lg flex items-center gap-2">
-                  <FileText size={14} /><span>CETAK</span>
+                <Button variant="primary" size="sm" onClick={handlePrint} leftIcon={<FileText size={14} />} className="h-9 px-5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg">
+                  CETAK
                 </Button>
               </div>
             </div>
@@ -327,7 +332,7 @@ export default function DashboardPage() {
                       <span className="text-[8px] font-bold text-fin-text-muted uppercase tracking-wider">Tersedia</span>
                       <span className="text-xs font-black text-fin-text-primary truncate">{formatCurrency(summary.totalKetersediaan || 0)}</span>
                    </div>
-                   <span className="text-[9px] font-black text-[#12B76A] bg-[#ECFDF3] px-1.5 py-0.5 rounded-md shrink-0">
+                   <span className="text-[9px] font-black text-[#12B76A] bg-[#ECFDF3] px-1.5 py-0.5 rounded-lg shrink-0">
                      {(summary.ketersediaanPersen || 0).toFixed(1)}%
                    </span>
                 </div>
@@ -359,7 +364,7 @@ export default function DashboardPage() {
               </div>
             </motion.div>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="bg-[#101828] text-white border-none text-[11px] p-3 max-w-[250px]">
+          <TooltipContent side="bottom" className="bg-ds-primary text-white border-none text-[11px] p-3 max-w-[250px]">
             <p className="font-bold mb-1">Ketersediaan Anggaran</p>
             <p className="text-fin-text-muted">Proporsi dana tersedia (SiLPA + Pendapatan) terhadap total Pagu APBD.</p>
           </TooltipContent>
@@ -386,7 +391,7 @@ export default function DashboardPage() {
               <div className="mt-3 space-y-2">
                 <div className="flex justify-between items-center">
                    <span className="text-[8px] font-bold text-fin-text-muted uppercase tracking-wider">Penyerapan</span>
-                   <span className="text-[9px] font-black text-[#F04438] bg-[#FEF3F2] px-1.5 py-0.5 rounded-md">
+                   <span className="text-[9px] font-black text-[#F04438] bg-[#FEF3F2] px-1.5 py-0.5 rounded-lg">
                      {(summary.belanjaPersen || 0).toFixed(1)}%
                    </span>
                 </div>
@@ -400,7 +405,7 @@ export default function DashboardPage() {
               </div>
             </motion.div>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="bg-[#101828] text-white border-none text-[11px] p-3 max-w-[250px]">
+          <TooltipContent side="bottom" className="bg-ds-primary text-white border-none text-[11px] p-3 max-w-[250px]">
             <p className="font-bold mb-1">Realisasi Belanja</p>
             <p className="text-fin-text-muted">Total pengeluaran daerah (SP2D) dan persentase penyerapannya terhadap total Pagu.</p>
           </TooltipContent>
@@ -411,7 +416,7 @@ export default function DashboardPage() {
           <TooltipTrigger asChild>
             <motion.div 
               whileHover={{ y: -2 }}
-              className="bg-fin-surface p-4 rounded-xl border border-fin-border flex flex-col justify-between group hover:border-[#101828] transition-all min-h-[140px] cursor-help"
+              className="bg-fin-surface p-4 rounded-xl border border-fin-border flex flex-col justify-between group hover:border-fin-text-primary transition-all min-h-[140px] cursor-help"
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -433,7 +438,7 @@ export default function DashboardPage() {
               </div>
             </motion.div>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="bg-[#101828] text-white border-none text-[11px] p-3 max-w-[250px]">
+          <TooltipContent side="bottom" className="bg-ds-primary text-white border-none text-[11px] p-3 max-w-[250px]">
             <p className="font-bold mb-1">Total Kas Efektif</p>
             <p className="text-fin-text-muted">Saldo kas yang benar-benar tersedia setelah dikurangi blokir atau kewajiban talangan.</p>
           </TooltipContent>
@@ -463,7 +468,7 @@ export default function DashboardPage() {
               </div>
             </motion.div>
           </TooltipTrigger>
-          <TooltipContent side="bottom" className="bg-[#101828] text-white border-none text-[11px] p-3 max-w-[250px]">
+          <TooltipContent side="bottom" className="bg-ds-primary text-white border-none text-[11px] p-3 max-w-[250px]">
             <p className="font-bold mb-1">Likuiditas Bank (Fisik)</p>
             <p className="text-fin-text-muted">Total saldo fisik pada rekening koran Bank Persepsi.</p>
           </TooltipContent>
@@ -493,7 +498,7 @@ export default function DashboardPage() {
                            <p className="text-[10px] text-fin-text-muted mt-0.5">Membandingkan Inflow vs Outflow 6 bulan terakhir</p>
                         </div>
                      </TooltipTrigger>
-                     <TooltipContent side="right" className="bg-[#101828] text-white border-none text-[11px] p-3 max-w-[250px]">
+                     <TooltipContent side="right" className="bg-ds-primary text-white border-none text-[11px] p-3 max-w-[250px]">
                         <p className="font-bold mb-1">Analisis Tren Arus Kas</p>
                         <p className="text-fin-text-muted">Melihat perbandingan dana masuk (Pendapatan) dan dana keluar (Belanja) secara historis untuk memantau stabilitas fiskal daerah.</p>
                      </TooltipContent>
@@ -645,7 +650,7 @@ export default function DashboardPage() {
                     </h3>
                   </div>
                 </TooltipTrigger>
-                <TooltipContent side="left" className="bg-[#101828] text-white border-none text-[11px] p-3 max-w-[250px]">
+                <TooltipContent side="left" className="bg-ds-primary text-white border-none text-[11px] p-3 max-w-[250px]">
                   <p className="font-bold mb-1">Komposisi Likuiditas</p>
                   <p className="text-fin-text-muted">Menunjukkan porsi dana berdasarkan tingkat kebebasan penggunaannya, termasuk dana yang terikat (Earmark) dan dana talangan.</p>
                 </TooltipContent>
@@ -657,12 +662,12 @@ export default function DashboardPage() {
                            datasets: [{
                               data: [kasBebas, kasEarmark, totalTalangan],
                               backgroundColor: ['#12B76A', '#F79009', '#F04438'],
-                              borderWidth: 0,
-                              cutout: '85%'
+                              borderWidth: 0
                            }]
                         }}
                         options={{
                            maintainAspectRatio: false,
+                           cutout: '85%',
                            plugins: { legend: { display: false } }
                         }}
                      />
@@ -719,7 +724,7 @@ export default function DashboardPage() {
                    </div>
                 </div>
              </TooltipTrigger>
-             <TooltipContent side="top" className="bg-[#101828] text-white border-none text-[11px] p-3">
+             <TooltipContent side="top" className="bg-ds-primary text-white border-none text-[11px] p-3">
                 <p>Klik untuk melihat rincian saldo real-time pada setiap rekening kas daerah.</p>
              </TooltipContent>
           </Tooltip>
@@ -735,13 +740,13 @@ export default function DashboardPage() {
                     {/* KELOMPOK AMAN / BEBAS */}
                     <div className="space-y-4">
                        <div className="flex items-center gap-2 px-2">
-                          <div className="h-4 w-1 bg-indigo-600 rounded-full"></div>
+                          <div className="h-4 w-1 bg-ds-primary rounded-full"></div>
                           <h3 className="text-[11px] font-black text-fin-text-primary tracking-widest">Kelompok Kas Bebas (Aman)</h3>
                        </div>
                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {stats.filter((s: any) => s.kategori === 'BEBAS' && s.id !== 'SD-ALL').map((item: any) => (
                              <motion.div key={item.id} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-                                <Card className="p-4 border-fin-border hover:border-indigo-600/30 transition-all group relative overflow-hidden bg-fin-surface shadow-sm h-full flex flex-col">
+                                <Card className="p-4 border-fin-border hover:border-ds-focus-ring/30 transition-all group relative overflow-hidden bg-fin-surface shadow-sm h-full flex flex-col">
                                    <div className="mb-2">
                                       <div className="min-w-0">
                                          
@@ -770,7 +775,7 @@ export default function DashboardPage() {
                                    </div>
                                    
                                    {item.talangan_diberikan > 0 && (
-                                      <div className="mt-3 flex items-center gap-1.5 text-[#B42318] bg-[#FEF3F2] px-2 py-1 rounded-md">
+                                      <div className="mt-3 flex items-center gap-1.5 text-[#B42318] bg-[#FEF3F2] px-2 py-1 rounded-lg">
                                          <AlertCircle size={10} />
                                          <span className="text-[9px] font-black">Terikat Talangan: {formatCurrency(item.talangan_diberikan)}</span>
                                       </div>
@@ -848,7 +853,7 @@ export default function DashboardPage() {
                   <input 
                      type="text" 
                      placeholder="Cari OPD..." 
-                     className="pl-9 pr-4 py-2 bg-fin-surface border border-fin-border rounded-lg text-xs font-medium w-[240px] focus:outline-none focus:ring-2 focus:ring-[#2E90FA]/20 transition-all"
+                     className="pl-9 pr-4 py-2 bg-fin-surface border border-fin-border rounded-lg text-xs font-medium w-[240px] focus:outline-none focus:ring-2 focus:ring-ds-focus-ring transition-all"
                      value={searchOpd}
                      onChange={(e) => setSearchOpd(e.target.value)}
                   />
@@ -869,36 +874,36 @@ export default function DashboardPage() {
                             <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Total Dokumen</p>
                             <div className="flex items-end justify-between mt-1">
                                <h4 className="text-xl font-black text-fin-text-primary">{analytics.summary.total_dokumen} <span className="text-[10px] text-fin-text-muted font-bold">SP2D</span></h4>
-                               <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-md"><FileText size={14} /></div>
+                               <div className="p-1.5 bg-indigo-50 text-fin-info-text rounded-lg"><FileText size={14} /></div>
                             </div>
                          </Card>
                          <Card className="p-4 bg-fin-page border-none shadow-none flex flex-col justify-between">
                             <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Realisasi Bruto</p>
                             <div className="flex items-end justify-between mt-1">
                                <h4 className="text-xl font-black text-rose-600 truncate">{formatCurrency(analytics.summary.total_bruto)}</h4>
-                               <div className="p-1.5 bg-rose-50 text-rose-600 rounded-md"><ArrowDownCircle size={14} /></div>
+                               <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg"><ArrowDownCircle size={14} /></div>
                             </div>
                          </Card>
                          <Card className="p-4 bg-fin-page border-none shadow-none flex flex-col justify-between">
                             <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Beban Bulan Ini</p>
                             <div className="flex items-end justify-between mt-1">
                                <h4 className="text-xl font-black text-fin-text-primary">{analytics.summary.dokumen_bulan_ini} <span className="text-[10px] text-fin-text-muted font-bold">DOK</span></h4>
-                               <div className="p-1.5 bg-amber-50 text-amber-600 rounded-md"><Activity size={14} /></div>
+                               <div className="p-1.5 bg-amber-50 text-amber-600 rounded-lg"><Activity size={14} /></div>
                             </div>
                          </Card>
-                         <Card className="p-4 bg-indigo-600 border-none shadow-lg flex flex-col justify-between text-white relative overflow-hidden group">
+                         <Card className="p-4 bg-ds-primary border-none shadow-lg flex flex-col justify-between text-white relative overflow-hidden group">
                             <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform"><Scale size={80} /></div>
                             <p className="text-[10px] font-bold text-indigo-100 uppercase tracking-widest">OPD Terdaftar</p>
                             <div className="flex items-end justify-between mt-1 relative z-10">
                                <h4 className="text-xl font-black">{analytics.opdStats.length} <span className="text-[10px] text-indigo-200 font-bold">INSTANSI</span></h4>
-                               <div className="p-1.5 bg-fin-surface/20 rounded-md"><LayoutTemplate size={14} /></div>
+                               <div className="p-1.5 bg-fin-surface/20 rounded-lg"><LayoutTemplate size={14} /></div>
                             </div>
                          </Card>
                       </div>
 
                       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                          {/* LEFT: OPD LIST (SCROLLABLE) */}
-                         <div className="lg:col-span-5 border rounded-2xl overflow-hidden bg-fin-page/50 flex flex-col h-[500px]">
+                         <div className="lg:col-span-5 border rounded-xl overflow-hidden bg-fin-page/50 flex flex-col h-[500px]">
                             <div className="px-4 py-3 bg-fin-surface border-b flex items-center justify-between">
                                <span className="text-[10px] font-black text-fin-text-muted uppercase tracking-[0.2em]">Daftar Peringkat Realisasi</span>
                                <Badge variant="outline" className="text-[9px] font-bold">{filteredOpd.length} OPD</Badge>
@@ -917,12 +922,12 @@ export default function DashboardPage() {
                                   >
                                      <div className={cn(
                                         "w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black transition-colors shrink-0",
-                                        selectedOpd === opd.opd ? "bg-indigo-600 text-white" : "bg-fin-surface text-fin-text-muted border border-fin-border"
+                                        selectedOpd === opd.opd ? "bg-ds-primary text-white" : "bg-fin-surface text-fin-text-muted border border-fin-border"
                                      )}>
                                         {idx + 1}
                                      </div>
                                      <div className="flex-1 min-w-0">
-                                        <p className={cn("text-xs font-bold truncate group-hover:text-indigo-600 transition-colors", selectedOpd === opd.opd ? "text-indigo-600" : "text-fin-text-primary")}>{opd.opd}</p>
+                                        <p className={cn("text-xs font-bold truncate group-hover:text-fin-info-text transition-colors", selectedOpd === opd.opd ? "text-fin-info-text" : "text-fin-text-primary")}>{opd.opd}</p>
                                         <p className="text-[10px] font-medium text-fin-text-muted tabular-nums">{formatCurrency(opd.total_nilai)}</p>
                                      </div>
                                      <div className="text-right">
@@ -940,7 +945,7 @@ export default function DashboardPage() {
                          <div className="lg:col-span-7 flex flex-col h-[500px]">
                             {selectedOpd ? (
                                <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-500">
-                                  <div className="mb-6 p-6 bg-[#101828] rounded-2xl text-white relative overflow-hidden">
+                                  <div className="mb-6 p-6 bg-ds-primary rounded-xl text-white relative overflow-hidden">
                                      <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12"><Building2 size={120} /></div>
                                      <Badge className="bg-indigo-500 border-none mb-2 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5">Analisis Mendalam OPD</Badge>
                                      <h3 className="text-lg font-black leading-tight max-w-[80%] uppercase tracking-tight">{selectedOpd}</h3>
@@ -959,7 +964,7 @@ export default function DashboardPage() {
 
                                   <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto custom-scrollbar pr-2 pb-2">
                                      {/* CHART JENIS BELANJA */}
-                                     <Card className="p-5 border-none bg-fin-page/50 rounded-2xl flex flex-col">
+                                     <Card className="p-5 border-none bg-fin-page/50 rounded-xl flex flex-col">
                                         <h4 className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-4 flex items-center gap-2">
                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Komposisi Belanja
                                         </h4>
@@ -992,7 +997,7 @@ export default function DashboardPage() {
                                                           <motion.div 
                                                              initial={{ width: 0 }} 
                                                              animate={{ width: `${percent}%` }} 
-                                                             className="h-full bg-indigo-600" 
+                                                             className="h-full bg-ds-primary" 
                                                           />
                                                        </div>
                                                     </div>
@@ -1003,7 +1008,7 @@ export default function DashboardPage() {
                                      </Card>
 
                                      {/* RECENT TRANSACTIONS FOR THIS OPD */}
-                                     <Card className="p-5 border-none bg-fin-page/50 rounded-2xl flex flex-col">
+                                     <Card className="p-5 border-none bg-fin-page/50 rounded-xl flex flex-col">
                                         <h4 className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-4 flex items-center gap-2">
                                            <div className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Transaksi Terakhir
                                         </h4>
@@ -1013,7 +1018,7 @@ export default function DashboardPage() {
                                            ).map((tx: any, i: number) => (
                                               <div key={i} className="bg-fin-surface p-3 rounded-xl border border-fin-border shadow-sm flex flex-col gap-1">
                                                  <div className="flex justify-between items-center">
-                                                    <span className="text-[10px] font-black text-indigo-600 tracking-tighter">{tx.nomor}</span>
+                                                    <span className="text-[10px] font-black text-fin-info-text tracking-tighter">{tx.nomor}</span>
                                                     <span className="text-[9px] font-bold text-fin-text-muted">{format(new Date(tx.tanggal), 'dd/MM/yy')}</span>
                                                  </div>
                                                  <p className="text-[10px] font-medium text-fin-text-primary line-clamp-2 leading-relaxed italic">"{tx.uraian}"</p>
@@ -1033,8 +1038,8 @@ export default function DashboardPage() {
                                   </div>
                                </div>
                             ) : (
-                               <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-fin-page/50 rounded-2xl border border-dashed border-fin-border">
-                                  <div className="w-16 h-16 bg-fin-surface rounded-2xl shadow-sm flex items-center justify-center text-fin-text-muted/40 mb-4 animate-bounce">
+                               <div className="h-full flex flex-col items-center justify-center text-center p-12 bg-fin-page/50 rounded-xl border border-dashed border-fin-border">
+                                  <div className="w-16 h-16 bg-fin-surface rounded-xl shadow-sm flex items-center justify-center text-fin-text-muted/40 mb-4 animate-bounce">
                                      <TrendingUp size={32} />
                                   </div>
                                   <h4 className="text-sm font-bold text-fin-text-primary uppercase tracking-widest">Pilih OPD untuk Analisis</h4>
@@ -1063,21 +1068,22 @@ export default function DashboardPage() {
                 <div className="space-y-4">
                    <div className="space-y-2">
                       <label className="text-xs font-bold text-fin-text-primary uppercase tracking-wider">Jenis Pagu</label>
-                      <Select value={formPagu.jenis} onValueChange={(v) => setFormPagu({...formPagu, jenis: v})}>
-                        <SelectTrigger className="h-11 bg-fin-page border-fin-border rounded-lg text-sm font-bold">
-                           <SelectValue placeholder="Pilih Jenis" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-lg border-fin-border">
-                           <SelectItem value="MURNI" className="text-xs font-bold">PAGU MURNI (AWAL)</SelectItem>
-                           <SelectItem value="PERUBAHAN" className="text-xs font-bold">PAGU PERUBAHAN (APBD-P)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Combobox
+                        value={formPagu.jenis}
+                        onValueChange={(v) => setFormPagu({...formPagu, jenis: v || ''})}
+                        placeholder="Pilih Jenis"
+                        className="h-11"
+                        options={[
+                          { value: 'MURNI', label: 'PAGU MURNI (AWAL)' },
+                          { value: 'PERUBAHAN', label: 'PAGU PERUBAHAN (APBD-P)' },
+                        ]}
+                      />
                    </div>
                    <div className="space-y-2">
                       <label className="text-xs font-bold text-fin-text-primary uppercase tracking-wider">Entitas / OPD</label>
                       <Input 
                         placeholder="APBD KESELURUHAN" 
-                        className="h-11 bg-fin-page border-fin-border rounded-lg text-sm font-bold focus:ring-[#2E90FA]/20 transition-all" 
+                        className="h-11 bg-fin-page border-fin-border rounded-lg text-sm font-bold focus:ring-ds-focus-ring transition-all" 
                         value={formPagu.opd} 
                         onChange={(e) => setFormPagu({ ...formPagu, opd: e.target.value.toUpperCase() })} 
                       />
@@ -1085,7 +1091,7 @@ export default function DashboardPage() {
                    <div className="space-y-2">
                       <label className="text-xs font-bold text-fin-text-primary uppercase tracking-wider">Nilai Pagu (IDR)</label>
                       <NumericInput 
-                        className="h-14 bg-fin-page border-fin-border rounded-lg text-2xl font-bold text-fin-text-primary focus:ring-[#2E90FA]/20 transition-all" 
+                        className="h-14 bg-fin-page border-fin-border rounded-lg text-2xl font-bold text-fin-text-primary focus:ring-ds-focus-ring transition-all" 
                         value={formPagu.nilai} 
                         onValueChange={(val) => setFormPagu({ ...formPagu, nilai: val })} 
                       />
@@ -1093,13 +1099,14 @@ export default function DashboardPage() {
                 </div>
                 
                 <DialogFooter>
-                   <Button 
-                     onClick={handlePaguSubmit} 
-                     disabled={savingPagu} 
-                     className="w-full h-12 bg-[#101828] text-white rounded-lg font-bold hover:bg-[#1D2939] transition-all gap-2"
+                   <Button
+                     variant="primary"
+                     loading={savingPagu}
+                     onClick={handlePaguSubmit}
+                     leftIcon={<Save size={16} />}
+                     className="w-full h-12 rounded-lg font-bold"
                    >
-                      {savingPagu ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                      <span>UPDATE KONFIGURASI ANGGARAN</span>
+                     UPDATE KONFIGURASI ANGGARAN
                    </Button>
                 </DialogFooter>
              </div>
@@ -1111,7 +1118,7 @@ export default function DashboardPage() {
       {showAnomalyModal && (
         <Dialog open={showAnomalyModal} onOpenChange={setShowAnomalyModal}>
           <DialogContent className="max-w-2xl rounded-xl p-0 bg-fin-surface overflow-hidden border-none shadow-2xl">
-             <div className="bg-[#101828] p-6 text-white flex items-center justify-between">
+             <div className="bg-ds-primary p-6 text-white flex items-center justify-between">
                 <div className="flex items-center gap-3">
                    <ShieldAlert size={24} className="text-[#F04438]" />
                    <div>
@@ -1159,7 +1166,7 @@ export default function DashboardPage() {
              </div>
              
              <div className="p-6 bg-fin-page border-t border-fin-border flex justify-end">
-                <Button onClick={() => setShowAnomalyModal(false)} className="bg-[#101828] text-white font-bold h-10 px-8 rounded-lg">
+                <Button onClick={() => setShowAnomalyModal(false)} className="bg-ds-primary text-white font-bold h-10 px-8 rounded-lg">
                    MENGERTI
                 </Button>
              </div>
@@ -1234,7 +1241,7 @@ const printStyles = `
     padding: 8pt !important;
     font-size: 10pt !important;
   }
-  .text-indigo-600, .text-blue-600 { 
+  .text-fin-info-text, .text-blue-600 { 
     color: black !important; 
   }
   @page {

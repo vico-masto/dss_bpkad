@@ -20,7 +20,7 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { NumericInput } from '@/components/NumericInput';
 import { PageHeader } from '@/components/patterns/page-header';
 
@@ -80,15 +80,16 @@ export default function SaldoAwalPage() {
         icon={<Banknote className="size-5" />}
         actions={
           <div className="flex items-center gap-2">
-            <Select value={tahun.toString()} onValueChange={(v) => setTahun(parseInt(v))}>
-              <SelectTrigger className="h-10 w-48 bg-fin-surface border-fin-border rounded-lg text-xs font-semibold px-4 shadow-sm">
-                <SelectValue placeholder="Pilih Tahun" />
-              </SelectTrigger>
-              <SelectContent className="rounded-lg border-fin-border">
-                <SelectItem value="2026" className="text-xs font-semibold">Tahun Anggaran 2026</SelectItem>
-                <SelectItem value="2025" className="text-xs font-semibold">Tahun Anggaran 2025</SelectItem>
-              </SelectContent>
-            </Select>
+            <Combobox
+              value={tahun.toString()}
+              onValueChange={(v) => setTahun(parseInt(v || '0'))}
+              placeholder="Pilih Tahun"
+              className="h-10 w-48"
+              options={[
+                { value: '2026', label: 'Tahun Anggaran 2026' },
+                { value: '2025', label: 'Tahun Anggaran 2025' },
+              ]}
+            />
             <Button size="icon" variant="outline" onClick={fetchSaldoAwal} className="h-10 w-10 bg-fin-surface border-fin-border text-fin-text-muted rounded-lg hover:bg-fin-page transition-all">
               <RefreshCw size={18} className={cn(loading && "animate-spin")} />
             </Button>
@@ -98,14 +99,14 @@ export default function SaldoAwalPage() {
 
       {/* SUMMARY CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-[#101828] p-6 rounded-xl shadow-xl text-white relative overflow-hidden group border-none">
+        <Card className="bg-ds-primary p-6 rounded-xl shadow-xl text-white relative overflow-hidden group border-none">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-700">
             <TrendingUp size={80} />
           </div>
           <p className="text-[10px] font-semibold text-fin-text-muted mb-2 uppercase">Total Saldo Awal Gabungan</p>
           <h2 className="text-2xl font-bold tracking-tight" style={{fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalSaldoAwal)}</h2>
           <div className="mt-6">
-             <Badge className="bg-fin-surface/10 text-white rounded-md text-[9px] font-semibold uppercase border border-white/10 px-2 py-0.5">Ready TA {tahun}</Badge>
+             <Badge className="bg-fin-surface/10 text-white rounded-lg text-[9px] font-semibold uppercase border border-white/10 px-2 py-0.5">Ready TA {tahun}</Badge>
           </div>
         </Card>
 
@@ -138,7 +139,7 @@ export default function SaldoAwalPage() {
       <Card className="rounded-xl shadow-sm border border-fin-border overflow-hidden bg-fin-surface">
         <div className="px-6 py-4 border-b border-fin-border bg-fin-page flex justify-between items-center">
            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#101828] text-white rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-ds-primary text-white rounded-lg flex items-center justify-center">
                 <Banknote size={20} />
               </div>
               <div>
@@ -174,7 +175,7 @@ export default function SaldoAwalPage() {
                     <p className="text-[10px] text-fin-text-muted font-medium mt-1">{item.keterangan || 'SUMBER DANA ANGGARAN DAERAH'}</p>
                   </TableCell>
                   <TableCell className="px-8 py-6 text-center">
-                    <span className="px-3 py-1 bg-[#F2F4F7] text-fin-text-primary border border-[#D0D5DD] rounded-md text-[10px] font-semibold">
+                    <span className="px-3 py-1 bg-fin-subtle text-fin-text-primary border border-fin-border-strong rounded-lg text-[10px] font-semibold">
                       {item.id}
                     </span>
                   </TableCell>
@@ -182,7 +183,7 @@ export default function SaldoAwalPage() {
                     <div className="flex items-center justify-end gap-3">
                       <span className="text-fin-text-muted font-semibold text-lg">Rp</span>
                       <NumericInput 
-                        className="h-11 w-64 text-right font-bold text-fin-text-primary text-xl bg-fin-page border-fin-border rounded-lg focus:border-[#2E90FA] transition-all"
+                        className="h-11 w-64 text-right font-bold text-fin-text-primary text-xl bg-fin-page border-fin-border rounded-lg focus:border-ds-focus-ring transition-all"
                         value={item.saldo_awal}
                         onValueChange={(val) => handleInputChange(item.id, val)}
                       />
@@ -212,7 +213,7 @@ export default function SaldoAwalPage() {
              size="lg"
              onClick={handleSave}
              disabled={saving}
-             className="h-12 px-10 bg-[#101828] text-white rounded-lg font-semibold shadow-lg shadow-[#101828]/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 text-xs"
+             className="h-12 px-10 bg-ds-primary text-white rounded-lg font-semibold shadow-lg shadow-[#101828]/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 text-xs"
            >
              {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
              <span>Simpan Konfigurasi</span>

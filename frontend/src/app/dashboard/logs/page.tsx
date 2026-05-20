@@ -31,7 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Separator } from "@/components/ui/separator";
 
 
@@ -66,7 +66,7 @@ export default function ActivityLogsPage() {
       {/* Executive Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-8">
         <div className="flex items-center gap-6">
-          <div className="w-16 h-16 bg-[#101828] rounded-[28px] flex items-center justify-center text-white shadow-2xl shadow-slate-900/30 ring-4 ring-slate-900/5">
+          <div className="w-16 h-16 bg-ds-primary rounded-xl flex items-center justify-center text-white shadow-2xl shadow-slate-900/30 ring-4 ring-slate-900/5">
             <ShieldCheck size={32} />
           </div>
           <div>
@@ -80,14 +80,14 @@ export default function ActivityLogsPage() {
              <Download size={16} />
              <span>Export Log</span>
           </Button>
-          <Button variant="default" size="icon" onClick={fetchLogs} className="h-14 w-14 bg-slate-950 text-white rounded-2xl hover:bg-[#101828] transition-all shadow-xl active:scale-95">
+          <Button variant="default" size="icon" onClick={fetchLogs} className="h-14 w-14 bg-slate-950 text-white rounded-xl hover:bg-ds-primary transition-all shadow-xl active:scale-95">
             <RefreshCw size={22} className={cn(loading && "animate-spin")} />
           </Button>
         </div>
       </div>
 
       {/* Advanced Filter Bar */}
-      <Card className="bg-fin-surface p-6 rounded-2xl shadow-sm border border-fin-border grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+      <Card className="bg-fin-surface p-6 rounded-xl shadow-sm border border-fin-border grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
         <div className="md:col-span-2 space-y-2">
           <label className="text-xs font-semibold text-fin-text-muted ml-2">Cari Aktivitas / User Pelaksana</label>
           <div className="relative">
@@ -104,17 +104,18 @@ export default function ActivityLogsPage() {
 
         <div className="space-y-2">
           <label className="text-xs font-semibold text-fin-text-muted ml-2">Tipe Log / Audit</label>
-          <Select value={filters.type} onValueChange={(v) => setFilters({...filters, type: v})}>
-            <SelectTrigger className="h-12 bg-fin-page border-fin-border rounded-xl text-sm font-medium text-fin-text-primary px-6">
-              <SelectValue placeholder="Semua Tipe" />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl">
-              <SelectItem value="ALL" className="text-xs font-medium py-2.5">Semua Tipe Aktivitas</SelectItem>
-              <SelectItem value="auth" className="text-xs font-medium py-2.5">Autentikasi (Login/Logout)</SelectItem>
-              <SelectItem value="data" className="text-xs font-medium py-2.5">Mutasi Data (CRUD)</SelectItem>
-              <SelectItem value="security" className="text-xs font-medium py-2.5">Keamanan (System)</SelectItem>
-            </SelectContent>
-          </Select>
+          <Combobox
+            value={filters.type}
+            onValueChange={(v) => setFilters({...filters, type: v || ''})}
+            placeholder="Semua Tipe"
+            className="h-12"
+            options={[
+              { value: 'ALL', label: 'Semua Tipe Aktivitas' },
+              { value: 'auth', label: 'Autentikasi (Login/Logout)' },
+              { value: 'data', label: 'Mutasi Data (CRUD)' },
+              { value: 'security', label: 'Keamanan (System)' },
+            ]}
+          />
         </div>
 
         <div className="space-y-2">
@@ -127,7 +128,7 @@ export default function ActivityLogsPage() {
       </Card>
 
       {/* Logs Table Card */}
-      <Card className="bg-fin-surface rounded-[48px] shadow-sm border border-fin-border overflow-hidden">
+      <Card className="bg-fin-surface rounded-xl shadow-sm border border-fin-border overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -145,7 +146,7 @@ export default function ActivityLogsPage() {
                 <TableRow>
                   <TableCell colSpan={6} className="py-40 text-center">
                     <div className="flex flex-col items-center gap-4">
-                      <Loader2 className="animate-spin text-indigo-600" size={48} />
+                      <Loader2 className="animate-spin text-fin-info-text" size={48} />
                       <span className="text-sm font-medium text-fin-text-muted">Mensinkronisasi Audit Trail...</span>
                     </div>
                   </TableCell>
@@ -164,7 +165,7 @@ export default function ActivityLogsPage() {
                   <TableRow key={log.id} className="hover:bg-fin-page/30 transition-all duration-300 group border-b border-slate-50">
                     <TableCell className="px-10 py-8">
                        <div className="flex items-center gap-5">
-                          <div className="w-10 h-10 bg-fin-page rounded-xl text-fin-text-muted flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white group-hover:shadow-lg group-hover:shadow-indigo-600/20 transition-all duration-500">
+                          <div className="w-10 h-10 bg-fin-page rounded-xl text-fin-text-muted flex items-center justify-center group-hover:bg-ds-primary group-hover:text-white group-hover:shadow-lg group-hover:shadow-ds-primary/20 transition-all duration-500">
                              <Clock size={16} />
                           </div>
                           <div>
@@ -175,12 +176,12 @@ export default function ActivityLogsPage() {
                     </TableCell>
                     <TableCell className="px-10 py-8">
                        <div className="flex items-center gap-5">
-                          <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-[11px] font-bold border border-indigo-100 shadow-sm">
+                          <div className="w-10 h-10 bg-indigo-50 text-fin-info-text rounded-xl flex items-center justify-center text-[11px] font-bold border border-indigo-100 shadow-sm">
                              {log.user_pelaksana.substring(0, 2)}
                           </div>
                           <div>
                              <p className="text-[11px] font-bold text-fin-text-primary">{log.user_pelaksana}</p>
-                             <Badge className="bg-fin-page text-fin-text-muted font-bold text-[9px] border-none px-2 py-0.5 mt-1 rounded-md">Administrator</Badge>
+                             <Badge className="bg-fin-page text-fin-text-muted font-bold text-[9px] border-none px-2 py-0.5 mt-1 rounded-lg">Administrator</Badge>
                           </div>
                        </div>
                     </TableCell>
@@ -197,7 +198,7 @@ export default function ActivityLogsPage() {
                        </div>
                     </TableCell>
                     <TableCell className="px-10 py-8 text-center">
-                       <Button variant="ghost" size="icon" className="h-11 w-11 bg-fin-page text-fin-text-muted rounded-xl hover:text-indigo-600 hover:bg-fin-surface hover:shadow-xl transition-all duration-500 active:scale-90">
+                       <Button variant="ghost" size="icon" className="h-11 w-11 bg-fin-page text-fin-text-muted rounded-xl hover:text-fin-info-text hover:bg-fin-surface hover:shadow-xl transition-all duration-500 active:scale-90">
                          <ExternalLink size={18} />
                        </Button>
                     </TableCell>

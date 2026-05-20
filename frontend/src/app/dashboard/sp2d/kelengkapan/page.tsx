@@ -23,9 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
+import { Combobox } from "@/components/ui/combobox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -271,12 +269,14 @@ export default function KelengkapanPencairanPage() {
               {lastAutoMatched.length > 5 && <li>... dan {lastAutoMatched.length - 5} lainnya</li>}
             </ul>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="icon-sm"
             onClick={() => setLastAutoMatched([])}
-            className="shrink-0 p-1 rounded hover:bg-green-100 transition-colors"
+            className="shrink-0 text-green-700 hover:bg-green-100"
           >
             <X size={14} />
-          </button>
+          </Button>
         </div>
       )}
 
@@ -313,33 +313,21 @@ export default function KelengkapanPencairanPage() {
             </Tabs>
 
             <div className="flex flex-wrap gap-2">
-              <Select
+              <Combobox
                 value={filters.tahun}
-                onValueChange={(v) => handleFilterChange('tahun', v)}
-              >
-                <SelectTrigger className="h-8 w-24 text-xs border-fin-border">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {YEARS.map((y) => (
-                    <SelectItem key={y} value={y} className="text-xs">{y}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
+                onValueChange={(v) => handleFilterChange('tahun', v || '')}
+                className="h-8 w-24"
+                size="sm"
+                options={YEARS.map((y) => ({ value: y, label: y }))}
+              />
+              <Combobox
                 value={filters.bulan || 'all'}
-                onValueChange={(v) => handleFilterChange('bulan', v === 'all' ? '' : v)}
-              >
-                <SelectTrigger className="h-8 w-36 text-xs border-fin-border">
-                  <SelectValue placeholder="Semua Bulan" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all" className="text-xs">Semua Bulan</SelectItem>
-                  {MONTHS.map((m) => (
-                    <SelectItem key={m.value} value={m.value} className="text-xs">{m.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onValueChange={(v) => handleFilterChange('bulan', v === 'all' ? '' : v || '')}
+                placeholder="Semua Bulan"
+                className="h-8 w-36"
+                size="sm"
+                options={[{ value: 'all', label: 'Semua Bulan' }, ...MONTHS]}
+              />
               <Button
                 variant="outline"
                 size="sm"
@@ -365,21 +353,20 @@ export default function KelengkapanPencairanPage() {
               />
               <Button
                 onClick={saveBulk}
-                disabled={bulkLoading || !bulkDate}
+                disabled={!bulkDate}
+                loading={bulkLoading}
                 size="sm"
-                className="h-8 px-4 text-xs bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                leftIcon={<CalendarCheck size={12} />}
               >
-                {bulkLoading
-                  ? <Loader2 size={12} className="animate-spin" />
-                  : <CalendarCheck size={12} />}
                 Terapkan & Auto-Match ke Bank
               </Button>
-              <button
+              <Button
+                variant="link"
+                size="sm"
                 onClick={() => setSelectedIds(new Set())}
-                className="text-xs text-indigo-500 hover:text-indigo-700 underline"
               >
                 Batalkan pilihan
-              </button>
+              </Button>
             </div>
           )}
 
@@ -457,8 +444,8 @@ export default function KelengkapanPencairanPage() {
                                 <Input type="date" value={rowDates[id] || ''} onChange={(e) => setRowDates((p) => ({ ...p, [id]: e.target.value }))} className="h-7 text-xs border-fin-border w-36" />
                               </TableCell>
                               <TableCell>
-                                <Button size="sm" onClick={() => saveSingle(id)} disabled={isSaving || !rowDates[id]} className="h-7 px-3 text-[11px] bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-40">
-                                  {isSaving ? <Loader2 size={10} className="animate-spin" /> : 'Simpan'}
+                                <Button size="sm" onClick={() => saveSingle(id)} disabled={!rowDates[id]} loading={isSaving} className="h-7 px-3 text-[11px]">
+                                  Simpan
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -487,8 +474,8 @@ export default function KelengkapanPencairanPage() {
                                 <Input type="date" value={rowDates[id] || ''} onChange={(e) => setRowDates((p) => ({ ...p, [id]: e.target.value }))} className="h-7 text-xs border-fin-border w-36" />
                               </TableCell>
                               <TableCell>
-                                <Button size="sm" onClick={() => saveSingle(id)} disabled={isSaving || !rowDates[id]} className="h-7 px-3 text-[11px] bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-40">
-                                  {isSaving ? <Loader2 size={10} className="animate-spin" /> : 'Simpan'}
+                                <Button size="sm" onClick={() => saveSingle(id)} disabled={!rowDates[id]} loading={isSaving} className="h-7 px-3 text-[11px]">
+                                  Simpan
                                 </Button>
                               </TableCell>
                             </TableRow>

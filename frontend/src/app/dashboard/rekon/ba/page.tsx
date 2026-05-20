@@ -173,11 +173,11 @@ export default function BARekonPage() {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col p-6 gap-6 font-sans">
       {/* ACTION HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-[32px] border border-slate-200 shadow-sm print:hidden">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-xl border border-slate-200 shadow-sm print:hidden">
         <div className="flex items-center gap-4">
           <Button variant="ghost" onClick={() => router.push('/dashboard/rekon')} className="w-10 h-10 rounded-xl p-0 hover:bg-slate-100"><ArrowLeft size={20} /></Button>
           <div>
-            <h1 className="text-xl font-black text-[#101828]">Berita Acara Rekonsiliasi Kas</h1>
+            <h1 className="text-xl font-black text-fin-text-primary">Berita Acara Rekonsiliasi Kas</h1>
             <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest italic">Standar SAP — Permendagri 77/2020</p>
           </div>
         </div>
@@ -185,7 +185,7 @@ export default function BARekonPage() {
           <Button onClick={handleSyncData} variant="outline" className="h-11 px-6 rounded-xl border-indigo-100 text-indigo-700 text-xs font-black gap-2 hover:bg-indigo-50">
             <RefreshCw size={16} /> Sinkron Data
           </Button>
-          <Button onClick={handleDownloadPDF} disabled={isExporting} className="h-11 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black gap-2">
+          <Button onClick={handleDownloadPDF} disabled={isExporting} className="h-11 px-8 bg-ds-primary hover:bg-ds-primary-hover text-white rounded-xl text-xs font-black gap-2">
             {isExporting ? <RefreshCw size={16} className="animate-spin" /> : <Download size={16} />}
             {isExporting ? 'Memproses...' : 'Download PDF'}
           </Button>
@@ -198,9 +198,9 @@ export default function BARekonPage() {
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start mb-20">
         {/* SIDEBAR */}
         <div className="xl:col-span-4 space-y-5 print:hidden">
-          <Card className="p-6 rounded-[32px] border-none shadow-2xl bg-white space-y-5">
+          <Card className="p-6 rounded-xl border-none shadow-2xl bg-white space-y-5">
             <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-              <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center"><Calendar size={20} /></div>
+              <div className="w-10 h-10 bg-indigo-50 text-fin-info-text rounded-xl flex items-center justify-center"><Calendar size={20} /></div>
               <h3 className="text-sm font-black uppercase tracking-tight text-slate-800">Setting Dokumen</h3>
             </div>
             <div className="space-y-3">
@@ -226,13 +226,13 @@ export default function BARekonPage() {
                 <Input value={baData.namaBank} onChange={e => setBaData({...baData, namaBank: e.target.value})} className="h-10 rounded-xl border-slate-100 bg-slate-50 text-xs" /></div>
             </div>
             <div className="space-y-4 pt-4 border-t border-slate-100">
-              <div className="flex items-center gap-2 text-slate-800 mb-1"><User size={16} className="text-indigo-600" /><span className="text-[10px] font-black uppercase tracking-widest">Pejabat Penandatangan</span></div>
+              <div className="flex items-center gap-2 text-slate-800 mb-1"><User size={16} className="text-fin-info-text" /><span className="text-[10px] font-black uppercase tracking-widest">Pejabat Penandatangan</span></div>
               {[
                 { label: 'Pihak I — Kuasa BUD', key: 'pihak1', hasNip: true },
                 { label: 'Pihak II — Bank', key: 'pihak2', hasNip: false },
                 { label: 'Mengetahui', key: 'mengetahui', hasNip: true },
               ].map(({ label, key, hasNip }) => (
-                <div key={key} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                <div key={key} className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
                   <Label className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{label}</Label>
                   <Input value={(baData as any)[key].nama} onChange={e => setBaData({...baData, [key]: {...(baData as any)[key], nama: e.target.value.toUpperCase()}})} className="h-8 bg-white border-none shadow-sm rounded-lg text-[10px] font-black" placeholder="Nama" />
                   {hasNip && <Input value={(baData as any)[key].nip} onChange={e => setBaData({...baData, [key]: {...(baData as any)[key], nip: e.target.value}})} className="h-8 bg-white border-none shadow-sm rounded-lg text-[9px] text-slate-500" placeholder="NIP" />}

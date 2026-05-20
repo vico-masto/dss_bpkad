@@ -2,15 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
-import { 
-  Search, 
-  Filter, 
-  Printer, 
-  FileSpreadsheet, 
-  RefreshCw, 
-  ArrowUpRight, 
-  ArrowDownLeft, 
-  Wallet, 
+import {
+  Search,
+  Filter,
+  Printer,
+  FileSpreadsheet,
+  RefreshCw,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Wallet,
   Calendar,
   Building2,
   ChevronLeft,
@@ -23,7 +23,8 @@ import {
   ChevronDown,
   X,
   Eye,
-  Copy
+  Copy,
+  Tag
 } from 'lucide-react';
 import { formatCurrency, cn, parseNumber, formatNumber } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -37,6 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/patterns/page-header';
+import { Combobox } from "@/components/ui/combobox";
 
 
 const fetcher = (url: string, params: any) => api.get(url, { params }).then(res => res.data);
@@ -60,6 +62,8 @@ export default function BkuPage() {
     startDate: format(new Date(new Date().getFullYear(), 0, 1), 'yyyy-MM-dd'),
     endDate: format(new Date(), 'yyyy-MM-dd'),
     sumberDana: '',
+    opd: '',
+    jenisTransaksi: '',
     page: 1,
     limit: 50
   });
@@ -77,7 +81,8 @@ export default function BkuPage() {
         ...params,
         tgl_awal: params.startDate,
         tgl_akhir: params.endDate,
-        id_sumber_dana: params.sumberDana
+        id_sumber_dana: params.sumberDana,
+        jenis_transaksi: params.jenisTransaksi
       };
       return fetcher(url, mappedParams);
     }
@@ -103,7 +108,7 @@ export default function BkuPage() {
     const loadToast = toast.loading('Menyiapkan data Excel...');
     try {
       const res = await api.get('/reports/bku', { 
-        params: { ...queryParams, tgl_awal: queryParams.startDate, tgl_akhir: queryParams.endDate, id_sumber_dana: queryParams.sumberDana, limit: 10000, page: 1 } 
+        params: { ...queryParams, tgl_awal: queryParams.startDate, tgl_akhir: queryParams.endDate, id_sumber_dana: queryParams.sumberDana, jenis_transaksi: queryParams.jenisTransaksi, limit: 10000, page: 1 } 
       });
       const allData = res.data.data || [];
       toast.dismiss(loadToast);
@@ -138,7 +143,7 @@ export default function BkuPage() {
     const loadToast = toast.loading('Menyiapkan pratinjau dokumen...');
     try {
       const res = await api.get('/reports/bku', { 
-        params: { ...queryParams, tgl_awal: queryParams.startDate, tgl_akhir: queryParams.endDate, id_sumber_dana: queryParams.sumberDana, limit: 10000, page: 1 } 
+        params: { ...queryParams, tgl_awal: queryParams.startDate, tgl_akhir: queryParams.endDate, id_sumber_dana: queryParams.sumberDana, jenis_transaksi: queryParams.jenisTransaksi, limit: 10000, page: 1 } 
       });
       const allData = res.data.data || [];
       toast.dismiss(loadToast);
@@ -188,7 +193,7 @@ export default function BkuPage() {
     const loadToast = toast.loading('Menyiapkan dokumen PDF...');
     try {
       const res = await api.get('/reports/bku', { 
-        params: { ...queryParams, tgl_awal: queryParams.startDate, tgl_akhir: queryParams.endDate, id_sumber_dana: queryParams.sumberDana, limit: 10000, page: 1 } 
+        params: { ...queryParams, tgl_awal: queryParams.startDate, tgl_akhir: queryParams.endDate, id_sumber_dana: queryParams.sumberDana, jenis_transaksi: queryParams.jenisTransaksi, limit: 10000, page: 1 } 
       });
       const allData = res.data.data || [];
       toast.dismiss(loadToast);
@@ -233,13 +238,14 @@ export default function BkuPage() {
     const loadToast = toast.loading('Menyiapkan dokumen cetak...');
     try {
       const res = await api.get('/reports/bku', { 
-        params: { 
-          ...queryParams, 
-          tgl_awal: queryParams.startDate, 
-          tgl_akhir: queryParams.endDate, 
-          id_sumber_dana: queryParams.sumberDana, 
-          limit: 10000, 
-          page: 1 
+        params: {
+          ...queryParams,
+          tgl_awal: queryParams.startDate,
+          tgl_akhir: queryParams.endDate,
+          id_sumber_dana: queryParams.sumberDana,
+          jenis_transaksi: queryParams.jenisTransaksi,
+          limit: 10000,
+          page: 1
         } 
       });
       
@@ -309,7 +315,7 @@ export default function BkuPage() {
         actions={
           <div className="flex items-center gap-2">
             <Button variant="ghost" onClick={handlePreviewReport} className="h-10 px-4 text-fin-text-muted font-semibold hover:bg-fin-surface rounded-lg transition-all flex items-center gap-2">
-              <Eye size={16} className="text-indigo-600" /><span>Preview</span>
+              <Eye size={16} className="text-fin-info-text" /><span>Preview</span>
             </Button>
             <Button variant="outline" onClick={handleExportExcel} className="h-10 px-4 bg-fin-surface border-fin-border rounded-lg text-xs font-semibold text-fin-text-muted hover:bg-fin-page transition-all flex items-center gap-2">
               <Download size={16} /><span>Export Excel</span>
@@ -329,8 +335,8 @@ export default function BkuPage() {
            animate={{ opacity: 1, y: 0 }}
            className="group"
          >
-           <Card className="p-5 rounded-2xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[150px]">
-              <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-indigo-600 transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
+           <Card className="p-5 rounded-xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[150px]">
+              <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-fin-info-text transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
                  <Database size={100} />
               </div>
               
@@ -341,7 +347,7 @@ export default function BkuPage() {
                        {formatCurrency((summary.saldoAwal || 0) + (summary.totalPenerimaan || 0))}
                     </h2>
                  </div>
-                 <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center border border-indigo-100">
+                 <div className="w-9 h-9 bg-indigo-50 text-fin-info-text rounded-xl flex items-center justify-center border border-indigo-100">
                     <Database size={18} />
                  </div>
               </div>
@@ -358,7 +364,7 @@ export default function BkuPage() {
                     />
                  </div>
                  <div className="flex items-center justify-between text-[8px] font-bold uppercase tracking-tight">
-                    <div className="flex items-center gap-1.5 text-indigo-600">
+                    <div className="flex items-center gap-1.5 text-fin-info-text">
                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                        S.Awal: {formatCurrency(summary.saldoAwal)}
                     </div>
@@ -378,7 +384,7 @@ export default function BkuPage() {
            transition={{ delay: 0.1 }}
            className="group"
          >
-           <Card className="p-5 rounded-2xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300 h-full flex flex-col justify-between min-h-[150px]">
+           <Card className="p-5 rounded-xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300 h-full flex flex-col justify-between min-h-[150px]">
               <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-fin-expense transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
                  <ArrowDownLeft size={100} />
               </div>
@@ -407,8 +413,8 @@ export default function BkuPage() {
            transition={{ delay: 0.2 }}
            className="group"
          >
-           <Card className="p-5 rounded-2xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300 h-full flex flex-col justify-between min-h-[150px] border-b-2 border-b-indigo-600">
-              <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-indigo-600 transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
+           <Card className="p-5 rounded-xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300 h-full flex flex-col justify-between min-h-[150px] border-t-2 border-t-ds-accent">
+              <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-fin-info-text transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
                  <Wallet size={100} />
               </div>
               <div className="flex justify-between items-start relative z-10">
@@ -418,12 +424,12 @@ export default function BkuPage() {
                      {formatCurrency(summary.saldoAkhir)}
                    </h2>
                 </div>
-                <div className="w-9 h-9 bg-fin-subtle text-indigo-600 rounded-xl flex items-center justify-center border border-indigo-100">
+                <div className="w-9 h-9 bg-fin-subtle text-fin-info-text rounded-xl flex items-center justify-center border border-indigo-100">
                    <Wallet size={18} />
                 </div>
               </div>
               <div className="mt-4 flex items-center gap-1.5 text-[9px] font-bold text-fin-text-muted uppercase">
-                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                 <div className="w-1.5 h-1.5 rounded-full bg-ds-primary" />
                  Saldo Kas Tersedia
               </div>
            </Card>
@@ -434,10 +440,10 @@ export default function BkuPage() {
 
 
       {/* Filter Panel */}
-      <Card className="rounded-2xl shadow-sm border border-fin-border bg-fin-surface overflow-hidden">
+      <Card className="rounded-xl shadow-sm border border-fin-border bg-fin-surface overflow-hidden">
         <div className="px-6 py-3 border-b border-fin-subtle flex justify-between items-center bg-fin-surface">
            <div className="flex items-center gap-2">
-              <Filter size={14} className="text-indigo-600" />
+              <Filter size={14} className="text-fin-info-text" />
               <h3 className="text-[11px] font-bold text-fin-text-muted uppercase tracking-wider">Panel Kontrol BKU</h3>
            </div>
            <div className="flex items-center gap-2">
@@ -445,7 +451,7 @@ export default function BkuPage() {
                 variant="ghost" 
                 size="sm" 
                 onClick={() => setShowFilters(!showFilters)}
-                className="h-8 px-3 text-[10px] font-bold text-indigo-600 hover:bg-fin-subtle rounded-lg transition-all flex items-center gap-2"
+                className="h-8 px-3 text-[10px] font-bold text-fin-info-text hover:bg-fin-subtle rounded-lg transition-all flex items-center gap-2"
               >
                 {showFilters ? <><X size={14} /> Sembunyikan Filter</> : <><Filter size={14} /> Tampilkan Filter</>}
               </Button>
@@ -461,66 +467,110 @@ export default function BkuPage() {
               transition={{ duration: 0.3, ease: 'easeInOut' }}
             >
               <div className="p-6 border-b border-[#F8F9FA]">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-end">
-                  {/* Periode Section */}
-                  <div className="lg:col-span-5 space-y-2">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
+                  {/* Baris 1: Periode */}
+                  <div className="lg:col-span-6 space-y-2">
                     <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-tight ml-1 flex items-center gap-1.5">
                       <Calendar size={12} className="text-[#2E90FA]" />
                       Rentang Periode Laporan
                     </label>
                     <div className="flex items-center gap-3">
-                       <div className="flex-1">
-                         <Input type="date" className="h-11 px-4 bg-fin-page border-fin-border rounded-lg text-sm font-medium text-fin-text-primary focus-visible:ring-[#2E90FA]/20 focus-visible:border-[#2E90FA] transition-all" value={filters.startDate} onChange={(e) => setFilters({...filters, startDate: e.target.value, page: 1})} />
-                       </div>
-                       <span className="text-[#D0D5DD] text-[10px] font-bold">S/D</span>
-                       <div className="flex-1">
-                         <Input type="date" className="h-11 px-4 bg-fin-page border-fin-border rounded-lg text-sm font-medium text-fin-text-primary focus-visible:ring-[#2E90FA]/20 focus-visible:border-[#2E90FA] transition-all" value={filters.endDate} onChange={(e) => setFilters({...filters, endDate: e.target.value, page: 1})} />
-                       </div>
-                    </div>
-                  </div>
-
-                  {/* Sumber Dana Section */}
-                  <div className="lg:col-span-4 space-y-2">
-                    <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-tight ml-1 flex items-center gap-1.5">
-                       <Database size={12} className="text-[#2E90FA]" />
-                       Filter Sumber Dana
-                    </label>
-                    <div className="relative">
-                      <select className="w-full h-11 px-4 bg-fin-subtle border-fin-border rounded-lg text-sm font-medium text-fin-text-primary outline-none appearance-none cursor-pointer focus:border-[#2E90FA] transition-all" value={filters.sumberDana} onChange={(e) => setFilters({...filters, sumberDana: e.target.value, page: 1})}>
-                        <option value="">SEMUA SUMBER DANA</option>
-                        {sumberDanaList.map((sd: any) => (
-                          <option key={sd.id} value={sd.id}>{sd.nama}</option>
-                        ))}
-                      </select>
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-fin-text-muted">
-                         <ChevronDown size={16} />
+                      <div className="flex-1">
+                        <Input type="date" className="h-11 px-4 bg-fin-page border-fin-border rounded-lg text-sm font-medium text-fin-text-primary focus-visible:ring-ds-focus-ring focus-visible:border-ds-focus-ring transition-all" value={filters.startDate} onChange={(e) => setFilters({...filters, startDate: e.target.value, page: 1})} />
+                      </div>
+                      <span className="text-[#D0D5DD] text-[10px] font-bold">S/D</span>
+                      <div className="flex-1">
+                        <Input type="date" className="h-11 px-4 bg-fin-page border-fin-border rounded-lg text-sm font-medium text-fin-text-primary focus-visible:ring-ds-focus-ring focus-visible:border-ds-focus-ring transition-all" value={filters.endDate} onChange={(e) => setFilters({...filters, endDate: e.target.value, page: 1})} />
                       </div>
                     </div>
                   </div>
 
-                  {/* Actions Section */}
-                  <div className="lg:col-span-3 flex items-center gap-2">
-                     <Button onClick={handleDisplay} className="flex-1 h-11 bg-[#101828] text-white rounded-lg font-bold text-[11px] hover:bg-[#1D2939] transition-all shadow-lg shadow-[#101828]/10 gap-2 active:scale-95">
-                        <RefreshCw size={14} className={cn(isLoading && "animate-spin")} />
-                        Tampilkan Data
-                     </Button>
-                     <Button 
-                        variant="ghost" 
-                        onClick={() => {
-                          const resetFilters = {
-                            startDate: format(new Date(new Date().getFullYear(), 0, 1), 'yyyy-MM-dd'),
-                            endDate: format(new Date(), 'yyyy-MM-dd'),
-                            sumberDana: '',
-                            page: 1,
-                            limit: 50
-                          };
-                          setFilters(resetFilters);
-                          setQueryParams(resetFilters);
-                        }} 
-                        className="h-11 px-6 bg-fin-page text-fin-text-primary rounded-lg font-bold text-[11px] hover:bg-[#E4E7EB] transition-all active:scale-95"
-                      >
-                        Reset
-                     </Button>
+                  {/* Baris 1: Sumber Dana */}
+                  <div className="lg:col-span-6 space-y-2">
+                    <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-tight ml-1 flex items-center gap-1.5">
+                      <Database size={12} className="text-[#2E90FA]" />
+                      Filter Sumber Dana
+                    </label>
+                    <select
+                      value={filters.sumberDana || 'all'}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setFilters({...filters, sumberDana: v === 'all' ? '' : v, page: 1});
+                      }}
+                      className="w-full h-11 px-3 border border-fin-border rounded-lg bg-fin-surface text-fin-text-primary text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                    >
+                      <option value="all">SEMUA SUMBER DANA</option>
+                      {sumberDanaList.map((sd: any) => (
+                        <option key={sd.id} value={sd.id} className="bg-fin-surface text-fin-text-primary">
+                          {sd.nama}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Baris 2: OPD */}
+                  <div className="lg:col-span-4 space-y-2">
+                    <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-tight ml-1 flex items-center gap-1.5">
+                      <Building2 size={12} className="text-[#2E90FA]" />
+                      Cari Nama OPD
+                    </label>
+                    <Input
+                      type="text"
+                      placeholder="Contoh: Dinas Kesehatan..."
+                      className="h-11 px-4 bg-fin-page border-fin-border rounded-lg text-sm font-medium text-fin-text-primary focus-visible:ring-ds-focus-ring focus-visible:border-ds-focus-ring transition-all"
+                      value={filters.opd}
+                      onChange={(e) => setFilters({...filters, opd: e.target.value, page: 1})}
+                    />
+                  </div>
+
+                  {/* Baris 2: Jenis Transaksi */}
+                  <div className="lg:col-span-4 space-y-2">
+                    <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-tight ml-1 flex items-center gap-1.5">
+                      <Tag size={12} className="text-[#2E90FA]" />
+                      Jenis Transaksi
+                    </label>
+                    <select
+                      value={filters.jenisTransaksi || 'all'}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setFilters({...filters, jenisTransaksi: v === 'all' ? '' : v, page: 1});
+                      }}
+                      className="w-full h-11 px-3 border border-fin-border rounded-lg bg-fin-surface text-fin-text-primary text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                    >
+                      <option value="all">SEMUA JENIS</option>
+                      <option value="PENDAPATAN" className="bg-fin-surface text-fin-text-primary">Pendapatan</option>
+                      <option value="PENGELUARAN" className="bg-fin-surface text-fin-text-primary">Pengeluaran SP2D</option>
+                      <option value="POTONGAN" className="bg-fin-surface text-fin-text-primary">Potongan Pajak</option>
+                      <option value="SETORAN" className="bg-fin-surface text-fin-text-primary">Setoran Pajak</option>
+                      <option value="PENYESUAIAN" className="bg-fin-surface text-fin-text-primary">Penyesuaian Kas</option>
+                    </select>
+                  </div>
+
+                  {/* Baris 2: Actions */}
+                  <div className="lg:col-span-4 flex items-center gap-2 pt-5">
+                    <Button onClick={handleDisplay} className="flex-1 h-11 bg-ds-primary text-white rounded-lg font-bold text-[11px] hover:bg-ds-primary-hover transition-all shadow-lg shadow-[#101828]/10 gap-2 active:scale-95">
+                      <RefreshCw size={14} className={cn(isLoading && "animate-spin")} />
+                      Tampilkan Data
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        const resetFilters = {
+                          startDate: format(new Date(new Date().getFullYear(), 0, 1), 'yyyy-MM-dd'),
+                          endDate: format(new Date(), 'yyyy-MM-dd'),
+                          sumberDana: '',
+                          opd: '',
+                          jenisTransaksi: '',
+                          page: 1,
+                          limit: 50
+                        };
+                        setFilters(resetFilters);
+                        setQueryParams(resetFilters);
+                      }}
+                      className="h-11 px-6 bg-fin-page text-fin-text-primary rounded-lg font-bold text-[11px] hover:bg-[#E4E7EB] transition-all active:scale-95"
+                    >
+                      Reset
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -530,7 +580,7 @@ export default function BkuPage() {
       </Card>
 
       {/* Table Section (Modernized) */}
-      <Card className="rounded-2xl shadow-sm border border-fin-border overflow-hidden bg-fin-surface">
+      <Card className="rounded-xl shadow-sm border border-fin-border overflow-hidden bg-fin-surface">
         <div className="overflow-x-auto min-h-[500px]">
           <Table>
             <TableHeader className="bg-fin-page">
@@ -559,7 +609,7 @@ export default function BkuPage() {
                           {error.response?.data?.detail && `\n\nDetail: ${error.response?.data?.detail}`}
                         </p>
                       </div>
-                      <Button onClick={() => mutate()} className="bg-[#101828] text-white rounded-lg text-xs font-semibold px-8 h-10 hover:bg-slate-800">
+                      <Button onClick={() => mutate()} className="bg-ds-primary text-white rounded-lg text-xs font-semibold px-8 h-10 hover:bg-slate-800">
                         Coba Lagi
                       </Button>
                     </div>
@@ -590,7 +640,7 @@ export default function BkuPage() {
                           navigator.clipboard.writeText(item.bukti);
                           toast.success('Nomor Bukti Disalin', { description: item.bukti });
                         }}>
-                           <Badge variant="outline" className="px-2.5 py-1 bg-fin-page text-fin-text-primary rounded-md text-[10px] font-medium border-none group-hover/copy:bg-[#EFF8FF] group-hover/copy:text-[#175CD3] transition-colors">
+                           <Badge variant="outline" className="px-2.5 py-1 bg-fin-page text-fin-text-primary rounded-lg text-[10px] font-medium border-none group-hover/copy:bg-[#EFF8FF] group-hover/copy:text-[#175CD3] transition-colors">
                              {item.bukti}
                            </Badge>
                            <div className="opacity-0 group-hover/copy:opacity-100 transition-all">
@@ -633,7 +683,7 @@ export default function BkuPage() {
                               <Badge variant="outline" className="bg-fin-page text-fin-text-muted border-fin-border text-[9px] px-2 py-0.5 font-medium whitespace-nowrap">OUTSTANDING</Badge>
                             )}
                             {item.keterangan_rekon && (
-                              <p className="text-[8px] text-indigo-600 font-bold max-w-[100px] truncate" title={item.keterangan_rekon}>
+                              <p className="text-[8px] text-fin-info-text font-bold max-w-[100px] truncate" title={item.keterangan_rekon}>
                                 {formatAuditStatus(item.keterangan_rekon, item.status_rekon)}
                               </p>
                             )}
@@ -656,7 +706,7 @@ export default function BkuPage() {
                   <TableCell className="px-2 py-5 text-right text-fin-expense text-[10px] font-bold bg-[#F04438]/5 whitespace-nowrap" style={{fontVariantNumeric:'tabular-nums'}}>
                     {formatCurrency(summary.totalPengeluaran)}
                   </TableCell>
-                  <TableCell className="px-2 py-5 text-right text-fin-text-primary text-[11px] font-black bg-indigo-600/10 whitespace-nowrap" style={{fontVariantNumeric:'tabular-nums'}}>
+                  <TableCell className="px-2 py-5 text-right text-fin-text-primary text-[11px] font-black bg-ds-primary/10 whitespace-nowrap" style={{fontVariantNumeric:'tabular-nums'}}>
                     {formatCurrency(summary.saldoAkhir)}
                   </TableCell>
                   <TableCell className="bg-fin-page w-10"></TableCell>
@@ -698,7 +748,7 @@ export default function BkuPage() {
                      }}
                      className={cn(
                        "w-9 h-9 rounded-lg text-xs font-semibold transition-all",
-                       queryParams.page === i + 1 ? "bg-[#101828] text-white shadow-sm" : "bg-fin-surface border-fin-border text-fin-text-muted hover:bg-fin-page"
+                       queryParams.page === i + 1 ? "bg-ds-primary text-white shadow-sm" : "bg-fin-surface border-fin-border text-fin-text-muted hover:bg-fin-page"
                      )}
                    >
                      {i + 1}
@@ -729,7 +779,7 @@ export default function BkuPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-fin-surface w-full max-w-6xl h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-white/20"
+              className="bg-fin-surface w-full max-w-6xl h-[90vh] rounded-xl shadow-2xl overflow-hidden flex flex-col border border-white/20"
             >
                <div className="p-4 bg-fin-surface border-b border-fin-border flex justify-between items-center px-8">
                   <div className="flex items-center gap-4">
@@ -746,11 +796,11 @@ export default function BkuPage() {
                       variant="outline" 
                       size="sm" 
                       onClick={() => window.open(previewPdf, '_blank')}
-                      className="text-[10px] font-bold h-8 px-4 rounded-md border-[#D0D5DD] hover:bg-fin-surface"
+                      className="text-[10px] font-bold h-8 px-4 rounded-lg border-fin-border-strong hover:bg-fin-surface"
                     >
                       Buka di Tab Baru
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setPreviewPdf(null)} className="h-8 w-8 text-fin-text-muted hover:text-fin-expense rounded-md"><X size={20} /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => setPreviewPdf(null)} className="h-8 w-8 text-fin-text-muted hover:text-fin-expense rounded-lg"><X size={20} /></Button>
                   </div>
                </div>
                <div className="flex-1 w-full bg-slate-100 flex items-center justify-center relative">

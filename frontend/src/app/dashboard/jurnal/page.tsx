@@ -115,7 +115,7 @@ export default function GeneralLedgerPage() {
       />
 
       {/* TABLE SECTION */}
-      <Card className="rounded-2xl border border-fin-border overflow-hidden bg-fin-surface shadow-sm">
+      <Card className="rounded-xl border border-fin-border overflow-hidden bg-fin-surface shadow-sm">
         <div className="overflow-x-auto min-h-[500px]">
           <Table>
             <TableHeader className="bg-fin-page">
@@ -146,7 +146,7 @@ export default function GeneralLedgerPage() {
                     <TableCell className="px-6 py-4 text-center text-[10px] font-bold text-fin-text-muted">{(currentPage - 1) * limit + index + 1}</TableCell>
                     <TableCell className="px-6 py-4 text-[11px] font-bold text-fin-text-muted">{format(new Date(item.tanggal), 'dd/MM/yy')}</TableCell>
                     <TableCell className="px-6 py-4">
-                       <span className="font-mono text-[9px] text-indigo-600 font-black bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-md">
+                       <span className="font-mono text-[9px] text-fin-info-text font-black bg-indigo-50 border border-indigo-100 px-2 py-1 rounded-lg">
                          {item.kode_akun}
                        </span>
                     </TableCell>
@@ -201,8 +201,8 @@ export default function GeneralLedgerPage() {
       </Card>
       
       {/* DISCLAIMER / INFO */}
-      <Card className="bg-fin-page border border-fin-border p-6 rounded-2xl flex gap-6 shadow-sm">
-         <div className="w-12 h-12 bg-fin-surface rounded-xl border border-fin-border flex items-center justify-center text-indigo-600 shadow-sm flex-shrink-0">
+      <Card className="bg-fin-page border border-fin-border p-6 rounded-xl flex gap-6 shadow-sm">
+         <div className="w-12 h-12 bg-fin-surface rounded-xl border border-fin-border flex items-center justify-center text-fin-info-text shadow-sm flex-shrink-0">
             <Info size={22} />
          </div>
          <div className="space-y-1">

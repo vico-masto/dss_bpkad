@@ -1,17 +1,15 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import useSWR from 'swr';
 import { 
   Search, 
-  Filter, 
   RefreshCw, 
   Trash2, 
   Upload, 
   FileSpreadsheet, 
   Download, 
   Printer,
-  Activity, 
   Database, 
   AlertTriangle, 
   CheckCircle2, 
@@ -20,17 +18,15 @@ import {
   TrendingDown,
   ShieldCheck,
   Calendar,
-  X,
-  Plus,
   ArrowLeft,
   Loader2
 } from 'lucide-react';
-import { formatCurrency, cn, parseNumber, formatNumber } from '@/lib/utils';
+import { formatCurrency, cn, parseNumber } from '@/lib/utils';
 import { format } from 'date-fns';
 import api from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +36,8 @@ import {
   DialogHeader, 
   DialogTitle, 
   DialogFooter,
-  DialogDescription 
+  DialogDescription,
+  DialogBody 
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -57,7 +54,7 @@ const fetcher = (url: string, params: any) => api.get(url, { params }).then(res 
 
 export default function BankManagementPage() {
   const [currentPage, setCurrentPage] = useState(1);
-  const [limit, setLimit] = useState(15);
+  const [limit] = useState(15);
   const [filters, setFilters] = useState({
     search: '',
     startDate: format(new Date(new Date().getFullYear(), 0, 1), 'yyyy-MM-dd'),
@@ -197,9 +194,6 @@ export default function BankManagementPage() {
 
     setIsDeleting(true);
     try {
-      // Backend should have a specific reset for bank statements, 
-      // but if not, we use the general reset or create a new one.
-      // For now, let's assume we use reset-all which reset rekon too.
       await api.post('/reports/reconciliation/reset-all', { 
           code: resetModal.value.trim(),
           year: new Date().getFullYear(),
@@ -229,59 +223,66 @@ export default function BankManagementPage() {
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div className="flex items-center gap-4">
           <Link href="/dashboard/rekon">
-            <Button variant="ghost" size="icon" className="w-12 h-12 rounded-xl bg-fin-surface border border-fin-border shadow-sm hover:bg-fin-page transition-all">
-              <ArrowLeft size={20} className="text-fin-text-secondary" />
+            <Button variant="outline" size="icon" className="size-10 rounded-lg shadow-sm">
+              <ArrowLeft size={16} className="text-fin-text-secondary" />
             </Button>
           </Link>
-          <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
-            <Database size={24} />
+          <div className="w-10 h-10 bg-ds-primary rounded-lg flex items-center justify-center text-white shadow-md shadow-ds-primary/20">
+            <Database size={20} />
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-fin-text-primary">Manajemen Rekening Koran</h1>
-            <p className="text-sm text-fin-text-secondary mt-1 font-medium">Upload, audit, dan kelola data mutasi bank RKUD</p>
+            <h1 className="text-xl font-bold tracking-tight text-fin-text-primary">Manajemen Rekening Koran</h1>
+            <p className="text-xs text-fin-text-secondary mt-0.5 font-medium">Upload, audit, dan kelola data mutasi bank RKUD</p>
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <Button 
             onClick={openResetModal}
             variant="ghost"
-            className="h-11 px-4 text-rose-400 hover:text-rose-600 hover:bg-rose-500/10 rounded-xl font-black text-[10px] uppercase transition-all"
+            size="md"
+            className="text-fin-text-muted hover:text-fin-expense-text hover:bg-fin-expense-bg font-bold text-xs uppercase rounded-lg"
           >
-            <Trash2 size={16} className="mr-2" /> Wipe All Data
+            <Trash2 size={14} className="mr-1.5" /> Wipe All Data
           </Button>
 
           <Button 
             onClick={handleDownloadTemplate}
-            className="h-11 px-4 bg-white text-emerald-600 hover:bg-emerald-50 border border-emerald-200 rounded-xl font-black text-xs uppercase tracking-widest shadow-sm transition-all flex items-center gap-2"
+            variant="outline"
+            size="md"
+            className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5"
           >
-            <Download size={16} />
-            <span className="hidden sm:inline">Template</span>
+            <Download size={14} />
+            <span>Template</span>
           </Button>
 
           <Button 
             onClick={() => window.print()}
-            className="h-11 px-4 bg-white text-indigo-600 hover:bg-indigo-50 border border-indigo-200 rounded-xl font-black text-xs uppercase tracking-widest shadow-sm transition-all flex items-center gap-2"
+            variant="outline"
+            size="md"
+            className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5"
           >
-            <Printer size={16} />
-            <span className="hidden sm:inline">Cetak</span>
+            <Printer size={14} />
+            <span>Cetak</span>
           </Button>
 
           <Button 
             onClick={() => { setShowUploadModal(true); setPreviewData([]); }}
-            className="h-11 px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-900/20 transition-all flex items-center gap-2 group"
+            variant="primary"
+            size="md"
+            className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5 group shadow-sm"
           >
-            <Upload size={16} className="group-hover:-translate-y-1 transition-transform" />
+            <Upload size={14} className="group-hover:-translate-y-0.5 transition-transform" />
             <span>Upload Rekening Koran</span>
           </Button>
         </div>
       </div>
 
       {/* SUMMARY STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="bg-fin-surface p-6 rounded-2xl border border-fin-border shadow-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-fin-surface p-4 rounded-xl border border-fin-border shadow-sm">
            <p className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-1">Total Mutasi Masuk</p>
-           <h3 className="text-2xl font-black text-fin-income tabular-nums">
+           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-fin-income tabular-nums truncate">
              {isLoading ? '...' : formatCurrency(data?.summary?.totalKredit || 0)}
            </h3>
            <div className="flex items-center gap-2 mt-2">
@@ -290,9 +291,9 @@ export default function BankManagementPage() {
            </div>
         </Card>
 
-        <Card className="bg-fin-surface p-6 rounded-2xl border border-fin-border shadow-sm">
+        <Card className="bg-fin-surface p-4 rounded-xl border border-fin-border shadow-sm">
            <p className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-1">Total Mutasi Keluar</p>
-           <h3 className="text-2xl font-black text-fin-expense tabular-nums">
+           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-fin-expense tabular-nums truncate">
              {isLoading ? '...' : formatCurrency(data?.summary?.totalDebet || 0)}
            </h3>
            <div className="flex items-center gap-2 mt-2">
@@ -301,59 +302,59 @@ export default function BankManagementPage() {
            </div>
         </Card>
 
-        <Card className="bg-fin-surface p-6 rounded-2xl border border-fin-border shadow-sm">
+        <Card className="bg-fin-surface p-4 rounded-xl border border-fin-border shadow-sm">
            <p className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-1">Total Records</p>
-           <h3 className="text-2xl font-black text-fin-text-primary tabular-nums">
+           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-fin-text-primary tabular-nums truncate">
              {isLoading ? '...' : data?.summary?.totalItems || 0}
            </h3>
            <div className="flex items-center gap-2 mt-2">
-              <Database size={12} className="text-indigo-400" />
+              <Database size={12} className="text-indigo-500" />
               <span className="text-[9px] font-bold text-fin-text-muted uppercase">Baris Data Terdaftar</span>
            </div>
         </Card>
 
-        <Card className="bg-[#101828] p-6 rounded-2xl border-none shadow-xl">
-           <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Saldo Akhir Terdeteksi</p>
-           <h3 className="text-2xl font-black text-white tabular-nums">
+        <Card className="bg-fin-surface p-4 rounded-xl border border-fin-border border-t-4 border-t-indigo-500 shadow-sm">
+           <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Saldo Akhir Terdeteksi</p>
+           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-fin-text-primary tabular-nums truncate">
              {isLoading ? '...' : formatCurrency(data?.summary?.lastBalance || 0)}
            </h3>
            <div className="flex items-center gap-2 mt-2">
-              <ShieldCheck size={12} className="text-emerald-400" />
+              <ShieldCheck size={12} className="text-indigo-500" />
               <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest">Validated Bank Position</span>
            </div>
         </Card>
       </div>
 
       {/* FILTER BAR */}
-      <Card className="rounded-2xl border border-fin-border shadow-sm bg-fin-surface p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-end">
-          <div className="lg:col-span-4 space-y-2">
-            <label className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest flex items-center gap-2 ml-1">
+      <Card className="rounded-xl border border-fin-border shadow-sm bg-fin-surface p-5">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-end">
+          <div className="lg:col-span-4 space-y-1.5">
+            <label className="text-micro font-bold uppercase tracking-wide text-fin-text-muted flex items-center gap-1.5 ml-1">
               <Search size={12} /> Cari Mutasi
             </label>
             <Input 
               placeholder="Cari deskripsi atau nominal..." 
-              className="h-11 bg-fin-page border-fin-border rounded-xl text-xs font-bold"
+              className="font-semibold text-xs animate-none"
               value={filters.search}
               onChange={(e) => setFilters({...filters, search: e.target.value})}
             />
           </div>
 
-          <div className="lg:col-span-4 space-y-2">
-            <label className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest flex items-center gap-2 ml-1">
+          <div className="lg:col-span-4 space-y-1.5">
+            <label className="text-micro font-bold uppercase tracking-wide text-fin-text-muted flex items-center gap-1.5 ml-1">
               <Calendar size={12} /> Rentang Tanggal
             </label>
             <div className="flex items-center gap-2">
               <Input 
                 type="date" 
-                className="h-11 bg-fin-page border-fin-border rounded-xl text-xs font-bold"
+                className="font-semibold text-xs animate-none"
                 value={filters.startDate}
                 onChange={(e) => setFilters({...filters, startDate: e.target.value})}
               />
-              <span className="text-[10px] font-bold text-fin-text-muted">s/d</span>
+              <span className="text-xs font-bold text-fin-text-muted">s/d</span>
               <Input 
                 type="date" 
-                className="h-11 bg-fin-page border-fin-border rounded-xl text-xs font-bold"
+                className="font-semibold text-xs animate-none"
                 value={filters.endDate}
                 onChange={(e) => setFilters({...filters, endDate: e.target.value})}
               />
@@ -363,18 +364,22 @@ export default function BankManagementPage() {
           <div className="lg:col-span-2">
              <Button 
                 onClick={() => mutate()}
-                className="w-full h-11 bg-fin-page text-fin-text-primary hover:bg-fin-border border border-fin-border rounded-xl text-xs font-black uppercase transition-all"
+                variant="outline"
+                size="md"
+                className="w-full text-xs font-bold rounded-lg"
              >
-                <RefreshCw size={14} className="mr-2" /> Tampilkan
+                <RefreshCw size={14} className="mr-1.5 animate-none" /> Tampilkan
              </Button>
           </div>
           
           <div className="lg:col-span-2">
-             <Link href="/dashboard/rekon">
+             <Link href="/dashboard/rekon" className="w-full block">
                 <Button 
-                    className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase transition-all"
+                    variant="primary"
+                    size="md"
+                    className="w-full text-xs font-bold rounded-lg shadow-sm"
                 >
-                    Mulai Rekon <ArrowRight size={14} className="ml-2" />
+                    Mulai Rekon <ArrowRight size={14} className="ml-1.5" />
                 </Button>
              </Link>
           </div>
@@ -382,7 +387,7 @@ export default function BankManagementPage() {
       </Card>
 
       {/* DATA TABLE */}
-      <Card className="rounded-2xl border border-fin-border shadow-sm overflow-hidden bg-fin-surface">
+      <Card className="rounded-xl border border-fin-border shadow-sm overflow-hidden bg-fin-surface">
         <Table>
           <TableHeader className="bg-fin-page/50">
             <TableRow className="hover:bg-transparent border-b border-fin-border">
@@ -393,14 +398,14 @@ export default function BankManagementPage() {
               <TableHead className="text-[10px] font-black uppercase text-fin-text-muted text-right">Debet (Keluar)</TableHead>
               <TableHead className="text-[10px] font-black uppercase text-fin-text-muted text-right">Kredit (Masuk)</TableHead>
               <TableHead className="text-[10px] font-black uppercase text-fin-text-muted text-right">Saldo Akhir</TableHead>
-              <TableHead className="w-24 text-[10px] font-black uppercase text-fin-text-muted text-center pr-6">Aksi</TableHead>
+              <TableHead className="w-20 text-[10px] font-black uppercase text-fin-text-muted text-center pr-6">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               [1, 2, 3, 4, 5].map(i => (
                 <TableRow key={i}>
-                  <TableCell colSpan={7} className="py-6"><div className="h-6 w-full animate-pulse bg-fin-page rounded-lg" /></TableCell>
+                  <TableCell colSpan={8} className="py-6"><div className="h-6 w-full animate-pulse bg-fin-page rounded-lg" /></TableCell>
                 </TableRow>
               ))
             ) : data?.data?.length > 0 ? (
@@ -437,17 +442,17 @@ export default function BankManagementPage() {
                     <Button 
                       onClick={() => handleDeleteItem(item.id)}
                       variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 text-fin-text-muted hover:text-rose-500 hover:bg-rose-500/10 rounded-lg"
+                      size="icon-sm" 
+                      className="text-fin-text-muted hover:text-rose-500 hover:bg-rose-500/10 rounded-lg"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={13} />
                     </Button>
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="py-20 text-center">
+                <TableCell colSpan={8} className="py-20 text-center">
                   <div className="flex flex-col items-center gap-3 opacity-30">
                     <FileSpreadsheet size={48} />
                     <p className="text-xs font-black uppercase tracking-widest">Belum ada data mutasi bank.</p>
@@ -470,7 +475,7 @@ export default function BankManagementPage() {
             >
               Previous
             </Button>
-            <div className="px-4 text-[10px] font-black text-indigo-600 bg-white border border-fin-border rounded-lg h-8 flex items-center">
+            <div className="px-4 text-[10px] font-black text-fin-info-text bg-white border border-fin-border rounded-lg h-8 flex items-center">
               {currentPage}
             </div>
             <Button 
@@ -487,25 +492,21 @@ export default function BankManagementPage() {
 
       {/* UPLOAD MODAL */}
       <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
-        <DialogContent className={cn("bg-fin-surface rounded-3xl p-0 overflow-hidden border border-fin-border shadow-2xl transition-all duration-300", previewData.length > 0 ? "max-w-4xl" : "max-w-lg")}>
-          <div className="bg-[#101828] p-8 text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
-            <div className="relative z-10 flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-md border border-white/10">
-                <Upload size={32} className="text-emerald-400" />
-              </div>
-              <h2 className="text-xl font-black uppercase tracking-widest">{previewData.length > 0 ? "Preview Data Import" : "Import Rekening Koran"}</h2>
-              <p className="text-fin-text-muted text-[10px] font-bold mt-2 uppercase tracking-tight">
-                {previewData.length > 0 ? `${previewData.length} Baris Data Siap Diimpor` : "Gunakan Format Excel (.xlsx / .xls)"}
-              </p>
-            </div>
-          </div>
+        <DialogContent size={previewData.length > 0 ? "xl" : "md"}>
+          <DialogHeader>
+            <DialogTitle>{previewData.length > 0 ? "Preview Data Import" : "Import Rekening Koran"}</DialogTitle>
+            <DialogDescription>
+              {previewData.length > 0 
+                ? `${previewData.length} baris data mutasi bank siap disimpan ke database` 
+                : "Unggah berkas mutasi bank RKUD dalam format Excel (.xlsx / .xls)"}
+            </DialogDescription>
+          </DialogHeader>
           
-          <div className="p-8 space-y-6">
+          <DialogBody className="space-y-5">
             {previewData.length === 0 ? (
               <>
                 <div className="space-y-4">
-                  <div className="p-8 border-2 border-dashed border-fin-border rounded-2xl bg-fin-page hover:bg-fin-border/20 transition-all flex flex-col items-center justify-center text-center cursor-pointer relative group">
+                  <div className="p-8 border-2 border-dashed border-fin-border rounded-lg bg-fin-page hover:bg-fin-subtle/50 transition-all flex flex-col items-center justify-center text-center cursor-pointer relative group">
                       <input 
                         type="file" 
                         accept=".xlsx, .xls"
@@ -513,16 +514,16 @@ export default function BankManagementPage() {
                         onChange={handleFileUpload}
                         disabled={isUploading}
                       />
-                      <FileSpreadsheet size={40} className="text-indigo-400 mb-3 group-hover:scale-110 transition-transform" />
-                      <p className="text-[11px] font-black text-fin-text-primary uppercase">Klik atau Taruh File Excel Di Sini</p>
-                      <p className="text-[9px] font-bold text-fin-text-muted mt-2 uppercase tracking-tighter">Kolom Minimal: Tanggal, Uraian, Penerimaan, Pengeluaran, Saldo</p>
+                      <FileSpreadsheet className="size-10 text-indigo-500 mb-3 group-hover:scale-105 transition-transform animate-none" />
+                      <p className="text-sm font-semibold text-fin-text-primary">Klik atau seret file Excel ke sini</p>
+                      <p className="text-xs text-fin-text-muted mt-1 leading-relaxed">Kolom minimal: Tanggal, Uraian, Penerimaan, Pengeluaran, Saldo</p>
                   </div>
                   
                   {isUploading && (
-                      <div className="space-y-2 animate-in fade-in zoom-in">
+                      <div className="space-y-2 animate-in fade-in zoom-in duration-200">
                         <div className="flex justify-between items-center px-1">
-                          <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest animate-pulse">Memproses Data...</span>
-                          <span className="text-[10px] font-black text-fin-text-primary">{uploadProgress}%</span>
+                          <span className="text-xs font-semibold text-indigo-500 animate-pulse">Memproses Data...</span>
+                          <span className="text-xs font-bold text-fin-text-primary">{uploadProgress}%</span>
                         </div>
                         <div className="h-2 w-full bg-fin-page rounded-full overflow-hidden border border-fin-border">
                           <motion.div 
@@ -535,141 +536,144 @@ export default function BankManagementPage() {
                   )}
                 </div>
 
-                <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 flex gap-3">
-                  <AlertTriangle size={16} className="text-amber-500 shrink-0" />
-                  <p className="text-[9px] font-bold text-amber-600 leading-relaxed">
+                <div className="bg-fin-warning-bg border border-fin-warning/20 rounded-lg p-4 flex gap-3">
+                  <AlertTriangle className="size-5 text-fin-warning-text shrink-0 animate-none" />
+                  <p className="text-xs text-fin-warning-text leading-relaxed font-medium">
                       Pastikan format tanggal valid dan nominal tidak mengandung karakter selain angka. Baris yang sudah ada (duplikat) akan dilewati secara otomatis oleh sistem.
                   </p>
                 </div>
               </>
             ) : (
               <div className="space-y-4">
-                <div className="max-h-[300px] overflow-auto border border-fin-border rounded-xl">
+                <div className="max-h-[300px] overflow-auto border border-fin-border rounded-lg">
                   <Table>
                     <TableHeader className="bg-fin-page sticky top-0 z-10">
                       <TableRow>
-                        <TableHead className="text-[10px] font-black uppercase py-2">Tanggal</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase py-2">No Bukti</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase py-2">Uraian</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase text-right py-2">Masuk (Kredit)</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase text-right py-2">Keluar (Debet)</TableHead>
+                        <TableHead className="text-micro font-bold uppercase py-2">Tanggal</TableHead>
+                        <TableHead className="text-micro font-bold uppercase py-2">No Bukti</TableHead>
+                        <TableHead className="text-micro font-bold uppercase py-2">Uraian</TableHead>
+                        <TableHead className="text-micro font-bold uppercase text-right py-2">Kredit (Masuk)</TableHead>
+                        <TableHead className="text-micro font-bold uppercase text-right py-2">Debet (Keluar)</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {previewData.slice(0, 10).map((row, i) => (
                         <TableRow key={i}>
-                          <TableCell className="text-[10px] font-bold">{row.TANGGAL}</TableCell>
-                          <TableCell className="text-[10px] font-bold">{row.NOMOR_BUKTI || '-'}</TableCell>
-                          <TableCell className="text-[10px] font-bold truncate max-w-[200px]">{row.URAIAN}</TableCell>
-                          <TableCell className="text-[10px] font-black text-fin-income text-right tabular-nums">{formatCurrency(row.PENERIMAAN)}</TableCell>
-                          <TableCell className="text-[10px] font-black text-fin-expense text-right tabular-nums">{formatCurrency(row.PENGELUARAN)}</TableCell>
+                          <TableCell className="text-xs font-medium tabular-nums">{row.TANGGAL}</TableCell>
+                          <TableCell className="text-xs font-medium">{row.NOMOR_BUKTI || '-'}</TableCell>
+                          <TableCell className="text-xs font-medium truncate max-w-[200px]">{row.URAIAN}</TableCell>
+                          <TableCell className="text-xs font-bold text-fin-income text-right tabular-nums">{formatCurrency(row.PENERIMAAN)}</TableCell>
+                          <TableCell className="text-xs font-bold text-fin-expense text-right tabular-nums">{formatCurrency(row.PENGELUARAN)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
                 </div>
                 {previewData.length > 10 && (
-                  <p className="text-[10px] font-bold text-center text-fin-text-muted">... dan {previewData.length - 10} baris lainnya</p>
+                  <p className="text-xs font-semibold text-center text-fin-text-muted">... dan {previewData.length - 10} baris lainnya</p>
                 )}
-                <div className="flex gap-3 pt-2">
-                  <Button 
-                    onClick={handleConfirmUpload}
-                    disabled={isUploading}
-                    className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-900/20"
-                  >
-                    {isUploading ? <Loader2 className="animate-spin mr-2" size={16} /> : <CheckCircle2 className="mr-2" size={16} />}
-                    Simpan ke Database
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setPreviewData([])}
-                    className="h-12 px-6 rounded-xl font-black text-[10px] uppercase border-fin-border"
-                  >
-                    Batal
-                  </Button>
-                </div>
               </div>
             )}
+          </DialogBody>
 
-            {previewData.length === 0 && (
+          <DialogFooter>
+            {previewData.length > 0 ? (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setPreviewData([])}
+                  className="rounded-lg text-xs font-bold font-sans"
+                >
+                  Batal
+                </Button>
+                <Button 
+                  onClick={handleConfirmUpload}
+                  disabled={isUploading}
+                  variant="primary"
+                  className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5"
+                  loading={isUploading}
+                >
+                  <CheckCircle2 size={14} />
+                  Simpan ke Database
+                </Button>
+              </>
+            ) : (
               <Button 
-                variant="ghost" 
+                variant="outline" 
                 onClick={() => setShowUploadModal(false)}
-                className="w-full h-12 rounded-xl font-black text-[10px] uppercase text-fin-text-muted hover:bg-fin-page"
+                className="rounded-lg text-xs font-bold font-sans"
               >
                 Tutup
               </Button>
             )}
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* RESET ALL DIALOG */}
       <Dialog open={resetModal.isOpen} onOpenChange={(open) => setResetModal(prev => ({ ...prev, isOpen: open }))}>
-        <DialogContent className="max-w-md bg-fin-surface rounded-3xl p-0 overflow-hidden border border-fin-border shadow-2xl">
-          <div className="bg-rose-600 p-8 text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
-            <div className="relative z-10 flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-4 backdrop-blur-md border border-white/30">
-                <AlertTriangle size={32} className="text-white" />
-              </div>
-              <h2 className="text-xl font-black uppercase tracking-widest text-white">Reset Data Bank</h2>
-              <p className="text-rose-100 text-[10px] font-bold mt-2 uppercase tracking-tight">Semua data mutasi akan dihapus permanen</p>
-            </div>
-          </div>
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle className="text-fin-expense-text">Reset Data Rekening Koran</DialogTitle>
+            <DialogDescription>
+              Tindakan ini bersifat permanen dan akan menghapus seluruh data transaksi mutasi bank.
+            </DialogDescription>
+          </DialogHeader>
           
-          <div className="p-8 space-y-6">
+          <DialogBody className="space-y-5">
             {/* Preview dampak */}
             {loadingPreview ? (
-              <div className="flex items-center justify-center gap-2 py-3 text-rose-400/60 text-[10px] font-bold uppercase">
+              <div className="flex items-center justify-center gap-2 py-3 text-fin-text-muted text-xs font-bold uppercase">
                 <Loader2 size={14} className="animate-spin" /> Memuat data dampak...
               </div>
             ) : resetPreview && (
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-3 text-center">
-                  <p className="text-2xl font-black text-rose-400">{resetPreview.total_bank.toLocaleString('id-ID')}</p>
-                  <p className="text-[9px] text-rose-400/70 uppercase font-bold mt-1">Total Mutasi Bank</p>
+                <div className="bg-fin-expense-bg border border-fin-expense/10 rounded-lg p-3 text-center">
+                  <p className="text-xl font-extrabold text-fin-expense-text">{resetPreview.total_bank.toLocaleString('id-ID')}</p>
+                  <p className="text-[9px] text-fin-expense-text/70 uppercase font-black tracking-wider mt-1">Total Mutasi Bank</p>
                 </div>
-                <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-3 text-center">
-                  <p className="text-2xl font-black text-rose-400">{resetPreview.sudah_match.toLocaleString('id-ID')}</p>
-                  <p className="text-[9px] text-rose-400/70 uppercase font-bold mt-1">Sudah Dicocokkan</p>
+                <div className="bg-fin-expense-bg border border-fin-expense/10 rounded-lg p-3 text-center">
+                  <p className="text-xl font-extrabold text-fin-expense-text">{resetPreview.sudah_match.toLocaleString('id-ID')}</p>
+                  <p className="text-[9px] text-rose-500/70 uppercase font-black tracking-wider mt-1">Sudah Dicocokkan</p>
                 </div>
               </div>
             )}
-            <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 text-center">
-              <p className="text-[10px] font-bold text-rose-400 uppercase leading-relaxed">
-                Anda akan menghapus seluruh data rekening koran yang telah diupload. <br/>
-                Ketik <span className="font-black underline">RESET BANK {new Date().getFullYear()}</span> untuk konfirmasi.
+            <div className="bg-fin-expense-bg border border-fin-expense/10 rounded-lg p-4 text-center">
+              <p className="text-xs font-bold text-fin-expense-text leading-relaxed">
+                Anda akan menghapus seluruh data rekening koran. <br/>
+                Ketik <span className="font-extrabold underline">RESET BANK {new Date().getFullYear()}</span> untuk konfirmasi.
               </p>
             </div>
 
             <div className="space-y-2">
               <Input 
                 placeholder={`RESET BANK ${new Date().getFullYear()}`}
-                className="h-14 text-center bg-fin-page border-fin-border rounded-2xl font-black text-fin-text-primary placeholder:text-fin-text-muted/30 focus:ring-rose-500/20 focus:border-rose-500/50 transition-all"
+                className="h-11 text-center font-bold text-xs uppercase animate-none"
                 value={resetModal.value}
                 onChange={(e) => setResetModal(prev => ({ ...prev, value: e.target.value }))}
               />
             </div>
+          </DialogBody>
 
-            <div className="flex gap-3">
-              <Button 
-                onClick={handleResetAll}
-                disabled={resetModal.value.trim() !== `RESET BANK ${new Date().getFullYear()}` || isDeleting}
-                className="flex-1 h-14 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-900/20 transition-all active:scale-95"
-              >
-                {isDeleting ? <Loader2 className="animate-spin mr-2" /> : <Trash2 className="mr-2" size={14} />}
-                Bersihkan Data
-              </Button>
-              <Button 
-                variant="ghost" 
-                onClick={() => setResetModal({ isOpen: false, value: '' })}
-                className="h-14 px-6 rounded-2xl font-black text-[10px] uppercase text-fin-text-muted hover:bg-fin-page"
-              >
-                Batal
-              </Button>
-            </div>
-          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setResetModal({ isOpen: false, value: '' })}
+              className="rounded-lg text-xs font-bold font-sans"
+            >
+              Batal
+            </Button>
+            <Button 
+              onClick={handleResetAll}
+              disabled={resetModal.value.trim() !== `RESET BANK ${new Date().getFullYear()}` || isDeleting}
+              variant="destructive"
+              className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5 shadow-sm"
+              loading={isDeleting}
+            >
+              <Trash2 size={14} />
+              Bersihkan Data
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

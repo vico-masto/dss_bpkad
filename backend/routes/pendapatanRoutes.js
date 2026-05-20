@@ -11,12 +11,20 @@ const {
 const authMiddleware = require('../middleware/authMiddleware');
 const upload = require('../config/multer');
 
-router.post('/', authMiddleware, upload.single('file'), createPendapatan);
-router.post('/import-bulk', authMiddleware, upload.single('file'), importBulkPendapatan);
-router.get('/', authMiddleware, getPendapatanList);
-router.delete('/bulk', authMiddleware, deleteMultiplePendapatan);
-router.put('/:id', authMiddleware, upload.single('file'), updatePendapatan);
-router.patch('/rekon/:id', authMiddleware, async (req, res) => {
+// Middleware untuk cek role Operator Penerimaan atau Admin
+const operatorPenerimaanOrAdminOnly = (req, res, next) => {
+  if (req.user.role !== 'admin' && req.user.role !== 'Operator Penerimaan') {
+    return res.status(403).json({ message: 'Akses ditolak. Rute ini khusus Operator Penerimaan atau Admin.' });
+  }
+  next();
+};
+
+router.post('/', authMiddleware, operatorPenerimaanOrAdminOnly, upload.single('file'), createPendapatan);
+router.post('/import-bulk', authMiddleware, operatorPenerimaanOrAdminOnly, upload.single('file'), importBulkPendapatan);
+router.get('/', authMiddleware, operatorPenerimaanOrAdminOnly, getPendapatanList);
+router.delete('/bulk', authMiddleware, operatorPenerimaanOrAdminOnly, deleteMultiplePendapatan);
+router.put('/:id', authMiddleware, operatorPenerimaanOrAdminOnly, upload.single('file'), updatePendapatan);
+router.patch('/rekon/:id', authMiddleware, operatorPenerimaanOrAdminOnly, async (req, res) => {
   const { id } = req.params;
   const { status_rekon, selisih_rekon, keterangan_rekon } = req.body;
   try {
@@ -34,7 +42,7 @@ router.patch('/rekon/:id', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Error update rekon', error: err.message });
   }
 });
-router.delete('/:id', authMiddleware, deletePendapatan);
+router.delete('/:id', authMiddleware, operatorPenerimaanOrAdminOnly, deletePendapatan);
 
 module.exports = router;
 

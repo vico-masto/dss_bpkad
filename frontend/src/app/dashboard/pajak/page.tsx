@@ -51,7 +51,7 @@ import {
   TooltipTrigger 
 } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from 'sonner';
 import { NumericInput } from '@/components/NumericInput';
@@ -707,13 +707,13 @@ export default function PajakUnifiedPage() {
         actions={
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v)} className="w-auto">
             <TabsList className="bg-fin-page rounded-lg p-1 h-11 border border-fin-border">
-              <TabsTrigger value="manajemen" className="px-5 py-2 rounded-md text-xs font-semibold data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+              <TabsTrigger value="manajemen" className="px-5 py-2 rounded-lg text-xs font-semibold data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
                 <Database size={14} /><span>Manajemen Rincian</span>
               </TabsTrigger>
-              <TabsTrigger value="bku" className="px-5 py-2 rounded-md text-xs font-semibold data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+              <TabsTrigger value="bku" className="px-5 py-2 rounded-lg text-xs font-semibold data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
                 <BookOpen size={14} /><span>Buku Pembantu</span>
               </TabsTrigger>
-              <TabsTrigger value="monitoring" className="px-5 py-2 rounded-md text-xs font-semibold data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+              <TabsTrigger value="monitoring" className="px-5 py-2 rounded-lg text-xs font-semibold data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
                 <Activity size={14} /><span>Monitoring OPD</span>
               </TabsTrigger>
             </TabsList>
@@ -732,15 +732,15 @@ export default function PajakUnifiedPage() {
           >
             {/* Quick Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="p-6 rounded-2xl border-fin-border shadow-sm bg-fin-surface">
+              <Card className="p-6 rounded-xl border-fin-border shadow-sm bg-fin-surface">
                 <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Total Potongan Dipungut</p>
                 <h2 className="text-2xl font-black text-fin-text-primary mt-1">{formatCurrency(summary.totalCollected || 0)}</h2>
               </Card>
-              <Card className="p-6 rounded-2xl border-fin-border shadow-sm bg-fin-surface">
+              <Card className="p-6 rounded-xl border-fin-border shadow-sm bg-fin-surface">
                 <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Terdeteksi di SP2D</p>
                 <h2 className="text-2xl font-black text-fin-income mt-1">{potonganCountData?.count || 0} Records</h2>
               </Card>
-              <Card className="p-6 rounded-2xl border-fin-border shadow-sm bg-fin-surface">
+              <Card className="p-6 rounded-xl border-fin-border shadow-sm bg-fin-surface">
                 <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Outstanding (Sisa Utang)</p>
                 <h2 className="text-2xl font-black text-fin-expense mt-1">{formatCurrency(summary.outstandingTax || 0)}</h2>
               </Card>
@@ -748,12 +748,12 @@ export default function PajakUnifiedPage() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               {/* FORM SECTION */}
               <div className="lg:col-span-8">
-                <Card className="rounded-2xl border border-fin-border shadow-sm overflow-hidden bg-fin-surface">
+                <Card className="rounded-xl border border-fin-border shadow-sm overflow-hidden bg-fin-surface">
                   <div className="px-6 py-4 border-b border-fin-border bg-fin-page flex justify-between items-center">
                     <h3 className="text-sm font-semibold text-fin-text-primary flex items-center gap-2">
                       <PlusSquare size={18} className="text-fin-info" /> Form Perekaman Potongan
                     </h3>
-                    {editId && <Badge variant="outline" className="bg-fin-warning/10 text-fin-warning border-fin-warning/20 px-3 py-1 rounded-md text-[10px] font-semibold">Mode Edit Aktif</Badge>}
+                    {editId && <Badge variant="outline" className="bg-fin-warning/10 text-fin-warning border-fin-warning/20 px-3 py-1 rounded-lg text-[10px] font-semibold">Mode Edit Aktif</Badge>}
                   </div>
 
                   <CardContent className="p-8 space-y-6">
@@ -761,63 +761,58 @@ export default function PajakUnifiedPage() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                           <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest ml-1">Jenis Potongan</label>
-                          <Select value={formData.jenis_pajak} onValueChange={(v) => setFormData({...formData, jenis_pajak: v})}>
-                            <SelectTrigger className="h-11 bg-fin-page border-fin-border rounded-xl text-sm font-medium focus:ring-4 focus:ring-fin-info/10 transition-all text-fin-text-primary">
-                              <SelectValue placeholder="Pilih Jenis..." />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border-fin-border shadow-xl min-w-[350px]">
-                               <SelectItem value="PPN" className="text-sm py-2.5">PPN (Pajak Pertambahan Nilai)</SelectItem>
-                               <SelectItem value="PPh 21" className="text-sm py-2.5">PPh 21 (Gaji/Honor)</SelectItem>
-                               <SelectItem value="PPh 4(2)" className="text-sm py-2.5">PPh Pasal 4 Ayat 2 (Final)</SelectItem>
-                               <SelectItem value="IWP 8%" className="text-sm py-2.5">Iuran Wajib Pegawai 8%</SelectItem>
-                               <SelectItem value="IWP 1%" className="text-sm py-2.5">Iuran Wajib Pegawai 1%</SelectItem>
-                               <SelectItem value="JKES 4%" className="text-sm py-2.5">Iuran Jaminan Kesehatan 4%</SelectItem>
-                               <SelectItem value="JKK" className="text-sm py-2.5">Iuran Jaminan Kecelakaan Kerja</SelectItem>
-                               <SelectItem value="JKM" className="text-sm py-2.5">Iuran Jaminan Kematian</SelectItem>
-                               <SelectItem value="Taperum" className="text-sm py-2.5">Taperum</SelectItem>
-                               <SelectItem value="BULOG" className="text-sm py-2.5">Beras (BULOG)</SelectItem>
-                               <SelectItem value="Zakat" className="text-sm py-2.5">Zakat</SelectItem>
-                               <SelectItem value="LAINNYA" className="text-sm py-2.5">Potongan Lain-lain</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <Combobox
+                            value={formData.jenis_pajak}
+                            onValueChange={(v) => setFormData({...formData, jenis_pajak: v || ''})}
+                            placeholder="Pilih Jenis..."
+                            className="h-11"
+                            options={[
+                              { value: 'PPN', label: 'PPN (Pajak Pertambahan Nilai)' },
+                              { value: 'PPh 21', label: 'PPh 21 (Gaji/Honor)' },
+                              { value: 'PPh 4(2)', label: 'PPh Pasal 4 Ayat 2 (Final)' },
+                              { value: 'IWP 8%', label: 'Iuran Wajib Pegawai 8%' },
+                              { value: 'IWP 1%', label: 'Iuran Wajib Pegawai 1%' },
+                              { value: 'JKES 4%', label: 'Iuran Jaminan Kesehatan 4%' },
+                              { value: 'JKK', label: 'Iuran Jaminan Kecelakaan Kerja' },
+                              { value: 'JKM', label: 'Iuran Jaminan Kematian' },
+                              { value: 'Taperum', label: 'Taperum' },
+                              { value: 'BULOG', label: 'Beras (BULOG)' },
+                              { value: 'Zakat', label: 'Zakat' },
+                              { value: 'LAINNYA', label: 'Potongan Lain-lain' },
+                            ]}
+                          />
                         </div>
                         <div className="space-y-2">
                           <label className="text-xs font-medium text-fin-text-muted ml-1">Tanggal Pembayaran</label>
-                          <Input type="date" className="h-11 bg-fin-page border-fin-border rounded-lg text-sm font-medium text-fin-text-primary focus:border-indigo-600 transition-all" value={formData.tanggal} onChange={(e) => setFormData({...formData, tanggal: e.target.value})} required />
+                          <Input type="date" className="h-11 bg-fin-page border-fin-border rounded-lg text-sm font-medium text-fin-text-primary focus:border-ds-focus-ring transition-all" value={formData.tanggal} onChange={(e) => setFormData({...formData, tanggal: e.target.value})} required />
                         </div>
                       </div>
 
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest ml-1">No. Referensi / NTPN</label>
-                        <Input type="text" placeholder="Contoh: 012345678901234 atau No. Resi Bank" className="h-11 bg-fin-page border-fin-border rounded-xl text-sm font-medium text-fin-text-primary focus:ring-4 focus:ring-fin-info/10 transition-all placeholder:text-fin-text-muted/50" value={formData.nomor_ntpn} onChange={(e) => setFormData({...formData, nomor_ntpn: e.target.value})} required />
+                        <Input type="text" placeholder="Contoh: 012345678901234 atau No. Resi Bank" className="h-11 bg-fin-page border-fin-border rounded-xl text-sm font-medium text-fin-text-primary focus:ring-4 focus:ring-ds-focus-ring transition-all placeholder:text-fin-text-muted/50" value={formData.nomor_ntpn} onChange={(e) => setFormData({...formData, nomor_ntpn: e.target.value})} required />
                       </div>
 
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-fin-text-muted ml-1">Organisasi Perangkat Daerah (OPD)</label>
-                        <Select value={formData.opd} onValueChange={(v) => setFormData({...formData, opd: v})}>
-                          <SelectTrigger className="h-11 bg-fin-page border-fin-border rounded-xl text-sm font-medium text-fin-text-primary focus:ring-4 focus:ring-fin-info/10 transition-all">
-                            <SelectValue placeholder="Pilih OPD Penanggungjawab..." />
-                          </SelectTrigger>
-                          <SelectContent className="rounded-xl border-fin-border shadow-xl max-h-[300px]">
-                            {opdList.map((opd) => (
-                              <SelectItem key={opd} value={opd} className="text-sm py-2.5 uppercase">{opd}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Combobox
+                          value={formData.opd}
+                          onValueChange={(v) => setFormData({...formData, opd: v || ''})}
+                          placeholder="Pilih OPD Penanggungjawab..."
+                          className="h-11"
+                          options={opdList.map((opd: string) => ({ value: opd, label: opd }))}
+                        />
                       </div>
 
                       <div className="space-y-2">
                         <label className="text-xs font-medium text-fin-text-muted ml-1">Rekening Bank Sumber Setoran</label>
-                        <Select value={formData.id_sumber_dana} onValueChange={(v) => setFormData({...formData, id_sumber_dana: v})}>
-                          <SelectTrigger className="h-11 bg-fin-page border-fin-border rounded-lg text-sm font-medium text-fin-text-primary px-4">
-                            <SelectValue placeholder="Pilih rekening bank sumber dana..." />
-                          </SelectTrigger>
-                          <SelectContent className="rounded-lg border-fin-border">
-                            {sumberDanaList.map((sd: any) => (
-                              <SelectItem key={sd.id} value={sd.id} className="text-xs font-medium">{sd.nama}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Combobox
+                          value={formData.id_sumber_dana}
+                          onValueChange={(v) => setFormData({...formData, id_sumber_dana: v || ''})}
+                          placeholder="Pilih rekening bank sumber dana..."
+                          className="h-11"
+                          options={sumberDanaList.map((sd: any) => ({ value: sd.id, label: sd.nama }))}
+                        />
                       </div>
 
                       <div className="space-y-2">
@@ -876,12 +871,12 @@ export default function PajakUnifiedPage() {
 
               {/* ACTION & SUMMARY SECTION */}
               <div className="lg:col-span-4 space-y-6">
-                <Card className="p-8 bg-fin-text-primary text-fin-surface rounded-2xl border-none shadow-xl relative overflow-hidden group">
+                <Card className="p-8 bg-fin-text-primary text-fin-surface rounded-xl border-none shadow-xl relative overflow-hidden group">
                   <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-1000">
                     <History size={150} />
                   </div>
                   <div className="relative z-10 space-y-8">
-                    <div className="w-12 h-12 bg-fin-info rounded-2xl flex items-center justify-center shadow-lg shadow-fin-info/20">
+                    <div className="w-12 h-12 bg-fin-info rounded-xl flex items-center justify-center shadow-lg shadow-fin-info/20">
                       <RefreshCw size={24} />
                     </div>
                     <div>
@@ -910,7 +905,7 @@ export default function PajakUnifiedPage() {
                   </div>
                 </Card>
 
-                <Card className="rounded-2xl shadow-sm border border-fin-border overflow-hidden bg-fin-surface">
+                <Card className="rounded-xl shadow-sm border border-fin-border overflow-hidden bg-fin-surface">
                   <div className="px-6 py-4 border-b border-fin-border bg-fin-page flex items-center justify-between">
                     <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Status Data {importPotonganBulan}/{importPotonganTahun}</p>
                     <Badge className="bg-fin-income/10 text-fin-income border-none text-[9px] font-bold">
@@ -940,34 +935,35 @@ export default function PajakUnifiedPage() {
             </div>
 
             {/* INTEGRATED ARCHIVE TABLE */}
-            <Card className="rounded-2xl border border-fin-border shadow-sm overflow-hidden bg-fin-surface">
+            <Card className="rounded-xl border border-fin-border shadow-sm overflow-hidden bg-fin-surface">
               <div className="px-6 py-4 border-b border-fin-border bg-fin-page flex flex-col sm:flex-row justify-between items-center gap-4">
                  <div className="flex items-center gap-3">
                     <h3 className="text-sm font-semibold text-fin-text-primary flex items-center gap-2">
-                      <Database size={18} className="text-indigo-600" /> Arsip Rincian Potongan Terpadu
+                      <Database size={18} className="text-fin-info-text" /> Arsip Rincian Potongan Terpadu
                     </h3>
                     <div className="flex items-center gap-2">
-                       <Select value={importPotonganBulan.toString()} onValueChange={(v) => setImportPotonganBulan(Number(v))}>
-                         <SelectTrigger className="w-[140px] h-9 text-xs">
-                           <SelectValue placeholder="Bulan" />
-                         </SelectTrigger>
-                         <SelectContent>
-                           <SelectItem value="0">Semua Bulan</SelectItem>
-                           {Array.from({ length: 12 }, (_, i) => (
-                             <SelectItem key={i + 1} value={(i + 1).toString()}>
-                               {new Date(0, i).toLocaleString('id-ID', { month: 'long' })}
-                             </SelectItem>
-                           ))}
-                         </SelectContent>
-                       </Select>
-                       <Select value={importPotonganTahun.toString()} onValueChange={(v) => setImportPotonganTahun(Number(v))}>
-                         <SelectTrigger className="w-[100px] h-9 text-xs">
-                           <SelectValue placeholder="Tahun" />
-                         </SelectTrigger>
-                         <SelectContent>
-                           {[2024, 2025, 2026, 2027].map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
-                         </SelectContent>
-                       </Select>
+                       <Combobox
+                         value={importPotonganBulan.toString()}
+                         onValueChange={(v) => setImportPotonganBulan(Number(v || '0'))}
+                         placeholder="Bulan"
+                         className="w-[140px] h-9"
+                         size="sm"
+                         options={[
+                           { value: '0', label: 'Semua Bulan' },
+                           ...Array.from({ length: 12 }, (_, i) => ({
+                             value: (i + 1).toString(),
+                             label: new Date(0, i).toLocaleString('id-ID', { month: 'long' }),
+                           })),
+                         ]}
+                       />
+                       <Combobox
+                         value={importPotonganTahun.toString()}
+                         onValueChange={(v) => setImportPotonganTahun(Number(v || '0'))}
+                         placeholder="Tahun"
+                         className="w-[100px] h-9"
+                         size="sm"
+                         options={[2024, 2025, 2026, 2027].map(y => ({ value: y.toString(), label: String(y) }))}
+                       />
                        <Button variant="outline" size="sm" className="h-9 gap-2 text-xs font-bold" onClick={() => mutateOpdSummary()}>
                           <RefreshCw size={14} /> Segarkan
                        </Button>
@@ -1011,12 +1007,12 @@ export default function PajakUnifiedPage() {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader className="bg-fin-page">
-                    <TableRow className="border-b border-[#E9ECEF] hover:bg-transparent">
+                    <TableRow className="border-b border-fin-border hover:bg-transparent">
                       <TableHead className="w-[50px] px-6 py-4">
                         <div className="flex items-center justify-center">
                           <input
                             type="checkbox"
-                            className="w-4 h-4 rounded border-fin-border text-fin-info focus:ring-fin-info cursor-pointer bg-fin-surface"
+                            className="w-4 h-4 rounded border-fin-border text-fin-info focus:ring-ds-focus-ring cursor-pointer bg-fin-surface"
                             checked={arsipItems.length > 0 && selectedItems.length === arsipItems.length}
                             onChange={() => toggleAllSelection(arsipItems)}
                           />
@@ -1034,7 +1030,7 @@ export default function PajakUnifiedPage() {
                       <TableRow>
                         <TableCell colSpan={6} className="py-20 text-center">
                           <div className="flex flex-col items-center justify-center gap-3">
-                            <div className="p-4 bg-indigo-50 rounded-full text-indigo-600">
+                            <div className="p-4 bg-indigo-50 rounded-full text-fin-info-text">
                               <Database size={32} />
                             </div>
                             <div className="space-y-1">
@@ -1043,7 +1039,7 @@ export default function PajakUnifiedPage() {
                             </div>
                             <Button 
                               onClick={() => setShowData(true)}
-                              className="mt-2 bg-indigo-600 hover:bg-indigo-700"
+                              className="mt-2 bg-ds-primary hover:bg-ds-primary-hover"
                             >
                               Tampilkan Sekarang
                             </Button>
@@ -1063,7 +1059,7 @@ export default function PajakUnifiedPage() {
                              <div className="flex items-center justify-center">
                                <input
                                   type="checkbox"
-                                  className="w-4 h-4 rounded border-fin-border text-fin-info focus:ring-fin-info cursor-pointer bg-fin-surface"
+                                  className="w-4 h-4 rounded border-fin-border text-fin-info focus:ring-ds-focus-ring cursor-pointer bg-fin-surface"
                                   checked={!!selectedItems.find(i => i.id === h.id && i.source === h.source)}
                                   onChange={() => toggleSelection(h.id, h.source)}
                                />
@@ -1097,8 +1093,8 @@ export default function PajakUnifiedPage() {
                           <TableCell className="px-6 py-4 text-right font-black text-sm text-fin-text-primary" style={{fontVariantNumeric:'tabular-nums'}}>{formatCurrency(h.nilai)}</TableCell>
                           <TableCell className="px-6 py-4">
                             <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                               <Button variant="ghost" size="icon" onClick={() => handleEdit(h)} className="h-8 w-8 text-fin-text-muted hover:text-[#2E90FA] hover:bg-fin-surface rounded-md transition-all"><Edit size={14} /></Button>
-                               <Button variant="ghost" size="icon" onClick={() => handleDelete(h.id, h.source)} className="h-8 w-8 text-fin-text-muted hover:text-fin-expense hover:bg-fin-surface rounded-md transition-all"><Trash2 size={14} /></Button>
+                               <Button variant="ghost" size="icon" onClick={() => handleEdit(h)} className="h-8 w-8 text-fin-text-muted hover:text-[#2E90FA] hover:bg-fin-surface rounded-lg transition-all"><Edit size={14} /></Button>
+                               <Button variant="ghost" size="icon" onClick={() => handleDelete(h.id, h.source)} className="h-8 w-8 text-fin-text-muted hover:text-fin-expense hover:bg-fin-surface rounded-lg transition-all"><Trash2 size={14} /></Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -1119,19 +1115,19 @@ export default function PajakUnifiedPage() {
           >
             {/* Quick Summary Cards (BKU) */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Card className="p-6 rounded-2xl border-[#E9ECEF] shadow-sm bg-fin-surface">
+              <Card className="p-6 rounded-xl border-fin-border shadow-sm bg-fin-surface">
                 <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Saldo Awal Potongan</p>
                 <h2 className="text-xl font-black text-fin-text-primary mt-1">{formatCurrency(summary.totalCollected)}</h2>
               </Card>
-              <Card className="p-6 rounded-2xl border-[#E9ECEF] shadow-sm bg-fin-surface border-b-2 border-b-emerald-500">
+              <Card className="p-6 rounded-xl border-fin-border shadow-sm bg-fin-surface border-b-2 border-b-emerald-500">
                 <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Dipungut Periode Ini</p>
                 <h2 className="text-xl font-black text-fin-income mt-1">{formatCurrency(summary.totalCollected)}</h2>
               </Card>
-              <Card className="p-6 rounded-2xl border-[#E9ECEF] shadow-sm bg-fin-surface border-b-2 border-b-rose-500">
+              <Card className="p-6 rounded-xl border-fin-border shadow-sm bg-fin-surface border-b-2 border-b-rose-500">
                 <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Disetor Periode Ini</p>
                 <h2 className="text-xl font-black text-fin-expense mt-1">{formatCurrency(summary.totalRemitted)}</h2>
               </Card>
-              <Card className="p-6 rounded-2xl border-[#E9ECEF] shadow-sm bg-fin-surface border-b-2 border-b-blue-500">
+              <Card className="p-6 rounded-xl border-fin-border shadow-sm bg-fin-surface border-b-2 border-b-blue-500">
                 <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Saldo Akhir Potongan</p>
                 <h2 className="text-xl font-black text-fin-text-primary mt-1">{formatCurrency(summary.outstandingTax)}</h2>
               </Card>
@@ -1139,46 +1135,44 @@ export default function PajakUnifiedPage() {
 
 
             {/* UNIFIED BKU TABLE */}
-            <Card className="rounded-2xl border border-[#E9ECEF] shadow-sm overflow-hidden bg-fin-surface">
-              <div className="px-6 py-4 border-b border-[#E9ECEF] bg-fin-page flex flex-col sm:flex-row justify-between items-center gap-4">
+            <Card className="rounded-xl border border-fin-border shadow-sm overflow-hidden bg-fin-surface">
+              <div className="px-6 py-4 border-b border-fin-border bg-fin-page flex flex-col sm:flex-row justify-between items-center gap-4">
                  <div className="flex items-center gap-4">
                    <h3 className="text-sm font-semibold text-fin-text-primary flex items-center gap-2">
                      <BookOpen size={18} className="text-[#2E90FA]" /> Buku Pembantu Potongan Gabungan
                    </h3>
                    <div className="flex items-center gap-2">
-                      <Select value={importPotonganBulan.toString()} onValueChange={(v) => setImportPotonganBulan(parseInt(v))}>
-                         <SelectTrigger className="h-8 w-32 bg-fin-surface border-fin-border rounded-lg text-[10px] font-bold px-3">
-                            <SelectValue placeholder="Bulan..." />
-                         </SelectTrigger>
-                         <SelectContent className="rounded-xl border-[#EAECF0]">
-                            <SelectItem value="0" className="text-xs font-bold">Semua Bulan</SelectItem>
-                            {Array.from({ length: 12 }, (_, i) => (
-                               <SelectItem key={i+1} value={(i+1).toString()} className="text-xs font-medium">
-                                  {new Date(0, i).toLocaleString('id-ID', { month: 'long' })}
-                               </SelectItem>
-                            ))}
-                         </SelectContent>
-                      </Select>
-                      <Select value={importPotonganTahun.toString()} onValueChange={(v) => setImportPotonganTahun(parseInt(v))}>
-                         <SelectTrigger className="h-8 w-24 bg-fin-surface border-fin-border rounded-lg text-[10px] font-bold px-3">
-                            <SelectValue />
-                         </SelectTrigger>
-                         <SelectContent className="rounded-xl border-[#EAECF0]">
-                            {[2024, 2025, 2026, 2027].map(y => (
-                               <SelectItem key={y} value={y.toString()} className="text-xs font-medium">{y}</SelectItem>
-                            ))}
-                         </SelectContent>
-                      </Select>
+                      <Combobox
+                         value={importPotonganBulan.toString()}
+                         onValueChange={(v) => setImportPotonganBulan(parseInt(v || '0'))}
+                         placeholder="Bulan..."
+                         className="h-8 w-32"
+                         size="sm"
+                         options={[
+                           { value: '0', label: 'Semua Bulan' },
+                           ...Array.from({ length: 12 }, (_, i) => ({
+                             value: (i + 1).toString(),
+                             label: new Date(0, i).toLocaleString('id-ID', { month: 'long' }),
+                           })),
+                         ]}
+                      />
+                      <Combobox
+                         value={importPotonganTahun.toString()}
+                         onValueChange={(v) => setImportPotonganTahun(parseInt(v || '0'))}
+                         className="h-8 w-24"
+                         size="sm"
+                         options={[2024, 2025, 2026, 2027].map(y => ({ value: y.toString(), label: String(y) }))}
+                      />
                    </div>
                  </div>
                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={handleExportExcel} className="h-9 rounded-lg text-xs font-medium gap-2 border-[#E9ECEF]">
+                    <Button variant="outline" size="sm" onClick={handleExportExcel} className="h-9 rounded-lg text-xs font-medium gap-2 border-fin-border">
                       <Download size={14} /> Excel
                     </Button>
-                    <Button variant="outline" size="sm" onClick={handlePrintPDF} className="h-9 rounded-lg text-xs font-medium gap-2 border-[#E9ECEF]">
+                    <Button variant="outline" size="sm" onClick={handlePrintPDF} className="h-9 rounded-lg text-xs font-medium gap-2 border-fin-border">
                       <Printer size={14} /> PDF
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => mutateRisterBku()} className="h-9 w-9 text-fin-text-muted hover:text-indigo-600 transition-colors">
+                    <Button variant="ghost" size="icon" onClick={() => mutateRisterBku()} className="h-9 w-9 text-fin-text-muted hover:text-fin-info-text transition-colors">
                       <RefreshCw size={14} />
                     </Button>
                  </div>
@@ -1186,7 +1180,7 @@ export default function PajakUnifiedPage() {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader className="bg-fin-page">
-                    <TableRow className="border-b border-[#E9ECEF] hover:bg-transparent">
+                    <TableRow className="border-b border-fin-border hover:bg-transparent">
                       <TableHead className="px-6 py-4 text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider">Tgl</TableHead>
                       <TableHead className="px-6 py-4 text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider">No. Bukti / SP2D</TableHead>
                       <TableHead className="px-6 py-4 text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider">Keterangan / Uraian</TableHead>
@@ -1200,7 +1194,7 @@ export default function PajakUnifiedPage() {
                       <TableRow>
                         <TableCell colSpan={5} className="py-20 text-center">
                           <div className="flex flex-col items-center justify-center gap-3">
-                            <div className="p-4 bg-indigo-50 rounded-full text-indigo-600">
+                            <div className="p-4 bg-indigo-50 rounded-full text-fin-info-text">
                               <BookOpen size={32} />
                             </div>
                             <div className="space-y-1">
@@ -1209,7 +1203,7 @@ export default function PajakUnifiedPage() {
                             </div>
                             <Button 
                               onClick={() => setShowData(true)}
-                              className="mt-2 bg-indigo-600 hover:bg-indigo-700"
+                              className="mt-2 bg-ds-primary hover:bg-ds-primary-hover"
                             >
                               Muat BKU Sekarang
                             </Button>
@@ -1228,10 +1222,10 @@ export default function PajakUnifiedPage() {
                           <TableCell className="px-6 py-4 text-xs font-medium text-fin-text-muted">{format(new Date(item.tanggal), 'dd/MM/yy')}</TableCell>
                           <TableCell className="px-6 py-4">
                             <div className="flex flex-col gap-1">
-                               <Badge className={cn("w-fit px-2.5 py-1 rounded-md font-semibold text-[9px] border-none uppercase tracking-wider", item.bukti ? "bg-[#ECFDF3] text-[#027A48]" : "bg-slate-100 text-fin-text-muted")}>
+                               <Badge className={cn("w-fit px-2.5 py-1 rounded-lg font-semibold text-[9px] border-none uppercase tracking-wider", item.bukti ? "bg-[#ECFDF3] text-[#027A48]" : "bg-slate-100 text-fin-text-muted")}>
                                  {item.bukti || 'TIDAK TERDETEKSI'}
                                </Badge>
-                               <span className="text-[9px] font-black text-indigo-600 uppercase leading-none">
+                               <span className="text-[9px] font-black text-fin-info-text uppercase leading-none">
                                   {item.opd}
                                </span>
                                <span className="text-[8px] font-bold text-fin-text-muted uppercase tracking-tighter">
@@ -1243,7 +1237,7 @@ export default function PajakUnifiedPage() {
                              <div className="flex flex-col gap-0.5">
                                 <p className="text-xs font-semibold text-fin-text-primary uppercase max-w-[400px] truncate">{item.uraian || item.keterangan}</p>
                                 {item.id_sumber_dana && (
-                                   <Badge variant="outline" className="w-fit text-[8px] px-1.5 py-0 border-indigo-100 bg-indigo-50 text-indigo-600 font-bold">
+                                   <Badge variant="outline" className="w-fit text-[8px] px-1.5 py-0 border-indigo-100 bg-indigo-50 text-fin-info-text font-bold">
                                       {item.id_sumber_dana}
                                    </Badge>
                                 )}
@@ -1259,7 +1253,7 @@ export default function PajakUnifiedPage() {
                                 <Badge variant="outline" className="bg-[#F9FAFB] text-fin-text-muted border-[#EAECF0] text-[9px] px-2 py-0.5 font-medium whitespace-nowrap">BELUM REKON</Badge>
                               )}
                               {item.keterangan_rekon && (
-                                <p className="text-[8px] text-indigo-600 font-bold max-w-[80px] truncate" title={item.keterangan_rekon}>
+                                <p className="text-[8px] text-fin-info-text font-bold max-w-[80px] truncate" title={item.keterangan_rekon}>
                                   {item.keterangan_rekon}
                                 </p>
                               )}
@@ -1284,7 +1278,7 @@ export default function PajakUnifiedPage() {
                 </div>
                 <div className="flex flex-col items-end">
                   <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest">Saldo Akhir Periode:</span>
-                  <span className="text-lg font-black text-indigo-600">{formatCurrency(risterBkuData?.summary?.totalPenerimaan - risterBkuData?.summary?.totalPengeluaran)}</span>
+                  <span className="text-lg font-black text-fin-info-text">{formatCurrency(risterBkuData?.summary?.totalPenerimaan - risterBkuData?.summary?.totalPengeluaran)}</span>
                 </div>
               </div>
             </Card>
@@ -1299,52 +1293,53 @@ export default function PajakUnifiedPage() {
             className="space-y-6"
           >
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <Card className="p-6 rounded-2xl border-[#E9ECEF] shadow-sm bg-fin-surface">
+                <Card className="p-6 rounded-xl border-fin-border shadow-sm bg-fin-surface">
                    <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Total Dipungut (OPD)</p>
                    <h2 className="text-xl font-black text-fin-text-primary mt-1">{formatCurrency(summary.totalCollected)}</h2>
                 </Card>
-                <Card className="p-6 rounded-2xl border-[#E9ECEF] shadow-sm bg-fin-surface">
+                <Card className="p-6 rounded-xl border-fin-border shadow-sm bg-fin-surface">
                    <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Total Disetor (OPD)</p>
                    <h2 className="text-xl font-black text-fin-income mt-1">{formatCurrency(summary.totalRemitted)}</h2>
                 </Card>
-                <Card className="p-6 rounded-2xl border-[#E9ECEF] shadow-sm bg-fin-surface">
+                <Card className="p-6 rounded-xl border-fin-border shadow-sm bg-fin-surface">
                    <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Sisa Kewajiban (OPD)</p>
                    <h2 className="text-xl font-black text-fin-expense mt-1">{formatCurrency(summary.outstandingTax)}</h2>
                 </Card>
-                <Card className="p-6 rounded-2xl border-[#E9ECEF] shadow-sm bg-fin-surface">
+                <Card className="p-6 rounded-xl border-fin-border shadow-sm bg-fin-surface">
                    <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">OPD Belum Lunas</p>
                    <h2 className="text-xl font-black text-fin-text-primary mt-1">{opdSummaryData?.data?.filter((o: any) => parseFloat(o.utang) > 0).length || 0} OPD</h2>
                 </Card>
              </div>
 
 
-             <Card className="rounded-2xl shadow-sm border border-[#E9ECEF] overflow-hidden bg-fin-surface">
-                <div className="px-8 py-6 border-b border-[#E9ECEF] bg-fin-page flex items-center justify-between">
+             <Card className="rounded-xl shadow-sm border border-fin-border overflow-hidden bg-fin-surface">
+                <div className="px-8 py-6 border-b border-fin-border bg-fin-page flex items-center justify-between">
                    <h3 className="text-sm font-bold text-fin-text-primary flex items-center gap-2">
                       <LayoutTemplate size={18} className="text-[#2E90FA]" /> Ringkasan Kewajiban Potongan per OPD
                    </h3>
                    <div className="flex items-center gap-3">
-                      <Select value={importPotonganBulan.toString()} onValueChange={(v) => setImportPotonganBulan(Number(v))}>
-                        <SelectTrigger className="w-[140px] h-9 text-xs">
-                          <SelectValue placeholder="Bulan" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="0">Semua Bulan</SelectItem>
-                          {Array.from({ length: 12 }, (_, i) => (
-                            <SelectItem key={i + 1} value={(i + 1).toString()}>
-                              {new Date(0, i).toLocaleString('id-ID', { month: 'long' })}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select value={importPotonganTahun.toString()} onValueChange={(v) => setImportPotonganTahun(Number(v))}>
-                        <SelectTrigger className="w-[120px] h-9 text-xs">
-                          <SelectValue placeholder="Tahun" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[2024, 2025, 2026].map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <Combobox
+                        value={importPotonganBulan.toString()}
+                        onValueChange={(v) => setImportPotonganBulan(Number(v || '0'))}
+                        placeholder="Bulan"
+                        className="w-[140px] h-9"
+                        size="sm"
+                        options={[
+                          { value: '0', label: 'Semua Bulan' },
+                          ...Array.from({ length: 12 }, (_, i) => ({
+                            value: (i + 1).toString(),
+                            label: new Date(0, i).toLocaleString('id-ID', { month: 'long' }),
+                          })),
+                        ]}
+                      />
+                      <Combobox
+                        value={importPotonganTahun.toString()}
+                        onValueChange={(v) => setImportPotonganTahun(Number(v || '0'))}
+                        placeholder="Tahun"
+                        className="w-[120px] h-9"
+                        size="sm"
+                        options={[2024, 2025, 2026].map(y => ({ value: y.toString(), label: String(y) }))}
+                      />
                       <Button variant="outline" size="sm" className="h-9 gap-2 text-xs font-bold" onClick={() => mutateOpdSummary()}>
                          <RefreshCw size={14} /> Segarkan
                       </Button>
@@ -1353,7 +1348,7 @@ export default function PajakUnifiedPage() {
                 <div className="overflow-x-auto">
                    <Table>
                       <TableHeader className="bg-fin-page">
-                       <TableRow className="border-b border-[#E9ECEF] hover:bg-transparent">
+                       <TableRow className="border-b border-fin-border hover:bg-transparent">
                           <TableHead className="px-8 py-4 text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider">Nama Organisasi Perangkat Daerah (OPD)</TableHead>
                           <TableHead className="px-8 py-4 text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider text-right">Dipungut (SP2D)</TableHead>
                           <TableHead className="px-8 py-4 text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider text-right">Disetor (Bank/Manual)</TableHead>
@@ -1394,9 +1389,9 @@ export default function PajakUnifiedPage() {
 
              {/* MONTHLY ANALYTICS SUMMARY (GLOBAL) */}
              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-8">
-                <Card className="lg:col-span-1 p-6 rounded-2xl border border-[#E9ECEF] bg-fin-surface shadow-sm flex flex-col justify-between">
+                <Card className="lg:col-span-1 p-6 rounded-xl border border-fin-border bg-fin-surface shadow-sm flex flex-col justify-between">
                    <div className="space-y-4">
-                      <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                      <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-fin-info-text">
                          <BarChart3 size={20} />
                       </div>
                       <div>
@@ -1412,7 +1407,7 @@ export default function PajakUnifiedPage() {
                    </div>
                 </Card>
 
-                <Card className="lg:col-span-3 p-6 rounded-2xl border border-[#E9ECEF] bg-fin-surface shadow-sm overflow-hidden">
+                <Card className="lg:col-span-3 p-6 rounded-xl border border-fin-border bg-fin-surface shadow-sm overflow-hidden">
                    <h4 className="text-xs font-bold text-fin-text-muted uppercase tracking-widest mb-6 flex items-center gap-2">
                       <Activity size={14} className="text-emerald-500" /> Tren Potongan Global Bulanan
                    </h4>
@@ -1439,10 +1434,10 @@ export default function PajakUnifiedPage() {
              </div>
 
              {/* PER-OPD MONTHLY BREAKDOWN TABLE */}
-             <Card className="rounded-2xl shadow-sm border border-[#E9ECEF] overflow-hidden bg-fin-surface mt-8">
-                <div className="px-8 py-4 border-b border-[#E9ECEF] bg-fin-page flex items-center justify-between">
+             <Card className="rounded-xl shadow-sm border border-fin-border overflow-hidden bg-fin-surface mt-8">
+                <div className="px-8 py-4 border-b border-fin-border bg-fin-page flex items-center justify-between">
                    <h3 className="text-[10px] font-black text-fin-text-muted uppercase tracking-[0.2em] flex items-center gap-2">
-                      <TableIcon size={14} className="text-indigo-600" /> Rincian Potongan Disetor per OPD per Bulan
+                      <TableIcon size={14} className="text-fin-info-text" /> Rincian Potongan Disetor per OPD per Bulan
                    </h3>
                 </div>
                 <div className="overflow-x-auto">
@@ -1465,7 +1460,7 @@ export default function PajakUnifiedPage() {
                                   {Array.from({length:12}, (_, i) => i + 1).map(m => {
                                      const val = parseFloat(monthly.find((x: any) => parseInt(x.bulan) === m)?.nilai || 0);
                                      return (
-                                        <TableCell key={m} className={cn("px-4 py-3 text-[10px] text-right font-medium", val > 0 ? "text-indigo-600" : "text-slate-300")}>
+                                        <TableCell key={m} className={cn("px-4 py-3 text-[10px] text-right font-medium", val > 0 ? "text-fin-info-text" : "text-slate-300")}>
                                            {val > 0 ? formatCurrency(val) : '-'}
                                         </TableCell>
                                      );

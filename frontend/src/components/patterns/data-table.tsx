@@ -304,7 +304,7 @@ function DataTable<TRow>({
               <select
                 value={pager.pageSize}
                 onChange={(e) => pager.setPageSize(Number(e.target.value))}
-                className="h-7 rounded-md border border-fin-border bg-fin-page px-1.5 text-xs text-fin-text-primary outline-none focus:border-ds-focus-ring/60 cursor-pointer"
+                className="h-7 rounded-lg border border-fin-border bg-fin-page px-1.5 text-xs text-fin-text-primary outline-none focus:border-ds-focus-ring/60 cursor-pointer"
               >
                 {pageSizeOptions.map((s) => (
                   <option key={s} value={s}>{s}</option>

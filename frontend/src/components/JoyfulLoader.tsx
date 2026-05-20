@@ -45,7 +45,7 @@ export default function JoyfulLoader({ size = 'md', text = 'Memproses Data...' }
             repeat: Infinity, 
             ease: "easeInOut" 
           }}
-          className="relative z-10 w-full h-full bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] rounded-2xl shadow-2xl shadow-slate-900/20 flex items-center justify-center border-2 border-white/10"
+          className="relative z-10 w-full h-full bg-gradient-to-br from-[#0F172A] via-[#1E293B] to-[#0F172A] rounded-xl shadow-2xl shadow-slate-900/20 flex items-center justify-center border-2 border-white/10"
         >
           {/* Subtle Sparkle Icons */}
           <motion.div

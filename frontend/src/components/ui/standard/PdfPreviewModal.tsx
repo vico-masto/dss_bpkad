@@ -40,7 +40,7 @@ export function PdfPreviewModal({
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="bg-white w-full max-w-6xl h-[95vh] rounded-[32px] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden relative z-10 border border-white/20"
+            className="bg-white w-full max-w-6xl h-[95vh] rounded-xl shadow-[0_32px_64px_-16px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden relative z-10 border border-white/20"
           >
             {/* Header Modal */}
             <div className="h-24 px-10 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 backdrop-blur-xl">
@@ -61,13 +61,13 @@ export function PdfPreviewModal({
               <div className="flex items-center gap-4">
                  <button 
                    onClick={() => window.open(pdfUrl || '', '_blank')}
-                   className="p-4 bg-white border border-slate-200 text-slate-500 rounded-2xl hover:text-indigo-600 hover:border-indigo-100 transition-all shadow-sm active:scale-95"
+                   className="p-4 bg-white border border-slate-200 text-slate-500 rounded-xl hover:text-fin-info-text hover:border-indigo-100 transition-all shadow-sm active:scale-95"
                  >
                    <Printer size={20} />
                  </button>
                  <button 
                    onClick={onClose}
-                   className="p-4 bg-white border border-slate-200 text-slate-400 hover:text-rose-500 hover:border-rose-100 rounded-2xl transition-all shadow-sm active:scale-95"
+                   className="p-4 bg-white border border-slate-200 text-slate-400 hover:text-rose-500 hover:border-rose-100 rounded-xl transition-all shadow-sm active:scale-95"
                  >
                    <X size={24} />
                  </button>

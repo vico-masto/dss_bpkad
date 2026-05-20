@@ -30,7 +30,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 export default function MonitoringTalanganPage() {
-  const [data, setData] = useState([]);
+  const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -85,44 +85,44 @@ export default function MonitoringTalanganPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8">
-          <Card className="rounded-xl border border-[#E9ECEF] shadow-sm bg-white overflow-hidden">
-            <div className="p-6 border-b border-[#F2F4F7] bg-[#F8F9FA]/50 flex justify-between items-center">
+          <Card className="rounded-xl border border-fin-border shadow-sm bg-white overflow-hidden">
+            <div className="p-6 border-b border-[#F2F4F7] bg-fin-page/50 flex justify-between items-center">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-[#101828] rounded-lg flex items-center justify-center text-white">
+                <div className="w-10 h-10 bg-ds-primary rounded-lg flex items-center justify-center text-white">
                   <Activity size={20} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-[#101828]">Jurnal Talangan Aktif</h3>
-                  <p className="text-xs text-[#475467] font-medium">Monitoring pergerakan dana antar sumber</p>
+                  <h3 className="text-lg font-semibold text-fin-text-primary">Jurnal Talangan Aktif</h3>
+                  <p className="text-xs text-fin-text-secondary font-medium">Monitoring pergerakan dana antar sumber</p>
                 </div>
               </div>
-              <Badge variant="outline" className="bg-white text-[#98A2B3] border-[#EAECF0] px-3 py-1 rounded-md text-[9px] font-bold uppercase tracking-wider">Live Monitoring</Badge>
+              <Badge variant="outline" className="bg-white text-fin-text-muted border-[#EAECF0] px-3 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider">Live Monitoring</Badge>
             </div>
 
             <div className="overflow-x-auto min-h-[500px]">
                {loading ? (
-                 <div className="flex flex-col items-center justify-center py-40 text-[#98A2B3]">
+                 <div className="flex flex-col items-center justify-center py-40 text-fin-text-muted">
                    <Loader2 className="animate-spin mb-4" size={48} />
                    <p className="text-sm font-medium">Sinkronisasi data...</p>
                  </div>
                ) : activeTalangan.length === 0 ? (
-                 <div className="py-48 text-center text-[#98A2B3]">
+                 <div className="py-48 text-center text-fin-text-muted">
                     <ShieldCheck size={64} className="mx-auto mb-6 opacity-20" />
                     <p className="font-bold text-xs uppercase tracking-widest">Semua talangan telah dilunasi.</p>
                  </div>
                ) : (
                  <Table>
-                    <TableHeader className="bg-[#F8F9FA]">
-                      <TableRow className="border-b border-[#E9ECEF] hover:bg-transparent">
-                        <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider">Referensi / ID</TableHead>
-                        <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider">Alur Talangan</TableHead>
-                        <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider text-right">Nilai (Rp)</TableHead>
-                        <TableHead className="px-6 py-4 text-xs font-medium text-[#475467] uppercase tracking-wider text-center">Tindakan</TableHead>
+                    <TableHeader className="bg-fin-page">
+                      <TableRow className="border-b border-fin-border hover:bg-transparent">
+                        <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider">Referensi / ID</TableHead>
+                        <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider">Alur Talangan</TableHead>
+                        <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider text-right">Nilai (Rp)</TableHead>
+                        <TableHead className="px-6 py-4 text-xs font-medium text-fin-text-secondary uppercase tracking-wider text-center">Tindakan</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody className="divide-y divide-[#E9ECEF]">
                       {activeTalangan.map((t: any) => (
-                        <TableRow key={t.id} className="hover:bg-[#F8F9FA] transition-colors group">
+                        <TableRow key={t.id} className="hover:bg-fin-page transition-colors group">
                           <TableCell className="px-6 py-4">
                              <div className="flex items-center gap-2 group/copy cursor-pointer" onClick={() => {
                                if (t.no_referensi) {
@@ -130,16 +130,16 @@ export default function MonitoringTalanganPage() {
                                  toast.success('Nomor Referensi Disalin', { description: t.no_referensi });
                                }
                              }}>
-                                <p className="text-sm font-bold text-[#101828] tracking-tight group-hover/copy:text-[#2E90FA] transition-colors uppercase">{t.no_referensi || 'MANUAL ENTRY'}</p>
+                                <p className="text-sm font-bold text-fin-text-primary tracking-tight group-hover/copy:text-[#2E90FA] transition-colors uppercase">{t.no_referensi || 'MANUAL ENTRY'}</p>
                                 {t.no_referensi && <Copy size={12} className="text-[#2E90FA] opacity-0 group-hover/copy:opacity-100 transition-all" />}
                              </div>
                              <p className="text-[10px] font-semibold text-[#667085] mt-1 uppercase tracking-wider">{format(new Date(t.tanggal), 'dd MMM yyyy')}</p>
                           </TableCell>
                           <TableCell className="px-6 py-4">
                              <div className="flex items-center gap-3">
-                                <span className="text-[10px] font-bold text-[#B42318] bg-[#FEF3F2] px-2.5 py-1 rounded-md border border-[#FECDCA] uppercase">{t.id_sumber_asli}</span>
+                                <span className="text-[10px] font-bold text-[#B42318] bg-[#FEF3F2] px-2.5 py-1 rounded-lg border border-[#FECDCA] uppercase">{t.id_sumber_asli}</span>
                                 <ArrowRight size={14} className="text-[#D0D5DD]" />
-                                <span className="text-[10px] font-bold text-[#475467] bg-[#F9FAFB] px-2.5 py-1 rounded-md border border-[#EAECF0] uppercase">{t.id_sumber_talangan}</span>
+                                <span className="text-[10px] font-bold text-fin-text-secondary bg-[#F9FAFB] px-2.5 py-1 rounded-lg border border-[#EAECF0] uppercase">{t.id_sumber_talangan}</span>
                              </div>
                              <p className="text-[10px] font-medium text-[#667085] mt-2 line-clamp-1 italic">"{t.uraian}"</p>
                           </TableCell>
@@ -164,7 +164,7 @@ export default function MonitoringTalanganPage() {
         </div>
 
         <div className="lg:col-span-4 space-y-6">
-          <Card className="bg-[#101828] p-8 rounded-xl shadow-lg text-white relative overflow-hidden group border-none">
+          <Card className="bg-ds-primary p-8 rounded-xl shadow-lg text-white relative overflow-hidden group border-none">
             <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:scale-125 transition-transform duration-1000">
                 <History size={140} />
             </div>
@@ -184,9 +184,9 @@ export default function MonitoringTalanganPage() {
             </div>
           </Card>
 
-          <Card className="bg-white p-6 rounded-xl shadow-sm border border-[#E9ECEF]">
-             <h3 className="text-xs font-bold text-[#475467] mb-6 flex items-center uppercase tracking-wider">
-               <Info size={16} className="mr-2 text-[#98A2B3]" />
+          <Card className="bg-white p-6 rounded-xl shadow-sm border border-fin-border">
+             <h3 className="text-xs font-bold text-fin-text-secondary mb-6 flex items-center uppercase tracking-wider">
+               <Info size={16} className="mr-2 text-fin-text-muted" />
                Riwayat Settlement
              </h3>
              <div className="space-y-3">
@@ -199,12 +199,12 @@ export default function MonitoringTalanganPage() {
                     }}>
                        <div className="flex flex-col">
                           <div className="flex items-center gap-2">
-                             <span className="text-[10px] font-bold text-[#101828] truncate max-w-[150px] group-hover/copy:text-[#2E90FA] transition-colors uppercase tracking-tight">{t.no_referensi || 'AUTO-SYSTEM'}</span>
+                             <span className="text-[10px] font-bold text-fin-text-primary truncate max-w-[150px] group-hover/copy:text-[#2E90FA] transition-colors uppercase tracking-tight">{t.no_referensi || 'AUTO-SYSTEM'}</span>
                              {t.no_referensi && <Copy size={10} className="text-[#2E90FA] opacity-0 group-hover/copy:opacity-100 transition-all" />}
                           </div>
-                          <span className="text-[9px] font-semibold text-[#98A2B3] mt-1">{format(new Date(t.tanggal_selesai || t.updatedAt), 'dd/MM/yyyy')}</span>
+                          <span className="text-[9px] font-semibold text-fin-text-muted mt-1">{format(new Date(t.tanggal_selesai || t.updatedAt), 'dd/MM/yyyy')}</span>
                        </div>
-                       <Badge variant="outline" className="text-[9px] font-bold text-[#027A48] bg-[#ECFDF3] border-[#ABEFC6] px-2 py-0.5 rounded-md">LUNAS</Badge>
+                       <Badge variant="outline" className="text-[9px] font-bold text-[#027A48] bg-[#ECFDF3] border-[#ABEFC6] px-2 py-0.5 rounded-lg">LUNAS</Badge>
                     </div>
                 ))}
              </div>
@@ -217,13 +217,13 @@ export default function MonitoringTalanganPage() {
 
 function SummaryItem({ label, value, color, icon, bg, isCurrency = true }: any) {
   return (
-    <Card className="p-4 sm:p-6 rounded-xl border border-[#E9ECEF] shadow-sm bg-white transition-all hover:border-[#2E90FA] overflow-hidden">
+    <Card className="p-4 sm:p-6 rounded-xl border border-fin-border shadow-sm bg-white transition-all hover:border-[#2E90FA] overflow-hidden">
       <div className="flex items-center gap-3 sm:gap-4">
         <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shrink-0", bg, color)}>
           {icon}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold text-[#98A2B3] uppercase tracking-wider mb-1 truncate">{label}</p>
+          <p className="text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider mb-1 truncate">{label}</p>
           <p className={cn("text-base sm:text-lg lg:text-xl font-bold tracking-tight tabular-nums truncate", color)} title={isCurrency ? formatCurrency(value) : value}>
             {isCurrency ? formatCurrency(value) : value}
           </p>

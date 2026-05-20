@@ -155,7 +155,7 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "relative flex w-full cursor-pointer items-center gap-1.5 rounded-md py-1.5 pr-8 pl-2",
+        "relative flex w-full cursor-pointer items-center gap-1.5 rounded-lg py-1.5 pr-8 pl-2",
         "text-sm text-fin-text-primary outline-none select-none",
         "hover:bg-fin-subtle focus:bg-fin-subtle",
         "data-disabled:pointer-events-none data-disabled:opacity-50",
