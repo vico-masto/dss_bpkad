@@ -21,6 +21,8 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
+
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -117,46 +119,123 @@ export default function LoginPage() {
             className="w-full flex"
           >
             {/* LEFT BRANDING PANEL - PREMIUM SLATE (HIDDEN ON MOBILE) */}
-            <section className="hidden lg:flex lg:w-[40%] xl:w-[38%] bg-gradient-to-br from-slate-900 via-[#0a0f1d] to-[#101828] text-white flex-col justify-between p-12 relative overflow-hidden border-r border-white/5">
+            <section className="hidden lg:flex lg:w-[55%] xl:w-[58%] bg-gradient-to-br from-slate-900 via-[#0a0f1d] to-[#101828] text-white flex-col justify-between p-12 relative overflow-hidden border-r border-white/5">
               {/* Very Subtle Decorative Glows */}
               <div className="absolute inset-0 opacity-25 pointer-events-none z-0">
-                <div className="absolute -top-[20%] -left-[20%] w-[80%] h-[80%] rounded-full bg-blue-500/10 blur-[120px]" />
-                <div className="absolute -bottom-[10%] -right-[10%] w-[60%] h-[60%] rounded-full bg-indigo-500/10 blur-[100px]" />
+                <motion.div 
+                  animate={{ 
+                    x: [0, 30, 0], 
+                    y: [0, -20, 0],
+                    scale: [1, 1.1, 1]
+                  }}
+                  transition={{ 
+                    duration: 15, 
+                    repeat: Infinity, 
+                    ease: "linear" 
+                  }}
+                  className="absolute -top-[20%] -left-[20%] w-[80%] h-[80%] rounded-full bg-blue-500/10 blur-[120px]" 
+                />
+                <motion.div 
+                  animate={{ 
+                    x: [0, -30, 0], 
+                    y: [0, 20, 0],
+                    scale: [1, 1.2, 1]
+                  }}
+                  transition={{ 
+                    duration: 20, 
+                    repeat: Infinity, 
+                    ease: "linear" 
+                  }}
+                  className="absolute -bottom-[10%] -right-[10%] w-[60%] h-[60%] rounded-full bg-indigo-500/10 blur-[100px]" 
+                />
               </div>
 
+              {/* Aru Map Layer (Minimalist Painting Background without dot) */}
+              <div className="absolute inset-0 w-full h-full pointer-events-none opacity-[0.35] z-0 mix-blend-screen">
+                <Image src="/aru-map-minimalist-nodot.png" alt="Map of Aru Minimalist" fill className="object-cover object-center" priority />
+              </div>
+              
+              {/* Dobo Text Overlay & Location Marker */}
+              <div className="absolute top-[44%] left-[35%] z-10 pointer-events-none flex flex-col items-center">
+                 <div className="w-1.5 h-1.5 bg-white rounded-full mb-1.5 drop-shadow-[0_0_8px_rgba(255,255,255,0.8)] opacity-90"></div>
+                 <div className="text-[10px] font-extrabold tracking-[0.3em] text-white/80 uppercase drop-shadow-md ml-1">DOBO</div>
+              </div>
+
+              {/* Animated Cendrawasih Bird Layer (Realistic, Solid) */}
+              <motion.div 
+                animate={{ 
+                  y: [0, -25, 0],
+                  x: [0, 10, 0],
+                  rotate: [-3, 3, -3]
+                }}
+                transition={{ 
+                  duration: 6.5, 
+                  repeat: Infinity, 
+                  ease: "easeInOut" 
+                }}
+                className="absolute top-[5%] right-[-5%] w-[450px] h-[450px] pointer-events-none z-50 select-none drop-shadow-2xl"
+              >
+                <Image src="/cendrawasih-transparent.png" alt="Cendrawasih Bird" fill className="object-contain" priority />
+              </motion.div>
+
               {/* Top Branding Section */}
-              <div className="relative z-10 flex items-center gap-3">
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+                className="relative z-10 flex items-center gap-3"
+              >
                 <img src="/logo-aru.png" alt="Logo Kab. Kepulauan Aru" className="h-12 w-auto object-contain" />
                 <div className="h-8 w-px bg-white/15" />
                 <div>
                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Pemerintah Kabupaten</p>
                   <p className="text-xs font-black text-white tracking-wide uppercase leading-tight mt-1">Kepulauan Aru</p>
                 </div>
-              </div>
+              </motion.div>
 
               {/* Middle Title & Description */}
               <div className="relative z-10 my-auto py-12">
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-slate-300 mb-6">
+                <motion.span 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.4 }}
+                  className="inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-slate-300 mb-6"
+                >
                   Portal Pengawasan Eksekutif
-                </span>
-                <h1 className="text-4xl font-extrabold tracking-tight text-white leading-tight">
+                </motion.span>
+                <motion.h1 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.5 }}
+                  className="text-4xl font-extrabold tracking-tight text-white leading-tight"
+                >
                   Decision Support <br />
                   System <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-300">BPKAD</span>
-                </h1>
-                <p className="mt-4 text-xs leading-relaxed text-slate-400 max-w-[320px]">
+                </motion.h1>
+                <motion.p 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.8, delay: 0.7 }}
+                  className="mt-4 text-xs leading-relaxed text-slate-400 max-w-[320px]"
+                >
                   Sistem intelijen finansial eksekutif terpadu untuk monitoring kas daerah, pengelolaan BKU, dan akurasi rekonsiliasi kas secara real-time.
-                </p>
+                </motion.p>
               </div>
 
               {/* Bottom Footer Credit */}
-              <div className="relative z-10 flex items-center justify-between text-[10px] text-slate-500 font-bold tracking-wider uppercase border-t border-white/5 pt-6">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.6 }}
+                className="relative z-10 flex items-center justify-between text-[10px] text-slate-500 font-bold tracking-wider uppercase border-t border-white/5 pt-6"
+              >
                 <span>Secure SSL Protocol</span>
                 <span>ARU v2.0</span>
-              </div>
+              </motion.div>
             </section>
 
             {/* RIGHT PANEL - CLEAN FORM CARD */}
-            <section className="w-full lg:w-[60%] xl:w-[62%] flex items-center justify-center p-6 sm:p-12 md:p-16">
+            <section className="w-full lg:w-[45%] xl:w-[42%] flex items-center justify-center p-6 sm:p-12 md:p-16">
               <motion.div
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -164,17 +243,27 @@ export default function LoginPage() {
                 className="w-full max-w-[420px] bg-fin-surface border border-fin-border rounded-xl shadow-[0_4px_30px_rgba(16,24,40,0.03)] p-8 sm:p-10"
               >
                 {/* Mobile-Only Emblem */}
-                <div className="flex lg:hidden items-center justify-center gap-2 mb-8">
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.5, delay: 0.2 }}
+                  className="flex lg:hidden items-center justify-center gap-2 mb-8"
+                >
                   <img src="/logo-aru.png" alt="Logo Kab. Kepulauan Aru" className="h-10 w-auto object-contain" />
                   <div className="h-6 w-px bg-fin-border" />
                   <p className="text-xs font-black text-fin-text-primary uppercase tracking-wider">DSS BPKAD</p>
-                </div>
+                </motion.div>
 
                 {/* Form Title */}
-                <div className="mb-8 text-center lg:text-left">
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.3 }}
+                  className="mb-8 text-center lg:text-left"
+                >
                   <h2 className="text-2xl font-bold tracking-tight text-fin-text-primary">Masuk ke Sistem</h2>
                   <p className="mt-2 text-xs text-fin-text-secondary leading-relaxed">Silakan masuk dengan kredensial terdaftar untuk mengelola audit kas daerah.</p>
-                </div>
+                </motion.div>
 
                 {/* Error Banner */}
                 {error && (
@@ -190,50 +279,61 @@ export default function LoginPage() {
 
                 {/* Login Form */}
                 <form onSubmit={handleLogin} className="space-y-5">
-                  <FormField label="Hak Akses" required>
-                    <Select value={role} onValueChange={(val) => setRole(val || 'admin')}>
-                      <SelectTrigger className="w-full h-input">
-                        <SelectValue placeholder="Pilih Hak Akses" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Administrator (Audit Level)</SelectItem>
-                        <SelectItem value="Operator SP2D">Operator Pengeluaran</SelectItem>
-                        <SelectItem value="Operator Penerimaan">Operator Penerimaan</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormField>
+                  <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.4 }}>
+                    <FormField label="Hak Akses" required>
+                      <Select value={role} onValueChange={(val) => setRole(val || 'admin')}>
+                        <SelectTrigger className="w-full h-input">
+                          <SelectValue placeholder="Pilih Hak Akses" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Administrator (Audit Level)</SelectItem>
+                          <SelectItem value="Operator SP2D">Operator Pengeluaran</SelectItem>
+                          <SelectItem value="Operator Penerimaan">Operator Penerimaan</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormField>
+                  </motion.div>
 
-                  <FormField label="Username" required>
-                    <Input 
-                      type="text" 
-                      placeholder="Masukkan username Anda" 
-                      value={username} 
-                      onChange={(e) => setUsername(e.target.value)} 
-                      required 
-                    />
-                  </FormField>
-
-                  <FormField label="Kata Sandi" required>
-                    <div className="relative">
+                  <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.5 }}>
+                    <FormField label="Username" required>
                       <Input 
-                        type={showPassword ? "text" : "password"} 
-                        placeholder="••••••••" 
-                        value={password} 
-                        onChange={(e) => setPassword(e.target.value)} 
-                        className="pr-10" 
+                        type="text" 
+                        placeholder="Masukkan username Anda" 
+                        value={username} 
+                        onChange={(e) => setUsername(e.target.value)} 
                         required 
                       />
-                      <button 
-                        type="button" 
-                        onClick={() => setShowPassword(!showPassword)} 
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-fin-text-muted hover:text-fin-text-primary transition-colors"
-                      >
-                        {showPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
-                      </button>
-                    </div>
-                  </FormField>
+                    </FormField>
+                  </motion.div>
 
-                  <div className="flex items-center justify-between pt-1">
+                  <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.6 }}>
+                    <FormField label="Kata Sandi" required>
+                      <div className="relative">
+                        <Input 
+                          type={showPassword ? "text" : "password"} 
+                          placeholder="••••••••" 
+                          value={password} 
+                          onChange={(e) => setPassword(e.target.value)} 
+                          className="pr-10" 
+                          required 
+                        />
+                        <button 
+                          type="button" 
+                          onClick={() => setShowPassword(!showPassword)} 
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-fin-text-muted hover:text-fin-text-primary transition-colors"
+                        >
+                          {showPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+                        </button>
+                      </div>
+                    </FormField>
+                  </motion.div>
+
+                  <motion.div 
+                    initial={{ opacity: 0 }} 
+                    animate={{ opacity: 1 }} 
+                    transition={{ duration: 0.5, delay: 0.7 }}
+                    className="flex items-center justify-between pt-1"
+                  >
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                       <input 
                         type="checkbox" 
@@ -249,22 +349,35 @@ export default function LoginPage() {
                     >
                       Bantuan?
                     </button>
-                  </div>
+                  </motion.div>
 
-                  <Button 
-                    type="submit" 
-                    variant="primary" 
-                    className="w-full h-btn-md mt-6 text-xs uppercase tracking-wider font-bold"
-                    loading={loading}
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.8 }}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
                   >
-                    Masuk Sistem
-                  </Button>
+                    <Button 
+                      type="submit" 
+                      variant="primary" 
+                      className="w-full h-btn-md mt-6 text-xs uppercase tracking-wider font-bold"
+                      loading={loading}
+                    >
+                      Masuk Sistem
+                    </Button>
+                  </motion.div>
                 </form>
 
                 {/* Bottom Footer Credit */}
-                <div className="mt-8 text-center text-[9px] font-bold text-fin-text-muted/60 uppercase tracking-widest leading-none">
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.5, delay: 0.9 }}
+                  className="mt-8 text-center text-[9px] font-bold text-fin-text-muted/60 uppercase tracking-widest leading-none"
+                >
                   © Vico Masbaitubun
-                </div>
+                </motion.div>
               </motion.div>
             </section>
           </motion.div>

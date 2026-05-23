@@ -246,39 +246,39 @@ export default function BankLedgerPage() {
 
       {/* SUMMARY CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="border-fin-border shadow-sm bg-fin-surface overflow-hidden relative group">
-           <div className="absolute top-0 right-0 p-6 opacity-5 -mr-4 -mt-4 rotate-12 group-hover:scale-110 transition-transform">
-              <ArrowUpRight size={80} className="text-fin-income" />
-           </div>
-           <CardContent className="p-6">
-              <p className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-1">Total Mutasi Masuk</p>
-              <h3 className="text-2xl font-black text-fin-income tabular-nums">
-                {isLoading ? '...' : formatCurrency(data?.summary?.totalPenerimaan || 0)}
-              </h3>
-           </CardContent>
-        </Card>
-        <Card className="border-fin-border shadow-sm bg-fin-surface overflow-hidden relative group">
-           <div className="absolute top-0 right-0 p-6 opacity-5 -mr-4 -mt-4 -rotate-12 group-hover:scale-110 transition-transform">
-              <ArrowDownLeft size={80} className="text-fin-expense" />
-           </div>
-           <CardContent className="p-6">
-              <p className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-1">Total Mutasi Keluar</p>
-              <h3 className="text-2xl font-black text-fin-expense tabular-nums">
-                {isLoading ? '...' : formatCurrency(data?.summary?.totalPengeluaran || 0)}
-              </h3>
-           </CardContent>
-        </Card>
-        <Card className="border-fin-border shadow-sm bg-fin-info-bg overflow-hidden relative group">
-           <div className="absolute top-0 right-0 p-6 opacity-10 -mr-4 -mt-4 group-hover:scale-110 transition-transform">
-              <ShieldCheck size={80} className="text-fin-info" />
-           </div>
-           <CardContent className="p-6">
-              <p className="text-[10px] font-black text-fin-info uppercase tracking-widest mb-1">Saldo Akhir Rekening</p>
-              <h3 className="text-2xl font-black text-fin-text-primary tabular-nums">
-                {isLoading ? '...' : formatCurrency(data?.summary?.saldoAkhir || 0)}
-              </h3>
-           </CardContent>
-        </Card>
+        <div className="lux-stat lux-stat-emerald p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-emerald-200/70 uppercase tracking-widest">Total Mutasi Masuk</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <ArrowUpRight className="w-3.5 h-3.5 text-emerald-200" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-white tabular-nums truncate">
+            {isLoading ? '...' : formatCurrency(data?.summary?.totalPenerimaan || 0)}
+          </h3>
+        </div>
+        <div className="lux-stat lux-stat-rose p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-red-200/70 uppercase tracking-widest">Total Mutasi Keluar</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <ArrowDownLeft className="w-3.5 h-3.5 text-red-200" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-white tabular-nums truncate">
+            {isLoading ? '...' : formatCurrency(data?.summary?.totalPengeluaran || 0)}
+          </h3>
+        </div>
+        <div className="lux-stat lux-stat-navy p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-blue-200/70 uppercase tracking-widest">Saldo Akhir Rekening</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-200" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-white tabular-nums truncate">
+            {isLoading ? '...' : formatCurrency(data?.summary?.saldoAkhir || 0)}
+          </h3>
+        </div>
       </div>
 
       {/* DATA TABLE (BKU STANDARD) */}

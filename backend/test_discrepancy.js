@@ -1,88 +1,24 @@
-// Test getDiscrepancyReport backend queries
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
-const currentYear = 2026;
 
-async function test() {
+async function main() {
+  const currentYear = 2026;
   try {
-    console.log('\n=== Test 1: SP2D Unmatched ===');
-    const sp2d = await prisma.$queryRaw`
-      SELECT EXTRACT(MONTH FROM tanggal)::int as bulan, opd,
-        COUNT(*)::int as jumlah, SUM(CAST(nilai_neto AS DECIMAL)) as total_neto
-      FROM data_sp2d WHERE tahun = ${currentYear} AND status_rekon = 'BELUM'
-      GROUP BY EXTRACT(MONTH FROM tanggal), opd ORDER BY bulan ASC LIMIT 3
+    const matchedWithDiscrepancy = await prisma.$queryRaw`
+      SELECT * FROM (
+        SELECT CAST(id AS VARCHAR) as id, 'SP2D' as tipe, tanggal_pencairan as tanggal, nomor as bukti, opd, uraian, CAST(nilai_neto AS DECIMAL) as nilai, CAST(COALESCE(selisih_rekon, 0) AS DECIMAL) as selisih, keterangan_rekon, status_rekon FROM data_sp2d WHERE tahun = ${currentYear} AND (ABS(COALESCE(selisih_rekon, 0)) > 0 OR keterangan_rekon LIKE '%Catatan Admin:%')
+        UNION ALL
+        SELECT CAST(id AS VARCHAR) as id, 'PENDAPATAN' as tipe, tanggal, nomor_bukti as bukti, 'BENDAHARA' as opd, uraian, CAST(nilai AS DECIMAL) as nilai, CAST(COALESCE(selisih_rekon, 0) AS DECIMAL) as selisih, keterangan_rekon, status_rekon FROM data_pendapatan WHERE tahun = ${currentYear} AND (ABS(COALESCE(selisih_rekon, 0)) > 0 OR keterangan_rekon LIKE '%Catatan Admin:%')
+        UNION ALL
+        SELECT CAST(p.id AS VARCHAR) as id, 'POTONGAN' as tipe, COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal, p.nomor_sp2d as bukti, p.opd, p.uraian, CAST(p.nilai AS DECIMAL) as nilai, CAST(COALESCE(p.selisih_rekon, 0) AS DECIMAL) as selisih, p.keterangan_rekon, p.status_rekon FROM data_sp2d_potongan p LEFT JOIN data_sp2d s ON p.id_sp2d = s.id WHERE EXTRACT(YEAR FROM COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)) = ${currentYear} AND (ABS(COALESCE(p.selisih_rekon, 0)) > 0 OR p.keterangan_rekon LIKE '%Catatan Admin:%')
+        UNION ALL
+        SELECT CAST(id AS VARCHAR) as id, 'PAJAK' as tipe, COALESCE(tanggal_pencairan, tanggal) as tanggal, nomor_bukti as bukti, opd, uraian, CAST(nilai AS DECIMAL) as nilai, CAST(COALESCE(selisih_rekon, 0) AS DECIMAL) as selisih, keterangan_rekon, status_rekon FROM setoran_pajak WHERE EXTRACT(YEAR FROM COALESCE(tanggal_pencairan, tanggal)) = ${currentYear} AND (ABS(COALESCE(selisih_rekon, 0)) > 0 OR keterangan_rekon LIKE '%Catatan Admin:%')
+      ) combined WHERE ABS(selisih) > 0.01 OR keterangan_rekon LIKE '%Catatan Admin:%' ORDER BY tanggal DESC LIMIT 100
     `;
-    console.log('SP2D unmatched rows:', sp2d.length, sp2d[0] || 'empty');
-
-    console.log('\n=== Test 2: Bank Debet Unmatched (ARRAY_AGG issue) ===');
-    // ARRAY_AGG ... LIMIT inside aggregate is NOT valid PostgreSQL!
-    // This will cause a 500 error
-    try {
-      const bank = await prisma.$queryRaw`
-        SELECT EXTRACT(MONTH FROM tanggal)::int as bulan, COUNT(*)::int as jumlah,
-          SUM(CAST(debet AS DECIMAL)) as total_debet,
-          ARRAY_AGG(deskripsi ORDER BY tanggal LIMIT 5) as contoh_deskripsi
-        FROM bank_statement
-        WHERE EXTRACT(YEAR FROM tanggal) = ${currentYear} AND is_matched = false AND CAST(debet AS DECIMAL) > 0
-        GROUP BY EXTRACT(MONTH FROM tanggal) ORDER BY bulan ASC
-      `;
-      console.log('Bank rows:', bank.length);
-    } catch(e) {
-      console.error('ARRAY_AGG ERROR (expected):', e.message);
-    }
-
-    console.log('\n=== Test 2 Fixed: Bank Debet without ARRAY_AGG ===');
-    const bankFixed = await prisma.$queryRaw`
-      SELECT EXTRACT(MONTH FROM tanggal)::int as bulan, COUNT(*)::int as jumlah,
-        SUM(CAST(debet AS DECIMAL)) as total_debet
-      FROM bank_statement
-      WHERE EXTRACT(YEAR FROM tanggal) = ${currentYear} AND is_matched = false AND CAST(debet AS DECIMAL) > 0
-      GROUP BY EXTRACT(MONTH FROM tanggal) ORDER BY bulan ASC
-    `;
-    console.log('Bank debet fixed rows:', bankFixed.length, bankFixed[0] || 'empty');
-
-    console.log('\n=== Test 3: Monthly Balance ===');
-    const monthly = await prisma.$queryRaw`
-      SELECT m.bulan,
-        COALESCE(inc.total_penerimaan, 0) as penerimaan,
-        COALESCE(exp.total_pengeluaran, 0) as pengeluaran
-      FROM (SELECT generate_series(1,12) as bulan) m
-      LEFT JOIN (
-        SELECT EXTRACT(MONTH FROM tanggal)::int as bln, SUM(CAST(nilai AS DECIMAL)) as total_penerimaan
-        FROM data_pendapatan WHERE tahun = ${currentYear} GROUP BY EXTRACT(MONTH FROM tanggal)
-      ) inc ON inc.bln = m.bulan
-      LEFT JOIN (
-        SELECT EXTRACT(MONTH FROM tanggal)::int as bln, SUM(CAST(nilai_neto AS DECIMAL)) as total_pengeluaran
-        FROM data_sp2d WHERE tahun = ${currentYear} GROUP BY EXTRACT(MONTH FROM tanggal)
-      ) exp ON exp.bln = m.bulan
-      ORDER BY m.bulan ASC
-    `;
-    console.log('Monthly rows:', monthly.length);
-    const withData = monthly.filter(r => Number(r.penerimaan) > 0 || Number(r.pengeluaran) > 0);
-    console.log('Months with data:', withData.map(r => `bulan=${r.bulan} inc=${Number(r.penerimaan)} exp=${Number(r.pengeluaran)}`));
-
-    console.log('\n=== Test 4: Serialize function (Decimal type check) ===');
-    // Check what Prisma Decimal's constructor name actually is at runtime
-    const testDecimal = await prisma.$queryRaw`SELECT CAST(100 AS DECIMAL) as val`;
-    const val = testDecimal[0].val;
-    console.log('Decimal type:', typeof val);
-    console.log('Constructor name:', val?.constructor?.name);
-    console.log('Value:', val);
-    console.log('Number(val):', Number(val));
-
-    console.log('\n=== Test 5: data_sp2d_potongan fields ===');
-    const pot = await prisma.data_sp2d_potongan.findFirst();
-    if (pot) {
-      console.log('Potongan fields:', Object.keys(pot).join(', '));
-      // Check if 'opd' and 'jenis_potongan' exist
-      console.log('Has opd:', 'opd' in pot);
-      console.log('Has jenis_potongan:', 'jenis_potongan' in pot);
-    }
-
-  } catch(e) {
-    console.error('FATAL ERROR:', e.message);
-  } finally {
-    await prisma.$disconnect();
+    console.log("Success! Items:", matchedWithDiscrepancy.length);
+  } catch (e) {
+    console.error("SQL Error:", e.message);
   }
 }
-test();
+
+main().finally(() => process.exit(0));

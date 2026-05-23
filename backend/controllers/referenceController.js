@@ -1,11 +1,15 @@
 const prisma = require('../prismaClient');
+const { Prisma } = require('@prisma/client');
 
 // OPD CRUD
 const getOPD = async (req, res) => {
   try {
-    const result = await prisma.master_opd.findMany({
-      orderBy: { nama: 'asc' }
-    });
+    const result = await prisma.$queryRaw(Prisma.sql`
+      SELECT id, nama FROM master_opd
+      ORDER BY
+        CASE WHEN id ~ '^[0-9]+$' THEN id::integer ELSE NULL END ASC NULLS LAST,
+        id ASC
+    `);
     res.json(result);
   } catch (err) {
     res.status(500).json({ message: 'Gagal mengambil data OPD', error: err.message });
@@ -16,13 +20,13 @@ const createOPD = async (req, res) => {
   try {
     const { id, nama } = req.body;
     await prisma.master_opd.create({
-      data: { id, nama, urutan: id }
+      data: { id, nama }
     });
     res.status(201).json({ message: 'OPD berhasil ditambahkan' });
   } catch (err) {
-    res.status(500).json({ 
-      message: 'Gagal menambahkan OPD. Pastikan Kode/ID belum digunakan.', 
-      error: err.message 
+    res.status(500).json({
+      message: 'Gagal menambahkan OPD. Pastikan Kode/ID belum digunakan.',
+      error: err.message
     });
   }
 };
@@ -69,7 +73,7 @@ const createJenis = async (req, res) => {
   try {
     const { id, nama } = req.body;
     await prisma.master_jenis_belanja.create({
-      data: { id, nama, urutan: id }
+      data: { id, nama }
     });
     res.status(201).json({ message: 'Jenis Belanja berhasil ditambahkan' });
   } catch (err) {

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {
-  ArrowLeft, Printer, Calendar, User, RefreshCw, Building, Download
+  ArrowLeft, Printer, Calendar, User, RefreshCw, Building, Download, Save
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
 import api from '@/lib/api';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 const fmt = (val: any) => {
   const num = parseFloat(val) || 0;
@@ -37,8 +38,11 @@ export default function BARekonPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    const saved = localStorage.getItem('app_config');
-    if (saved) setAppConfig(JSON.parse(saved));
+    const savedApp = localStorage.getItem('app_config');
+    if (savedApp) setAppConfig(JSON.parse(savedApp));
+
+    const savedBa = localStorage.getItem('ba_rekon_config');
+    if (savedBa) setBaData(JSON.parse(savedBa));
   }, []);
 
   const [baData, setBaData] = useState({
@@ -77,16 +81,16 @@ export default function BARekonPage() {
   // ─── System A: SAP Compliant — BKU Side + Bank Side ───────────────────────
   const systemA = {
     // BKU side breakdown (Permendagri 77/2020)
-    bkuSilpa:       Number(endBalance?.comparison?.bku?.saldo_awal_silpa || 0),
-    bkuPendapatan:  Number(endBalance?.comparison?.bku?.pendapatan_berjalan || 0),
-    bkuSp2dNeto:    Number(endBalance?.comparison?.bku?.sp2d_neto || 0),
-    bkuPotongan:    Number(endBalance?.comparison?.bku?.rincian_potongan || 0),
-    bkuSetoran:     Number(endBalance?.comparison?.bku?.setoran_pajak_standalone || 0),
+    bkuSilpa:       Number(startBalance?.saldoBKU || 0),
+    bkuPendapatan:  Number((endBalance?.comparison?.bku?.pendapatan_berjalan || 0) - (startBalance?.comparison?.bku?.pendapatan_berjalan || 0)),
+    bkuSp2dNeto:    Number((endBalance?.comparison?.bku?.sp2d_neto || 0) - (startBalance?.comparison?.bku?.sp2d_neto || 0)),
+    bkuPotongan:    Number((endBalance?.comparison?.bku?.rincian_potongan || 0) - (startBalance?.comparison?.bku?.rincian_potongan || 0)),
+    bkuSetoran:     Number((endBalance?.comparison?.bku?.setoran_pajak_standalone || 0) - (startBalance?.comparison?.bku?.setoran_pajak_standalone || 0)),
     saldoBKU:       Number(endBalance?.saldoBKU || 0),
     // Bank side breakdown
     saldoBankAwal:  Number(startBalance?.saldoBank || 0),
-    bankKredit:     Number(endBalance?.comparison?.bank?.penerimaan || 0),
-    bankDebet:      Number(endBalance?.comparison?.bank?.pengeluaran || 0),
+    bankKredit:     Number((endBalance?.comparison?.bank?.penerimaan || 0) - (startBalance?.comparison?.bank?.penerimaan || 0)),
+    bankDebet:      Number((endBalance?.comparison?.bank?.pengeluaran || 0) - (startBalance?.comparison?.bank?.pengeluaran || 0)),
     saldoBank:      Number(endBalance?.saldoBank || 0),
     selisih:        0,
   };
@@ -198,45 +202,66 @@ export default function BARekonPage() {
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start mb-20">
         {/* SIDEBAR */}
         <div className="xl:col-span-4 space-y-5 print:hidden">
-          <Card className="p-6 rounded-xl border-none shadow-2xl bg-white space-y-5">
-            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-              <div className="w-10 h-10 bg-indigo-50 text-fin-info-text rounded-xl flex items-center justify-center"><Calendar size={20} /></div>
-              <h3 className="text-sm font-black uppercase tracking-tight text-slate-800">Setting Dokumen</h3>
+          <Card className="p-6 rounded-xl border border-fin-border bg-fin-surface shadow-2xl space-y-5 transition-all">
+            <div className="flex items-center justify-between border-b border-fin-border pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-indigo-500/10 text-indigo-500 rounded-xl flex items-center justify-center"><Calendar size={20} /></div>
+                <h3 className="text-sm font-black uppercase tracking-tight text-fin-text-primary">Setting Dokumen</h3>
+              </div>
+              <Button onClick={() => {
+                localStorage.setItem('ba_rekon_config', JSON.stringify(baData));
+                toast.success('Konfigurasi Berita Acara berhasil disimpan');
+              }} size="sm" variant="outline" className="h-8 border-indigo-500/20 text-indigo-500 hover:text-white text-[10px] font-black gap-1 hover:bg-indigo-600 dark:hover:bg-indigo-700 transition-colors">
+                <Save size={12} /> Simpan
+              </Button>
             </div>
-            <div className="space-y-3">
-              <div className="space-y-1"><Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nomor Berita Acara</Label>
-                <Input value={baData.nomorBA} onChange={e => setBaData({...baData, nomorBA: e.target.value})} className="h-10 rounded-xl border-slate-100 bg-slate-50 font-black text-sm" /></div>
-              <div className="space-y-1"><Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dasar Hukum</Label>
-                <textarea value={baData.dasarHukum} onChange={e => setBaData({...baData, dasarHukum: e.target.value})} className="w-full h-16 p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs font-bold outline-none" /></div>
+            <div className="space-y-3.5">
+              <div className="space-y-1"><Label className="text-[10px] font-black text-fin-text-secondary uppercase tracking-widest">Nomor Berita Acara</Label>
+                <Input value={baData.nomorBA} onChange={e => setBaData({...baData, nomorBA: e.target.value})} className="h-10 rounded-xl border-fin-border bg-fin-page text-fin-text-primary font-black text-sm focus:border-indigo-500" /></div>
+              <div className="space-y-1"><Label className="text-[10px] font-black text-fin-text-secondary uppercase tracking-widest">Dasar Hukum</Label>
+                <textarea value={baData.dasarHukum} onChange={e => setBaData({...baData, dasarHukum: e.target.value})} className="w-full h-16 p-3 bg-fin-page border border-fin-border rounded-xl text-xs font-bold text-fin-text-primary outline-none focus:border-indigo-500 resize-none" /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1"><Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dari</Label>
-                  <Input type="date" value={baData.startDate} onChange={e => setBaData({...baData, startDate: e.target.value})} className="h-10 rounded-xl border-slate-100 bg-slate-50 text-xs" /></div>
-                <div className="space-y-1"><Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sampai</Label>
-                  <Input type="date" value={baData.endDate} onChange={e => setBaData({...baData, endDate: e.target.value})} className="h-10 rounded-xl border-slate-100 bg-slate-50 text-xs" /></div>
+                <div className="space-y-1"><Label className="text-[10px] font-black text-fin-text-secondary uppercase tracking-widest">Dari</Label>
+                  <Input type="date" value={baData.startDate} onChange={e => setBaData({...baData, startDate: e.target.value})} className="h-10 rounded-xl border-fin-border bg-fin-page text-fin-text-primary text-xs focus:border-indigo-500" /></div>
+                <div className="space-y-1"><Label className="text-[10px] font-black text-fin-text-secondary uppercase tracking-widest">Sampai</Label>
+                  <Input type="date" value={baData.endDate} onChange={e => setBaData({...baData, endDate: e.target.value})} className="h-10 rounded-xl border-fin-border bg-fin-page text-fin-text-primary text-xs focus:border-indigo-500" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1"><Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tgl TTD</Label>
-                  <Input type="date" value={baData.tanggalBA} onChange={e => setBaData({...baData, tanggalBA: e.target.value})} className="h-10 rounded-xl border-slate-100 bg-slate-50 text-xs" /></div>
-                <div className="space-y-1"><Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Lokasi</Label>
-                  <Input value={baData.lokasi} onChange={e => setBaData({...baData, lokasi: e.target.value})} className="h-10 rounded-xl border-slate-100 bg-slate-50 text-xs" /></div>
+                <div className="space-y-1"><Label className="text-[10px] font-black text-fin-text-secondary uppercase tracking-widest">Tgl TTD</Label>
+                  <Input type="date" value={baData.tanggalBA} onChange={e => setBaData({...baData, tanggalBA: e.target.value})} className="h-10 rounded-xl border-fin-border bg-fin-page text-fin-text-primary text-xs focus:border-indigo-500" /></div>
+                <div className="space-y-1"><Label className="text-[10px] font-black text-fin-text-secondary uppercase tracking-widest">Lokasi</Label>
+                  <Input value={baData.lokasi} onChange={e => setBaData({...baData, lokasi: e.target.value})} className="h-10 rounded-xl border-fin-border bg-fin-page text-fin-text-primary text-xs focus:border-indigo-500" /></div>
               </div>
-              <div className="space-y-1"><Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nomor Rekening RKUD</Label>
-                <Input value={baData.nomorRekening} onChange={e => setBaData({...baData, nomorRekening: e.target.value})} className="h-10 rounded-xl border-slate-100 bg-slate-50 font-mono text-sm" /></div>
-              <div className="space-y-1"><Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Bank</Label>
-                <Input value={baData.namaBank} onChange={e => setBaData({...baData, namaBank: e.target.value})} className="h-10 rounded-xl border-slate-100 bg-slate-50 text-xs" /></div>
+              <div className="space-y-1"><Label className="text-[10px] font-black text-fin-text-secondary uppercase tracking-widest">Nomor Rekening RKUD</Label>
+                <Input value={baData.nomorRekening} onChange={e => setBaData({...baData, nomorRekening: e.target.value})} className="h-10 rounded-xl border-fin-border bg-fin-page text-fin-text-primary font-mono text-sm focus:border-indigo-500" /></div>
+              <div className="space-y-1"><Label className="text-[10px] font-black text-fin-text-secondary uppercase tracking-widest">Nama Bank</Label>
+                <Input value={baData.namaBank} onChange={e => setBaData({...baData, namaBank: e.target.value})} className="h-10 rounded-xl border-fin-border bg-fin-page text-fin-text-primary text-xs focus:border-indigo-500" /></div>
             </div>
-            <div className="space-y-4 pt-4 border-t border-slate-100">
-              <div className="flex items-center gap-2 text-slate-800 mb-1"><User size={16} className="text-fin-info-text" /><span className="text-[10px] font-black uppercase tracking-widest">Pejabat Penandatangan</span></div>
+            <div className="space-y-4 pt-4 border-t border-fin-border">
+              <div className="flex items-center gap-2 text-fin-text-primary mb-1"><User size={16} className="text-indigo-500" /><span className="text-[10px] font-black uppercase tracking-widest">Pejabat Penandatangan</span></div>
               {[
-                { label: 'Pihak I — Kuasa BUD', key: 'pihak1', hasNip: true },
-                { label: 'Pihak II — Bank', key: 'pihak2', hasNip: false },
-                { label: 'Mengetahui', key: 'mengetahui', hasNip: true },
-              ].map(({ label, key, hasNip }) => (
-                <div key={key} className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
-                  <Label className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{label}</Label>
-                  <Input value={(baData as any)[key].nama} onChange={e => setBaData({...baData, [key]: {...(baData as any)[key], nama: e.target.value.toUpperCase()}})} className="h-8 bg-white border-none shadow-sm rounded-lg text-[10px] font-black" placeholder="Nama" />
-                  {hasNip && <Input value={(baData as any)[key].nip} onChange={e => setBaData({...baData, [key]: {...(baData as any)[key], nip: e.target.value}})} className="h-8 bg-white border-none shadow-sm rounded-lg text-[9px] text-slate-500" placeholder="NIP" />}
-                  <textarea value={(baData as any)[key].jabatan} onChange={e => setBaData({...baData, [key]: {...(baData as any)[key], jabatan: e.target.value}})} className="w-full h-12 p-2 bg-white border-none shadow-sm rounded-lg text-[9px] text-slate-500 resize-none outline-none" placeholder="Jabatan" />
+                { label: 'Pihak I — Kuasa BUD', key: 'pihak1', hasNip: true, colorClass: 'bg-indigo-500/[0.03] dark:bg-indigo-500/[0.05] border border-indigo-500/20 hover:border-indigo-500/30', labelColor: 'text-indigo-600 dark:text-indigo-400' },
+                { label: 'Pihak II — Bank', key: 'pihak2', hasNip: false, colorClass: 'bg-emerald-500/[0.03] dark:bg-emerald-500/[0.05] border border-emerald-500/20 hover:border-emerald-500/30', labelColor: 'text-emerald-600 dark:text-emerald-400' },
+                { label: 'Mengetahui', key: 'mengetahui', hasNip: true, colorClass: 'bg-purple-500/[0.03] dark:bg-purple-500/[0.05] border border-purple-500/20 hover:border-purple-500/30', labelColor: 'text-purple-600 dark:text-purple-400' },
+              ].map(({ label, key, hasNip, colorClass, labelColor }) => (
+                <div key={key} className={cn("p-4 rounded-xl space-y-3 transition-colors shadow-sm", colorClass)}>
+                  <Label className={cn("text-[9px] font-black uppercase tracking-wider block border-b border-black/5 dark:border-white/5 pb-1", labelColor)}>{label}</Label>
+                  <div className="space-y-2">
+                    <div className="space-y-0.5">
+                      <span className="text-[8px] font-bold text-fin-text-muted uppercase tracking-wider">Nama Pejabat</span>
+                      <Input value={(baData as any)[key].nama} onChange={e => setBaData({...baData, [key]: {...(baData as any)[key], nama: e.target.value.toUpperCase()}})} className="h-8 bg-fin-surface border-fin-border text-fin-text-primary rounded-lg text-[10px] font-black focus:border-indigo-500" placeholder="NAMA LENGKAP" />
+                    </div>
+                    {hasNip && (
+                      <div className="space-y-0.5">
+                        <span className="text-[8px] font-bold text-fin-text-muted uppercase tracking-wider">Nomor NIP</span>
+                        <Input value={(baData as any)[key].nip} onChange={e => setBaData({...baData, [key]: {...(baData as any)[key], nip: e.target.value}})} className="h-8 bg-fin-surface border-fin-border text-fin-text-primary rounded-lg text-[9px] focus:border-indigo-500" placeholder="NIP PEJABAT" />
+                      </div>
+                    )}
+                    <div className="space-y-0.5">
+                      <span className="text-[8px] font-bold text-fin-text-muted uppercase tracking-wider">Jabatan</span>
+                      <textarea value={(baData as any)[key].jabatan} onChange={e => setBaData({...baData, [key]: {...(baData as any)[key], jabatan: e.target.value}})} className="w-full h-12 p-2 bg-fin-surface border border-fin-border text-fin-text-primary rounded-lg text-[9px] resize-none outline-none focus:border-indigo-500" placeholder="JABATAN DOKUMEN" />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -249,14 +274,20 @@ export default function BARekonPage() {
             <div className="flex-1 px-[2.5cm] py-[1.5cm] pr-[2cm] flex flex-col pb-[2cm]">
 
               {/* KOP SURAT */}
-              <div className="flex items-center gap-6 mb-5 pb-3" style={{ borderBottom: '3.5px solid #000' }}>
-                <div className="w-16 h-16 shrink-0 flex items-center justify-center">
-                  {appConfig.logo ? <img src={appConfig.logo} style={{ maxHeight: '100%' }} alt="logo" /> : <Building size={36} color="#ccc" />}
-                </div>
-                <div className="flex-1 text-center">
-                  <p className="text-[12pt] font-bold uppercase leading-tight">{appConfig.pemerintah}</p>
-                  <p className="text-[14pt] font-bold uppercase leading-tight mt-0.5">{appConfig.instansi}</p>
-                  <p className="text-[9pt] italic mt-1" style={{ fontFamily: 'sans-serif' }}>{appConfig.alamat}</p>
+              <div className="flex items-center justify-center relative pb-3 mb-5" style={{ borderBottom: '4px double #000', minHeight: '80px' }}>
+                {appConfig.logo ? (
+                  <div className="absolute left-0 top-0 w-20 h-20 flex items-center justify-center">
+                    <img src={appConfig.logo} style={{ maxHeight: '100%', objectFit: 'contain' }} alt="logo" />
+                  </div>
+                ) : (
+                  <div className="absolute left-0 top-0 w-16 h-16 flex items-center justify-center">
+                    <Building size={36} color="#ccc" />
+                  </div>
+                )}
+                <div className="text-center w-full" style={{ paddingLeft: '85px', paddingRight: '85px' }}>
+                  <p className="text-[13pt] font-bold uppercase leading-tight">{appConfig.pemerintah}</p>
+                  <p className="text-[15pt] font-bold uppercase leading-tight mt-0.5">{appConfig.instansi}</p>
+                  <p className="text-[9pt] italic mt-1.5" style={{ fontFamily: 'sans-serif', lineHeight: '1.2' }}>{appConfig.alamat}</p>
                 </div>
               </div>
 

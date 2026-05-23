@@ -280,49 +280,57 @@ export default function BankManagementPage() {
 
       {/* SUMMARY STATS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-fin-surface p-4 rounded-xl border border-fin-border shadow-sm">
-           <p className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-1">Total Mutasi Masuk</p>
-           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-fin-income tabular-nums truncate">
-             {isLoading ? '...' : formatCurrency(data?.summary?.totalKredit || 0)}
-           </h3>
-           <div className="flex items-center gap-2 mt-2">
-              <TrendingUp size={12} className="text-fin-income" />
-              <span className="text-[9px] font-bold text-fin-text-muted uppercase">Penerimaan Rekening</span>
-           </div>
-        </Card>
+        <div className="lux-stat lux-stat-emerald p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-emerald-200/70 uppercase tracking-widest">Total Mutasi Masuk</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-200" />
+            </div>
+          </div>
+          <h3 className="text-lg xl:text-xl font-bold tracking-tight text-white tabular-nums truncate">
+            {isLoading ? '...' : formatCurrency(data?.summary?.totalKredit || 0)}
+          </h3>
+          <span className="text-[9px] font-bold text-emerald-200/60 uppercase mt-2">Penerimaan Rekening</span>
+        </div>
 
-        <Card className="bg-fin-surface p-4 rounded-xl border border-fin-border shadow-sm">
-           <p className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-1">Total Mutasi Keluar</p>
-           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-fin-expense tabular-nums truncate">
-             {isLoading ? '...' : formatCurrency(data?.summary?.totalDebet || 0)}
-           </h3>
-           <div className="flex items-center gap-2 mt-2">
-              <TrendingDown size={12} className="text-fin-expense" />
-              <span className="text-[9px] font-bold text-fin-text-muted uppercase">Pengeluaran Rekening</span>
-           </div>
-        </Card>
+        <div className="lux-stat lux-stat-rose p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-red-200/70 uppercase tracking-widest">Total Mutasi Keluar</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <TrendingDown className="w-3.5 h-3.5 text-red-200" />
+            </div>
+          </div>
+          <h3 className="text-lg xl:text-xl font-bold tracking-tight text-white tabular-nums truncate">
+            {isLoading ? '...' : formatCurrency(data?.summary?.totalDebet || 0)}
+          </h3>
+          <span className="text-[9px] font-bold text-red-200/60 uppercase mt-2">Pengeluaran Rekening</span>
+        </div>
 
-        <Card className="bg-fin-surface p-4 rounded-xl border border-fin-border shadow-sm">
-           <p className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-1">Total Records</p>
-           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-fin-text-primary tabular-nums truncate">
-             {isLoading ? '...' : data?.summary?.totalItems || 0}
-           </h3>
-           <div className="flex items-center gap-2 mt-2">
-              <Database size={12} className="text-indigo-500" />
-              <span className="text-[9px] font-bold text-fin-text-muted uppercase">Baris Data Terdaftar</span>
-           </div>
-        </Card>
+        <div className="lux-stat lux-stat-violet p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-violet-200/70 uppercase tracking-widest">Total Records</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <Database className="w-3.5 h-3.5 text-violet-200" />
+            </div>
+          </div>
+          <h3 className="text-lg xl:text-xl font-bold tracking-tight text-white tabular-nums truncate">
+            {isLoading ? '...' : data?.summary?.totalItems || 0}
+          </h3>
+          <span className="text-[9px] font-bold text-violet-200/60 uppercase mt-2">Baris Data Terdaftar</span>
+        </div>
 
-        <Card className="bg-fin-surface p-4 rounded-xl border border-fin-border border-t-4 border-t-indigo-500 shadow-sm">
-           <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Saldo Akhir Terdeteksi</p>
-           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-fin-text-primary tabular-nums truncate">
-             {isLoading ? '...' : formatCurrency(data?.summary?.lastBalance || 0)}
-           </h3>
-           <div className="flex items-center gap-2 mt-2">
-              <ShieldCheck size={12} className="text-indigo-500" />
-              <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest">Validated Bank Position</span>
-           </div>
-        </Card>
+        <div className="lux-stat lux-stat-navy p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-blue-200/70 uppercase tracking-widest">Saldo Akhir Terdeteksi</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-200" />
+            </div>
+          </div>
+          <h3 className="text-lg xl:text-xl font-bold tracking-tight text-white tabular-nums truncate">
+            {isLoading ? '...' : formatCurrency(data?.summary?.lastBalance || 0)}
+          </h3>
+          <span className="text-[9px] font-bold text-blue-200/60 uppercase mt-2">Validated Bank Position</span>
+        </div>
       </div>
 
       {/* FILTER BAR */}

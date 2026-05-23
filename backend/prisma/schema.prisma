@@ -8,11 +8,12 @@ datasource db {
 }
 
 model users {
-  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  username      String  @unique @db.VarChar(100)
-  password_hash String  @db.VarChar(255)
-  role          String? @db.VarChar(50)
-  special_pin   String? @default("1234") @db.VarChar(10)
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username      String    @unique @db.VarChar(100)
+  password_hash String    @db.VarChar(255)
+  role          String?   @db.VarChar(50)
+  special_pin   String?   @default("1234") @db.VarChar(10)
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
 
   @@map("users")
 }
@@ -195,15 +196,17 @@ model log_aktivitas {
 }
 
 model master_jenis_belanja {
-  id     Int    @id @default(autoincrement())
-  nama   String @unique @db.VarChar(50)
-  urutan Int
+  id   String @id @db.VarChar(100)
+  nama String @unique @db.VarChar(255)
+
+  @@map("master_jenis_belanja")
 }
 
 model master_opd {
-  id     Int    @id @default(autoincrement())
-  nama   String @unique @db.VarChar(255)
-  urutan Int
+  id   String @id @db.VarChar(100)
+  nama String @unique @db.VarChar(255)
+
+  @@map("master_opd")
 }
 
 model master_pagu {

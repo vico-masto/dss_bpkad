@@ -215,40 +215,32 @@ export default function KelengkapanPencairanPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Card className="bg-fin-surface border border-fin-border rounded-xl shadow-sm">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className={cn(
-              'w-12 h-12 rounded-xl flex items-center justify-center shrink-0',
-              (stats?.sp2dCount ?? 0) > 0 ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600',
-            )}>
-              <CalendarCheck size={24} />
+        <div className={cn(
+          'lux-stat p-4 rounded-xl flex flex-col group',
+          (stats?.sp2dCount ?? 0) > 0 ? 'lux-stat-amber' : 'lux-stat-emerald'
+        )}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-bold text-white/60 uppercase tracking-wider">SP2D Belum Tanggal Pencairan</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <CalendarCheck className={cn('w-3.5 h-3.5', (stats?.sp2dCount ?? 0) > 0 ? 'text-amber-200' : 'text-emerald-200')} />
             </div>
-            <div>
-              <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider">
-                SP2D Belum Tanggal Pencairan
-              </p>
-              <p className="text-2xl font-bold text-fin-text-primary">{stats?.sp2dCount ?? '—'}</p>
-              <p className="text-xs text-fin-text-muted mt-0.5">{formatCurrency(stats?.sp2dNeto ?? 0)}</p>
+          </div>
+          <p className="text-2xl font-bold text-white tabular-nums">{stats?.sp2dCount ?? '—'}</p>
+          <p className="text-xs text-white/50 mt-1 tabular-nums">{formatCurrency(stats?.sp2dNeto ?? 0)}</p>
+        </div>
+        <div className={cn(
+          'lux-stat p-4 rounded-xl flex flex-col group',
+          (stats?.potonganCount ?? 0) > 0 ? 'lux-stat-amber' : 'lux-stat-emerald'
+        )}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-bold text-white/60 uppercase tracking-wider">Potongan Belum Tanggal Pencairan</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <AlertTriangle className={cn('w-3.5 h-3.5', (stats?.potonganCount ?? 0) > 0 ? 'text-amber-200' : 'text-emerald-200')} />
             </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-fin-surface border border-fin-border rounded-xl shadow-sm">
-          <CardContent className="p-5 flex items-center gap-4">
-            <div className={cn(
-              'w-12 h-12 rounded-xl flex items-center justify-center shrink-0',
-              (stats?.potonganCount ?? 0) > 0 ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600',
-            )}>
-              <AlertTriangle size={24} />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider">
-                Potongan Belum Tanggal Pencairan
-              </p>
-              <p className="text-2xl font-bold text-fin-text-primary">{stats?.potonganCount ?? '—'}</p>
-              <p className="text-xs text-fin-text-muted mt-0.5">{formatCurrency(stats?.potonganNilai ?? 0)}</p>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+          <p className="text-2xl font-bold text-white tabular-nums">{stats?.potonganCount ?? '—'}</p>
+          <p className="text-xs text-white/50 mt-1 tabular-nums">{formatCurrency(stats?.potonganNilai ?? 0)}</p>
+        </div>
       </div>
 
       {/* Auto-match result banner */}

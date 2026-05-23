@@ -50,7 +50,17 @@
       "Bash(curl *)",
       "Bash(dir D:\\\\Antigravity\\\\DSS_BPKAD\\\\*.md /b)",
       "Bash(echo \"EXIT:$?\")",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(git *)",
+      "Bash(npx next *)",
+      "Bash(Get-ChildItem -Recurse -Filter \"*.css\" \"D:\\\\Antigravity\\\\DSS_BPKAD\\\\frontend\\\\src\")",
+      "Bash(Select-Object FullName)",
+      "Bash(xargs grep -l \"Arsip Kas Masuk\\\\|pendapatan\")",
+      "Bash(npx prisma *)",
+      "PowerShell(Set-Location \"D:\\\\Antigravity\\\\DSS_BPKAD\\\\frontend\"; $out = npx eslint src/app/dashboard/page.tsx 2>&1; $out | Where-Object { $_ -match \"purity|set-state|impure|Cannot call\" } | Select-Object -First 10)",
+      "PowerShell(Set-Location \"D:\\\\Antigravity\\\\DSS_BPKAD\\\\frontend\"; \\(npx eslint src/app/dashboard/page.tsx 2>&1 | Out-String\\) -match \"purity|set-state|impure|Cannot call\")",
+      "Bash(Remove-Item -Path \"C:\\\\Users\\\\USER\\\\.clone\\\\projects\\\\D--Antigravity-DSS-BPKAD\\\\memory\\\\project_view_transitions_mei2026.md\" -Force)",
+      "Bash(Remove-Item -Path \"C:\\\\Users\\\\USER\\\\.clone\" -Recurse -Force)"
     ]
   }
 }

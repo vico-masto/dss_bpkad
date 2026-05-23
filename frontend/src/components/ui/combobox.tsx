@@ -50,6 +50,7 @@ function Combobox({
 
   // Reset active index when filtered list changes
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveIndex(-1)
   }, [query])
 
@@ -205,7 +206,7 @@ function Combobox({
             ) : (
               filtered.map((option, idx) => (
                 <button
-                  key={option.value}
+                  key={option.value != null && option.value !== '' ? option.value : `__opt_${idx}`}
                   type="button"
                   role="option"
                   data-index={idx}

@@ -44,17 +44,18 @@ import { Combobox } from "@/components/ui/combobox";
 const fetcher = (url: string, params: any) => api.get(url, { params }).then(res => res.data);
 
 const formatAuditStatus = (keterangan: string, status: string) => {
-  if (!keterangan && !status) return '-';
-  
-  if (keterangan?.includes('Auto-Matched to Bank @')) {
-     return `TEREKONSILIASI (Otomatis)`;
+  if (keterangan && keterangan.trim() !== '') {
+    if (keterangan.includes('Auto-Matched to Bank @')) {
+       return `TEREKONSILIASI (Otomatis)`;
+    }
+    return keterangan;
   }
   
   if (status === 'SUDAH') return 'TEREKONSILIASI';
   if (status?.includes('ANOMALI')) return `ANOMALI AUDIT`;
   if (status === 'BELUM' || !status) return 'OUTSTANDING';
   
-  return keterangan || status || '-';
+  return status || '-';
 };
 
 export default function BkuPage() {
@@ -330,109 +331,89 @@ export default function BkuPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
          {/* KARTU TERGABUNG: TOTAL DANA TERKELOLA */}
-         <motion.div 
+         <motion.div
            initial={{ opacity: 0, y: 10 }}
            animate={{ opacity: 1, y: 0 }}
            className="group"
          >
-           <Card className="p-5 rounded-xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[150px]">
-              <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-fin-info-text transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
-                 <Database size={100} />
-              </div>
-              
-              <div className="flex justify-between items-start relative z-10">
-                 <div className="space-y-1">
-                    <p className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest">Total Dana Terkelola</p>
-                    <h2 className="text-xl font-black tracking-tight text-fin-text-primary">
-                       {formatCurrency((summary.saldoAwal || 0) + (summary.totalPenerimaan || 0))}
-                    </h2>
+           <div className="lux-stat lux-stat-navy p-4 rounded-xl flex flex-col justify-between min-h-[150px]">
+              <div>
+                 <div className="flex items-center justify-between mb-2">
+                    <p className="text-[9px] font-bold text-blue-200/70 uppercase tracking-widest">Total Dana Terkelola</p>
+                    <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                       <Database className="w-3.5 h-3.5 text-blue-200" />
+                    </div>
                  </div>
-                 <div className="w-9 h-9 bg-indigo-50 text-fin-info-text rounded-xl flex items-center justify-center border border-indigo-100">
-                    <Database size={18} />
-                 </div>
+                 <h2 className="text-xl font-black tracking-tight text-white tabular-nums">
+                    {formatCurrency((summary.saldoAwal || 0) + (summary.totalPenerimaan || 0))}
+                 </h2>
               </div>
 
-              <div className="mt-4 relative z-10 space-y-3">
-                  <div className="h-1.5 w-full bg-fin-subtle rounded-full overflow-hidden flex">
-                    <div 
-                       style={{ width: `${((summary.saldoAwal || 0) / ((summary.saldoAwal || 0) + (summary.totalPenerimaan || 1)) * 100)}%` }} 
-                       className="h-full bg-indigo-500 border-r border-white/20" 
+              <div className="mt-4 space-y-3">
+                  <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden flex">
+                    <div
+                       style={{ width: `${((summary.saldoAwal || 0) / ((summary.saldoAwal || 0) + (summary.totalPenerimaan || 1)) * 100)}%` }}
+                       className="h-full bg-indigo-300 border-r border-white/20"
                     />
-                    <div 
-                       style={{ width: `${((summary.totalPenerimaan || 0) / ((summary.saldoAwal || 0) + (summary.totalPenerimaan || 1)) * 100)}%` }} 
-                       className="h-full bg-fin-income" 
+                    <div
+                       style={{ width: `${((summary.totalPenerimaan || 0) / ((summary.saldoAwal || 0) + (summary.totalPenerimaan || 1)) * 100)}%` }}
+                       className="h-full bg-emerald-300"
                     />
                  </div>
                  <div className="flex items-center justify-between text-[8px] font-bold uppercase tracking-tight">
-                    <div className="flex items-center gap-1.5 text-fin-info-text">
-                       <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                    <div className="flex items-center gap-1.5 text-blue-200/70">
+                       <div className="w-1.5 h-1.5 rounded-full bg-indigo-300" />
                        S.Awal: {formatCurrency(summary.saldoAwal)}
                     </div>
-                    <div className="flex items-center gap-1.5 text-fin-income">
-                       <div className="w-1.5 h-1.5 rounded-full bg-fin-income" />
+                    <div className="flex items-center gap-1.5 text-emerald-200/70">
+                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-300" />
                        Penerimaan: {formatCurrency(summary.totalPenerimaan)}
                     </div>
                  </div>
               </div>
-           </Card>
+           </div>
          </motion.div>
 
          {/* TOTAL PENGELUARAN */}
-         <motion.div 
+         <motion.div
            initial={{ opacity: 0, y: 10 }}
            animate={{ opacity: 1, y: 0 }}
            transition={{ delay: 0.1 }}
            className="group"
          >
-           <Card className="p-5 rounded-xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300 h-full flex flex-col justify-between min-h-[150px]">
-              <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-fin-expense transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
-                 <ArrowDownLeft size={100} />
+           <div className="lux-stat lux-stat-rose p-4 rounded-xl flex flex-col group">
+              <div className="flex items-center justify-between mb-2">
+                 <p className="text-[9px] font-bold text-red-200/70 uppercase tracking-widest">Total Pengeluaran</p>
+                 <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                    <ArrowDownLeft className="w-3.5 h-3.5 text-red-200" />
+                 </div>
               </div>
-              <div className="flex justify-between items-start relative z-10">
-                <div className="space-y-1">
-                   <p className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest">Total Pengeluaran</p>
-                   <h2 className="text-xl font-black tracking-tight text-fin-expense">
-                     {formatCurrency(summary.totalPengeluaran)}
-                   </h2>
-                </div>
-                <div className="w-9 h-9 bg-fin-expense/10 text-fin-expense rounded-xl flex items-center justify-center border border-fin-expense/20">
-                   <ArrowDownLeft size={18} />
-                </div>
-              </div>
-              <div className="mt-4 flex items-center gap-1.5 text-[9px] font-bold text-fin-text-muted uppercase">
-                 <div className="w-1.5 h-1.5 rounded-full bg-fin-expense" />
-                 Mutasi Keluar Periode Ini
-              </div>
-           </Card>
+              <h2 className="text-xl font-black tracking-tight text-white tabular-nums truncate">
+                {formatCurrency(summary.totalPengeluaran)}
+              </h2>
+              <span className="text-[9px] font-bold text-red-200/50 uppercase mt-2">Mutasi Keluar Periode Ini</span>
+           </div>
          </motion.div>
 
          {/* SALDO AKHIR */}
-         <motion.div 
+         <motion.div
            initial={{ opacity: 0, y: 10 }}
            animate={{ opacity: 1, y: 0 }}
            transition={{ delay: 0.2 }}
            className="group"
          >
-           <Card className="p-5 rounded-xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300 h-full flex flex-col justify-between min-h-[150px] border-t-2 border-t-ds-accent">
-              <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-fin-info-text transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
-                 <Wallet size={100} />
+           <div className="lux-stat lux-stat-violet p-4 rounded-xl flex flex-col group">
+              <div className="flex items-center justify-between mb-2">
+                 <p className="text-[9px] font-bold text-violet-200/70 uppercase tracking-widest">Saldo Akhir Periode</p>
+                 <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                    <Wallet className="w-3.5 h-3.5 text-violet-200" />
+                 </div>
               </div>
-              <div className="flex justify-between items-start relative z-10">
-                <div className="space-y-1">
-                   <p className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest">Saldo Akhir Periode</p>
-                   <h2 className="text-xl font-black tracking-tight text-fin-text-primary">
-                     {formatCurrency(summary.saldoAkhir)}
-                   </h2>
-                </div>
-                <div className="w-9 h-9 bg-fin-subtle text-fin-info-text rounded-xl flex items-center justify-center border border-indigo-100">
-                   <Wallet size={18} />
-                </div>
-              </div>
-              <div className="mt-4 flex items-center gap-1.5 text-[9px] font-bold text-fin-text-muted uppercase">
-                 <div className="w-1.5 h-1.5 rounded-full bg-ds-primary" />
-                 Saldo Kas Tersedia
-              </div>
-           </Card>
+              <h2 className="text-xl font-black tracking-tight text-white tabular-nums truncate">
+                {formatCurrency(summary.saldoAkhir)}
+              </h2>
+              <span className="text-[9px] font-bold text-violet-200/50 uppercase mt-2">Saldo Kas Tersedia</span>
+           </div>
          </motion.div>
       </div>
 
@@ -583,7 +564,7 @@ export default function BkuPage() {
       <Card className="rounded-xl shadow-sm border border-fin-border overflow-hidden bg-fin-surface">
         <div className="overflow-x-auto min-h-[500px]">
           <Table>
-            <TableHeader className="bg-fin-page">
+            <TableHeader className="bg-fin-page sticky top-0 z-10">
               <TableRow className="border-b border-fin-border hover:bg-transparent">
                 <TableHead className="px-4 py-4 text-center w-16 text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider">No</TableHead>
                 <TableHead className="px-4 py-4 w-32 text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider">Tanggal</TableHead>
@@ -616,12 +597,39 @@ export default function BkuPage() {
                   </td>
                 </tr>
               ) : isLoading ? (
-                <tr>
-                  <td colSpan={9} className="py-32 text-center text-xs font-medium text-fin-text-muted">
-                    <Loader2 className="animate-spin mx-auto mb-4" size={40} />
-                    Mengkalkulasi Laporan...
-                  </td>
-                </tr>
+                <>
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <TableRow key={`skel-${i}`} className="animate-pulse">
+                      <TableCell className="px-4 py-4">
+                        <div className="h-3 w-6 bg-fin-subtle rounded mx-auto" />
+                      </TableCell>
+                      <TableCell className="px-4 py-4">
+                        <div className="h-3 w-20 bg-fin-subtle rounded" />
+                      </TableCell>
+                      <TableCell className="px-4 py-4">
+                        <div className="h-5 w-24 bg-fin-subtle rounded-lg" />
+                      </TableCell>
+                      <TableCell className="px-4 py-4">
+                        <div className="h-3 w-48 bg-fin-subtle rounded" />
+                      </TableCell>
+                      <TableCell className="px-4 py-4">
+                        <div className="h-3 w-28 bg-fin-subtle rounded" />
+                      </TableCell>
+                      <TableCell className="px-4 py-4">
+                        <div className="h-3 w-24 bg-fin-subtle rounded ml-auto" />
+                      </TableCell>
+                      <TableCell className="px-4 py-4">
+                        <div className="h-3 w-24 bg-fin-subtle rounded ml-auto" />
+                      </TableCell>
+                      <TableCell className="px-4 py-4">
+                        <div className="h-3 w-24 bg-fin-subtle rounded ml-auto" />
+                      </TableCell>
+                      <TableCell className="px-4 py-4">
+                        <div className="h-5 w-20 bg-fin-subtle rounded-full mx-auto" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </>
               ) : bkuItems.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-32 text-center text-xs font-medium text-fin-text-muted">

@@ -20,6 +20,8 @@ console.log('[DEBUG] Route /reconciliation/anomalies & /reconciliation/smart-pro
 
 router.get('/bku', authMiddleware, reportController.getBKU);
 router.get('/dashboard-stats', authMiddleware, reportController.getDashboardStats);
+// Analytics & Distribution
+router.get('/belanja-opd-detail', authMiddleware, reportController.getBelanjaOpdDetail);
 router.get('/sp2d-analytics', authMiddleware, reportController.getSp2dAnalytics);
 router.get('/tax-monitoring', authMiddleware, reportController.getTaxMonitoring);
 router.get('/bank-ledger', authMiddleware, reportController.getBankLedger);
@@ -29,6 +31,7 @@ router.get('/rister-bku', authMiddleware, reportController.getBKURister);
 router.get('/opd-tax-summary', authMiddleware, reportController.getOpdTaxSummary);
 router.get('/potongan-opd-realisasi', authMiddleware, reportController.getPotonganOpdRealisasi);
 router.get('/tax-monthly-analytics', authMiddleware, reportController.getMonthlyTaxAnalytics);
+router.get('/reconciliation/potongan-mengendap', authMiddleware, reconciliationController.getPotonganMengendap);
 router.get('/reconciliation/potongan-integrity', authMiddleware, reconciliationController.getPotonganIntegrity);
 router.get('/reconciliation/data', authMiddleware, reconciliationController.getReconciliationData);
 router.post('/reconciliation/match', authMiddleware, reconciliationController.runMagicMatch);

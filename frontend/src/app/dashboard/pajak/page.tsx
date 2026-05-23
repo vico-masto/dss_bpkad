@@ -732,18 +732,33 @@ export default function PajakUnifiedPage() {
           >
             {/* Quick Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="p-6 rounded-xl border-fin-border shadow-sm bg-fin-surface">
-                <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Total Potongan Dipungut</p>
-                <h2 className="text-2xl font-black text-fin-text-primary mt-1">{formatCurrency(summary.totalCollected || 0)}</h2>
-              </Card>
-              <Card className="p-6 rounded-xl border-fin-border shadow-sm bg-fin-surface">
-                <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Terdeteksi di SP2D</p>
-                <h2 className="text-2xl font-black text-fin-income mt-1">{potonganCountData?.count || 0} Records</h2>
-              </Card>
-              <Card className="p-6 rounded-xl border-fin-border shadow-sm bg-fin-surface">
-                <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Outstanding (Sisa Utang)</p>
-                <h2 className="text-2xl font-black text-fin-expense mt-1">{formatCurrency(summary.outstandingTax || 0)}</h2>
-              </Card>
+              <div className="lux-stat lux-stat-navy p-4 rounded-xl flex flex-col group">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] font-bold text-blue-200/70 uppercase tracking-widest">Total Potongan Dipungut</span>
+                  <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                    <ArrowUpRight className="w-3.5 h-3.5 text-blue-200" />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-black text-white tabular-nums">{formatCurrency(summary.totalCollected || 0)}</h2>
+              </div>
+              <div className="lux-stat lux-stat-emerald p-4 rounded-xl flex flex-col group">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] font-bold text-emerald-200/70 uppercase tracking-widest">Terdeteksi di SP2D</span>
+                  <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                    <Activity className="w-3.5 h-3.5 text-emerald-200" />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-black text-white">{potonganCountData?.count || 0} Records</h2>
+              </div>
+              <div className="lux-stat lux-stat-rose p-4 rounded-xl flex flex-col group">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] font-bold text-red-200/70 uppercase tracking-widest">Outstanding (Sisa Utang)</span>
+                  <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                    <ShieldAlert className="w-3.5 h-3.5 text-red-200" />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-black text-white tabular-nums">{formatCurrency(summary.outstandingTax || 0)}</h2>
+              </div>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               {/* FORM SECTION */}

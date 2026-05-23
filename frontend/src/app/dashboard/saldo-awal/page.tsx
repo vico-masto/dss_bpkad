@@ -99,40 +99,38 @@ export default function SaldoAwalPage() {
 
       {/* SUMMARY CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-ds-primary p-6 rounded-xl shadow-xl text-white relative overflow-hidden group border-none">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform duration-700">
-            <TrendingUp size={80} />
+        <div className="lux-stat lux-stat-navy p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[9px] font-bold text-blue-200/70 uppercase tracking-widest">Total Saldo Awal Gabungan</p>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <TrendingUp className="w-3.5 h-3.5 text-blue-200" />
+            </div>
           </div>
-          <p className="text-[10px] font-semibold text-fin-text-muted mb-2 uppercase">Total Saldo Awal Gabungan</p>
-          <h2 className="text-2xl font-bold tracking-tight" style={{fontVariantNumeric:'tabular-nums'}}>{formatCurrency(totalSaldoAwal)}</h2>
-          <div className="mt-6">
-             <Badge className="bg-fin-surface/10 text-white rounded-lg text-[9px] font-semibold uppercase border border-white/10 px-2 py-0.5">Ready TA {tahun}</Badge>
-          </div>
-        </Card>
+          <h2 className="text-2xl font-bold text-white tabular-nums truncate">{formatCurrency(totalSaldoAwal)}</h2>
+          <span className="text-[9px] font-semibold text-blue-200/60 uppercase mt-2">Ready TA {tahun}</span>
+        </div>
 
-        <Card className="bg-fin-surface p-6 rounded-xl shadow-sm border border-fin-border flex flex-col justify-between group hover:border-[#2E90FA] transition-all duration-300">
-          <div>
-            <p className="text-[10px] font-semibold text-fin-text-muted mb-2 uppercase">Sumber Dana Terdaftar</p>
-            <h2 className="text-3xl font-bold text-fin-text-primary tracking-tight">{sumberDana.length} <span className="text-xs text-fin-text-muted font-semibold uppercase ml-2">Mata Anggaran</span></h2>
+        <div className="lux-stat lux-stat-emerald p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[9px] font-bold text-emerald-200/70 uppercase tracking-widest">Sumber Dana Terdaftar</p>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
+            </div>
           </div>
-          <div className="mt-6 flex items-center text-[#12B76A] gap-2">
-            <CheckCircle2 size={16} />
-            <span className="text-[10px] font-semibold uppercase">Terverifikasi</span>
-          </div>
-        </Card>
+          <h2 className="text-2xl font-bold text-white tracking-tight">{sumberDana.length} <span className="text-xs text-emerald-200/60 font-semibold uppercase ml-1">Mata Anggaran</span></h2>
+          <span className="text-[9px] font-semibold text-emerald-200/60 uppercase mt-2">Terverifikasi</span>
+        </div>
 
-        <Card className="bg-fin-page p-6 rounded-xl shadow-sm border border-fin-border flex flex-col justify-between group hover:border-[#2E90FA] transition-all duration-300">
-           <div>
-            <p className="text-[10px] font-semibold text-fin-text-muted mb-2 uppercase">Terakhir Sinkronisasi</p>
-            <h2 className="text-xl font-bold text-fin-text-primary tracking-tight">{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</h2>
+        <div className="lux-stat lux-stat-violet p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[9px] font-bold text-violet-200/70 uppercase tracking-widest">Terakhir Sinkronisasi</p>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <History className="w-3.5 h-3.5 text-violet-200" />
+            </div>
           </div>
-           <div className="mt-6">
-              <Badge variant="outline" className="text-[10px] text-[#2E90FA] font-semibold uppercase flex items-center gap-2 px-3 py-1 border-[#B2DDFF] bg-[#F5F8FF]">
-                 <div className="w-1.5 h-1.5 bg-[#2E90FA] rounded-full animate-pulse" />
-                 Audit Trail Active
-              </Badge>
-           </div>
-        </Card>
+          <h2 className="text-base font-bold text-white tracking-tight">{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</h2>
+          <span className="text-[9px] font-semibold text-violet-200/60 uppercase mt-2">Audit Trail Active</span>
+        </div>
       </div>
 
       {/* INPUT TABLE */}

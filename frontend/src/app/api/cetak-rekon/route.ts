@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
   * { box-sizing: border-box; }
   body {
     font-family: 'Times New Roman', Times, serif;
-    padding: 1.5cm 2cm 1.5cm 2.5cm;
+    padding: 0;
+    margin: 0;
     line-height: 1.5;
     color: #000;
     font-size: 11pt;
@@ -69,15 +70,16 @@ export async function POST(req: NextRequest) {
   .mono         { font-family: 'Courier New', monospace; }
 
   .kop {
-    display: flex; align-items: center; gap: 18px;
-    border-bottom: 3.5px solid #000;
-    padding-bottom: 10px; margin-bottom: 18px;
+    display: flex; align-items: center; justify-content: center; position: relative;
+    border-bottom: 4px double #000;
+    padding-bottom: 12px; margin-bottom: 22px;
   }
-  .kop-logo { width: 72px; height: 72px; object-fit: contain; }
-  .kop-text { flex: 1; text-align: center; }
-  .kop-text .gov  { font-size: 12pt; font-weight: bold; text-transform: uppercase; margin: 0; }
-  .kop-text .inst { font-size: 14pt; font-weight: bold; text-transform: uppercase; margin: 3px 0 0; }
-  .kop-text .addr { font-size: 9pt; font-style: italic; font-family: sans-serif; margin: 6px 0 0; }
+  .kop-logo { position: absolute; left: 0; top: 0; width: 75px; height: 75px; object-fit: contain; }
+  .kop-text { text-align: center; width: 100%; }
+  .kop-text.has-logo { padding-left: 85px; padding-right: 85px; }
+  .kop-text .gov  { font-size: 13pt; font-weight: bold; text-transform: uppercase; margin: 0; line-height: 1.2; }
+  .kop-text .inst { font-size: 15pt; font-weight: bold; text-transform: uppercase; margin: 3px 0 0; line-height: 1.2; }
+  .kop-text .addr { font-size: 9pt; font-style: italic; font-family: 'Arial', sans-serif; margin: 5px 0 0; line-height: 1.2; }
 
   .title { text-align: center; margin-bottom: 18px; }
   .title h3 { font-size: 13pt; font-weight: bold; text-transform: uppercase; margin: 0; }
@@ -90,13 +92,13 @@ export async function POST(req: NextRequest) {
   }
   thead { display: table-header-group; }
   tr    { page-break-inside: avoid; }
-  th, td { border: 1px solid #000; padding: 6px 8px; }
+  th, td { border: 1px solid #000; padding: 7px 8px; }
   th { background-color: #f0f4f8; text-align: center; }
   .group-hdr {
     font-weight: bold; font-style: italic;
     background-color: #e8edf2;
   }
-  .group-hdr td { padding: 6px 8px; }
+  .group-hdr td { padding: 7px 8px; }
   .total-row  { font-weight: bold; background-color: #f0f4f8; }
   .subtotal   { font-weight: bold; background-color: #f5f5f5; }
   .ok-row     { font-weight: bold; background-color: #e8f5e9; }
@@ -106,9 +108,7 @@ export async function POST(req: NextRequest) {
 
   .signature-row { display: flex; width: 100%; margin-top: 30px; }
   .sig-col { width: 50%; text-align: center; }
-  .sig-space { height: 90px; }
-
-  @page { size: A4; margin: 0; }
+  .sig-space { height: 60px; }
 </style>
 </head>
 <body>
@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
   <!-- KOP SURAT -->
   <div class="kop">
     ${appConfig.logo ? `<img src="${appConfig.logo}" class="kop-logo" alt="logo">` : ''}
-    <div class="kop-text">
+    <div class="kop-text ${appConfig.logo ? 'has-logo' : ''}">
       <p class="gov">${appConfig.pemerintah}</p>
       <p class="inst">${appConfig.instansi}</p>
       <p class="addr">${appConfig.alamat}</p>
@@ -309,21 +309,21 @@ export async function POST(req: NextRequest) {
       <div class="sig-col">
         <p class="font-bold uppercase">Pihak I<br>${baData.pihak1.jabatan}</p>
         <div class="sig-space"></div>
-        <p class="font-bold uppercase underline">${baData.pihak1.nama}</p>
-        <p>NIP. ${baData.pihak1.nip}</p>
+        <p class="font-bold uppercase underline" style="margin-bottom: 0;">${baData.pihak1.nama}</p>
+        <p style="margin-top: 0;">NIP. ${baData.pihak1.nip}</p>
       </div>
       <div class="sig-col">
         <p class="font-bold uppercase">Pihak II<br>${namaBankShort}</p>
         <div class="sig-space"></div>
-        <p class="font-bold uppercase underline">${baData.pihak2.nama}</p>
-        <p class="uppercase">${baData.pihak2.jabatan}</p>
+        <p class="font-bold uppercase underline" style="margin-bottom: 0;">${baData.pihak2.nama}</p>
+        <p class="uppercase" style="margin-top: 0;">${baData.pihak2.jabatan}</p>
       </div>
     </div>
     <div style="width: 100%; text-align: center; margin-top: 40px;">
       <p class="font-bold uppercase">Mengetahui,<br>${baData.mengetahui.jabatan}</p>
       <div class="sig-space"></div>
-      <p class="font-bold uppercase underline">${baData.mengetahui.nama}</p>
-      <p>NIP. ${baData.mengetahui.nip}</p>
+      <p class="font-bold uppercase underline" style="margin-bottom: 0;">${baData.mengetahui.nama}</p>
+      <p style="margin-top: 0;">NIP. ${baData.mengetahui.nip}</p>
     </div>
   </div>
 
@@ -341,15 +341,8 @@ export async function POST(req: NextRequest) {
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
-      displayHeaderFooter: true,
-      headerTemplate: '<div></div>',
-      footerTemplate: `
-        <div style="font-size: 8px; color: #aaa; margin: 0 1.5cm; width: 100%; display: flex; justify-content: space-between;">
-          <span>Dicetak melalui DSS BPKAD Kabupaten Kepulauan Aru</span>
-          <span>Halaman <span class="pageNumber"></span> dari <span class="totalPages"></span></span>
-        </div>
-      `,
-      margin: { top: '1.5cm', bottom: '1.5cm', left: '1cm', right: '1cm' }
+      displayHeaderFooter: false,
+      margin: { top: '1.5cm', bottom: '1.5cm', left: '2cm', right: '1.5cm' }
     });
 
     await browser.close();

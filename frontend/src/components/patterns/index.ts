@@ -9,3 +9,6 @@ export type { FormFieldProps } from "./form-field"
 
 export { PageHeader } from "./page-header"
 export type { PageHeaderProps } from "./page-header"
+
+export { Breadcrumb } from "./breadcrumb"
+export type { BreadcrumbProps } from "./breadcrumb"

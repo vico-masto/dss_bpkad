@@ -253,6 +253,7 @@ export default function DashboardPage() {
         
         {/* PAGE HEADER */}
         <PageHeader
+          showBreadcrumb={false}
           title={<span className="font-black uppercase">Control <span className="text-fin-info-text">Center</span></span>}
           description="Monitoring Executive Financial Intelligence"
           icon={<LayoutGrid className="size-5" />}
@@ -310,55 +311,54 @@ export default function DashboardPage() {
         {/* Pagu APBD & Ketersediaan */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <motion.div 
+            <motion.div
               whileHover={{ y: -2 }}
               onClick={() => setShowPaguModal(true)}
-              className="bg-fin-surface rounded-xl border border-fin-border p-4 cursor-pointer hover:shadow-sm transition-all group flex flex-col justify-between min-h-[140px]"
+              className="lux-stat lux-stat-navy rounded-xl p-4 cursor-pointer hover:shadow-2xl transition-all group flex flex-col justify-between min-h-[140px]"
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[9px] font-black text-fin-text-muted uppercase tracking-widest">Pagu & Ketersediaan</span>
-                  <div className="w-7 h-7 bg-fin-info-bg rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
-                    <Building2 className="w-3.5 h-3.5 text-fin-info-text" />
+                  <span className="text-[9px] font-black text-blue-200/70 uppercase tracking-widest">Pagu & Ketersediaan</span>
+                  <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                    <Building2 className="w-3.5 h-3.5 text-blue-200" />
                   </div>
                 </div>
-                <p className="text-lg font-bold text-fin-text-primary truncate tabular-nums" title={formatCurrency(summary.totalPagu)}>
+                <p className="text-lg font-bold text-white truncate tabular-nums" title={formatCurrency(summary.totalPagu)}>
                    {formatCurrency(summary.totalPagu)}
                 </p>
               </div>
               <div className="mt-3 space-y-2">
                 <div className="flex justify-between items-end gap-2">
                    <div className="flex flex-col min-w-0">
-                      <span className="text-[8px] font-bold text-fin-text-muted uppercase tracking-wider">Tersedia</span>
-                      <span className="text-xs font-black text-fin-text-primary truncate">{formatCurrency(summary.totalKetersediaan || 0)}</span>
+                      <span className="text-[8px] font-bold text-blue-200/60 uppercase tracking-wider">Tersedia</span>
+                      <span className="text-xs font-black text-white truncate">{formatCurrency(summary.totalKetersediaan || 0)}</span>
                    </div>
-                   <span className="text-[9px] font-black text-[#12B76A] bg-[#ECFDF3] px-1.5 py-0.5 rounded-lg shrink-0">
+                   <span className="text-[9px] font-black text-emerald-300 bg-white/10 px-1.5 py-0.5 rounded-lg shrink-0">
                      {(summary.ketersediaanPersen || 0).toFixed(1)}%
                    </span>
                 </div>
-                
-                <div className="h-1.5 w-full bg-fin-page rounded-full overflow-hidden flex">
-                  <motion.div 
-                    initial={{ width: 0 }} 
-                    animate={{ width: `${Math.min(summary.silpaPersen || 0, 100)}%` }} 
-                    className="h-full bg-indigo-500 border-r border-white/20" 
+
+                <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden flex">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(summary.silpaPersen || 0, 100)}%` }}
+                    className="h-full bg-blue-300 border-r border-white/10"
                   />
-                  <motion.div 
-                    initial={{ width: 0 }} 
-                    animate={{ width: `${Math.min(summary.realisasiPersen || 0, 100)}%` }} 
-                    className="h-full bg-[#12B76A]" 
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(summary.realisasiPersen || 0, 100)}%` }}
+                    className="h-full bg-emerald-300"
                   />
                 </div>
 
-                {/* LEGEND BREAKDOWN (RESTORED FOR READABILITY) */}
                 <div className="flex items-center justify-between gap-1 mt-1 text-[7.5px] font-black uppercase tracking-tighter">
                    <div className="flex items-center gap-1 min-w-0">
-                      <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
-                      <span className="text-fin-text-muted truncate">SiLPA: {(summary.silpaPersen || 0).toFixed(1)}%</span>
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-300 shrink-0" />
+                      <span className="text-blue-200/60 truncate">SiLPA: {(summary.silpaPersen || 0).toFixed(1)}%</span>
                    </div>
                    <div className="flex items-center gap-1 min-w-0">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#12B76A] shrink-0" />
-                      <span className="text-fin-text-muted truncate">Masuk: {(summary.realisasiPersen || 0).toFixed(1)}%</span>
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-300 shrink-0" />
+                      <span className="text-blue-200/60 truncate">Masuk: {(summary.realisasiPersen || 0).toFixed(1)}%</span>
                    </div>
                 </div>
               </div>
@@ -373,33 +373,33 @@ export default function DashboardPage() {
         {/* Realisasi Belanja (Pengeluaran) */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <motion.div 
+            <motion.div
               whileHover={{ y: -2 }}
-              className="bg-fin-surface rounded-xl border border-fin-border p-4 hover:shadow-sm transition-all group flex flex-col justify-between min-h-[140px] cursor-help"
+              className="lux-stat lux-stat-rose rounded-xl p-4 hover:shadow-2xl transition-all group flex flex-col justify-between min-h-[140px] cursor-help"
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[9px] font-black text-fin-text-muted uppercase tracking-widest">Realisasi Belanja (Bruto)</span>
-                  <div className="w-7 h-7 bg-[#FEF3F2] rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
-                    <ArrowDownCircle className="w-3.5 h-3.5 text-[#F04438]" />
+                  <span className="text-[9px] font-black text-red-200/70 uppercase tracking-widest">Realisasi Belanja (Bruto)</span>
+                  <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                    <ArrowDownCircle className="w-3.5 h-3.5 text-red-200" />
                   </div>
                 </div>
-                <p className="text-lg font-bold text-[#F04438] truncate tabular-nums" title={formatCurrency(summary.totalPengeluaran || 0)}>
+                <p className="text-lg font-bold text-white truncate tabular-nums" title={formatCurrency(summary.totalPengeluaran || 0)}>
                    {formatCurrency(summary.totalPengeluaran || 0)}
                 </p>
               </div>
               <div className="mt-3 space-y-2">
                 <div className="flex justify-between items-center">
-                   <span className="text-[8px] font-bold text-fin-text-muted uppercase tracking-wider">Penyerapan</span>
-                   <span className="text-[9px] font-black text-[#F04438] bg-[#FEF3F2] px-1.5 py-0.5 rounded-lg">
+                   <span className="text-[8px] font-bold text-red-200/60 uppercase tracking-wider">Penyerapan</span>
+                   <span className="text-[9px] font-black text-red-200 bg-white/10 px-1.5 py-0.5 rounded-lg">
                      {(summary.belanjaPersen || 0).toFixed(1)}%
                    </span>
                 </div>
-                <div className="h-1.5 w-full bg-fin-page rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ width: 0 }} 
-                    animate={{ width: `${Math.min(summary.belanjaPersen || 0, 100)}%` }} 
-                    className="h-full bg-[#F04438]" 
+                <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(summary.belanjaPersen || 0, 100)}%` }}
+                    className="h-full bg-red-300"
                   />
                 </div>
               </div>
@@ -414,26 +414,26 @@ export default function DashboardPage() {
         {/* Total Kas Efektif */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <motion.div 
+            <motion.div
               whileHover={{ y: -2 }}
-              className="bg-fin-surface p-4 rounded-xl border border-fin-border flex flex-col justify-between group hover:border-fin-text-primary transition-all min-h-[140px] cursor-help"
+              className="lux-stat lux-stat-emerald rounded-xl p-4 flex flex-col justify-between group min-h-[140px] cursor-help hover:shadow-2xl transition-all"
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[9px] font-black text-fin-text-muted uppercase tracking-widest">Total Kas Efektif</span>
-                  <div className="w-7 h-7 bg-fin-page text-fin-text-primary rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0 border border-fin-border">
-                      <Wallet size={14} />
+                  <span className="text-[9px] font-black text-emerald-200/70 uppercase tracking-widest">Total Kas Efektif</span>
+                  <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                    <Wallet size={14} className="text-emerald-200" />
                   </div>
                 </div>
-                <p className={cn("text-lg font-bold tabular-nums truncate", summary.kasEfektif < 0 ? "text-[#F04438]" : "text-fin-text-primary")} title={formatCurrency(summary.kasEfektif)}>
+                <p className={cn("text-lg font-bold tabular-nums truncate", summary.kasEfektif < 0 ? "text-red-300" : "text-white")} title={formatCurrency(summary.kasEfektif)}>
                   {formatCurrency(summary.kasEfektif)}
                 </p>
               </div>
               <div className="mt-3">
-                <p className="text-[9px] text-fin-text-muted font-bold uppercase tracking-tight">Saldo Riil Netto</p>
+                <p className="text-[9px] text-emerald-200/60 font-bold uppercase tracking-tight">Saldo Riil Netto</p>
                 <div className="flex items-center gap-1.5 mt-1">
-                   <div className="w-1.5 h-1.5 rounded-full bg-[#12B76A]" />
-                   <span className="text-[8px] font-bold text-[#12B76A]">Dana Siap Digunakan</span>
+                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-300" />
+                   <span className="text-[8px] font-bold text-emerald-200">Dana Siap Digunakan</span>
                 </div>
               </div>
             </motion.div>
@@ -447,24 +447,24 @@ export default function DashboardPage() {
         {/* Likuiditas Bank (Fisik) */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <motion.div 
+            <motion.div
               whileHover={{ y: -2 }}
-              className="bg-fin-surface rounded-xl border border-fin-border p-4 flex flex-col justify-between min-h-[140px] group cursor-help"
+              className="lux-stat lux-stat-violet rounded-xl p-4 flex flex-col justify-between min-h-[140px] group cursor-help hover:shadow-2xl transition-all"
             >
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[9px] font-black text-fin-text-muted uppercase tracking-widest">Likuiditas Bank</span>
-                  <div className="w-7 h-7 bg-[#F5F8FF] rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0 border border-[#D1E9FF]">
-                    <Building2 className="w-3.5 h-3.5 text-fin-info-text" />
+                  <span className="text-[9px] font-black text-violet-200/70 uppercase tracking-widest">Likuiditas Bank</span>
+                  <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                    <Building2 className="w-3.5 h-3.5 text-violet-200" />
                   </div>
                 </div>
-                <p className="text-lg font-bold text-fin-text-primary truncate tabular-nums" title={formatCurrency(summary.totalKasFisik)}>
+                <p className="text-lg font-bold text-white truncate tabular-nums" title={formatCurrency(summary.totalKasFisik)}>
                    {formatCurrency(summary.totalKasFisik)}
                 </p>
               </div>
               <div className="mt-3 flex items-center gap-2">
-                 <div className="w-1.5 h-1.5 rounded-full bg-[#12B76A] animate-pulse"></div>
-                 <span className="text-[8px] font-black text-fin-text-muted uppercase tracking-widest">Sync Otomatis Aktif</span>
+                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
+                 <span className="text-[8px] font-black text-violet-200/60 uppercase tracking-widest">Sync Otomatis Aktif</span>
               </div>
             </motion.div>
           </TooltipTrigger>
@@ -558,7 +558,13 @@ export default function DashboardPage() {
                            y: { 
                               grid: { color: '#F1F3F5', drawTicks: false }, 
                               border: { display: false }, 
-                              ticks: { font: { size: 9 }, color: '#98A2B3', callback: (v: any) => formatNumber(v.toString()) } 
+                              ticks: { font: { size: 9 }, color: '#98A2B3', callback: (v: any) => {
+                                 const n = Number(v);
+                                 if (n >= 1e12) return `${(n/1e12).toFixed(1)}T`;
+                                 if (n >= 1e9)  return `${(n/1e9).toFixed(1)}M`;
+                                 if (n >= 1e6)  return `${(n/1e6).toFixed(0)}Jt`;
+                                 return n.toLocaleString('id-ID');
+                              }} 
                            },
                            x: { grid: { display: false }, ticks: { font: { size: 9, weight: 'bold' }, color: '#475467' } }
                         }

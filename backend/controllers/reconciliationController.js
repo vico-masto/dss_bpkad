@@ -871,8 +871,8 @@ const matchIndividual = async (req, res) => {
         match_type: isBrutoMatch ? 'MANUAL_BRUTO' : 'MANUAL',
         selisih_nilai: absDiff > 0.01 ? diff : 0,
         catatan_selisih: absDiff > 0.01
-          ? `Selisih ${diff > 0 ? 'LEBIH' : 'KURANG'} Rp ${new Intl.NumberFormat('id-ID').format(Math.abs(diff))} [MANUAL]`
-          : null,
+          ? `Selisih ${diff > 0 ? 'LEBIH' : 'KURANG'} Rp ${new Intl.NumberFormat('id-ID').format(Math.abs(diff))} [MANUAL]${keterangan_admin ? ' | Catatan: ' + keterangan_admin : ''}`
+          : (keterangan_admin ? `Catatan: ${keterangan_admin}` : null),
       }
     });
 
@@ -1563,6 +1563,7 @@ const matchMultiple = async (req, res) => {
         is_matched: true,
         ref_bku_id: String(bkuId),
         match_type: 'MULTI',
+        catatan_selisih: keterangan_admin ? `Catatan: ${keterangan_admin}` : null,
       }
     });
 
@@ -1857,17 +1858,19 @@ const bulkMatchByValue = async (req, res) => {
     
     const targetBkuId = String(bkuIds[0]);
 
+    const finalKeterangan = keterangan ? `Catatan Admin: ${keterangan}` : 'Bulk Match';
+
     await prisma.bank_statement.updateMany({
       where: { id: { in: bankIds.map(id => parseInt(id)) } },
       data: {
         is_matched: true,
         ref_bku_id: targetBkuId,
         match_type: bankIds.length > 1 ? 'MULTI' : 'INDIVIDUAL',
-        catatan_selisih: keterangan || 'Bulk Match'
+        catatan_selisih: finalKeterangan
       }
     });
 
-    const updateData = { status_rekon: 'SUDAH', selisih_rekon: 0, keterangan_rekon: keterangan || 'Bulk Match' };
+    const updateData = { status_rekon: 'SUDAH', selisih_rekon: 0, keterangan_rekon: finalKeterangan };
     await Promise.all(bkuIds.map(id => {
        const sid = String(id);
        return Promise.all([
@@ -2273,20 +2276,36 @@ const getBalanceComparison = async (req, res) => {
     let sa_sum = 0, inc_sum = 0, exp_sum = 0, tax_pot_sum = 0, sjk_sum = 0, adj_in_sum = 0, adj_out_sum = 0;
 
     try {
-      const sa_res = await prisma.saldo_awal.aggregate({ _sum: { nilai: true } });
+      const sa_res = await prisma.saldo_awal.aggregate({ where: { tahun: currentYear }, _sum: { nilai: true } });
       sa_sum = Number(sa_res._sum.nilai || 0);
     } catch (e) { console.error('[ERROR] SA Query:', e.message); }
 
     try {
-      const inc_res = await prisma.data_pendapatan.aggregate({ where: { tanggal: { lte: endOfPeriodDate } }, _sum: { nilai: true } });
+      const inc_res = await prisma.data_pendapatan.aggregate({
+        where: {
+          tanggal: {
+            gte: startOfYearDate,
+            lte: endOfPeriodDate
+          }
+        },
+        _sum: { nilai: true }
+      });
       inc_sum = Number(inc_res._sum.nilai || 0);
     } catch (e) { console.error('[ERROR] INC Query:', e.message); }
 
     try {
       const exp_res = await prisma.$queryRaw`
-        SELECT SUM(ROUND(CAST(CASE WHEN h.status_rekon = 'SUDAH_BRUTO' THEN d.nilai_bruto ELSE (d.nilai_bruto - (COALESCE((SELECT SUM(p.nilai) FROM data_sp2d_potongan p WHERE p.id_sp2d = h.id AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER')), CAST(h.nilai_potongan AS DECIMAL)) * (d.nilai_bruto / NULLIF(h.nilai_bruto, 0)))) END AS NUMERIC), 2)) as total
-        FROM detail_sp2d d JOIN data_sp2d h ON d.id_sp2d = h.id
-        WHERE CAST((CASE WHEN h.status_rekon = 'SUDAH_BRUTO' THEN h.tanggal_pencairan ELSE COALESCE(h.tanggal_pencairan, h.tanggal) END) AS DATE) <= CAST(${endOfPeriodDate} AS DATE)
+        SELECT SUM(CAST(CASE WHEN s.status_rekon = 'SUDAH_BRUTO' THEN s.nilai_bruto
+                             ELSE s.nilai_bruto - COALESCE(
+                               (SELECT SUM(p.nilai) FROM data_sp2d_potongan p
+                                WHERE p.id_sp2d = s.id AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER')),
+                               CAST(s.nilai_potongan AS DECIMAL)
+                             ) END AS NUMERIC)) as total
+        FROM data_sp2d s
+        WHERE (
+          (s.tanggal_pencairan::DATE BETWEEN CAST(${startOfYear} AS DATE) AND CAST(${isoDate} AS DATE))
+          OR (s.tanggal_pencairan IS NULL AND s.tanggal::DATE BETWEEN CAST(${startOfYear} AS DATE) AND CAST(${isoDate} AS DATE))
+        )
       `;
       exp_sum = Number(exp_res[0]?.total || 0);
     } catch (e) { console.error('[ERROR] EXP Query:', e.message); }
@@ -2296,7 +2315,7 @@ const getBalanceComparison = async (req, res) => {
         SELECT SUM(CAST(p.nilai AS NUMERIC)) as total
         FROM data_sp2d_potongan p
         LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
-        WHERE CAST(COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) AS DATE) <= CAST(${endOfPeriodDate} AS DATE)
+        WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE BETWEEN CAST(${startOfYear} AS DATE) AND CAST(${isoDate} AS DATE)
         AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER')
         AND (s.id IS NULL OR s.status_rekon != 'SUDAH_BRUTO')
       `;
@@ -2304,12 +2323,30 @@ const getBalanceComparison = async (req, res) => {
     } catch (e) { console.error('[ERROR] TAX_POT Query:', e.message); }
 
     try {
-      const adj_in_res = await prisma.data_penyesuaian.aggregate({ where: { jenis: 'MASUK', tanggal: { lte: endOfPeriodDate } }, _sum: { nilai: true } });
+      const adj_in_res = await prisma.data_penyesuaian.aggregate({
+        where: {
+          jenis: 'MASUK',
+          tanggal: {
+            gte: startOfYearDate,
+            lte: endOfPeriodDate
+          }
+        },
+        _sum: { nilai: true }
+      });
       adj_in_sum = Number(adj_in_res._sum.nilai || 0);
     } catch (e) { console.error('[ERROR] ADJ_IN Query:', e.message); }
 
     try {
-      const adj_out_res = await prisma.data_penyesuaian.aggregate({ where: { jenis: 'KELUAR', tanggal: { lte: endOfPeriodDate } }, _sum: { nilai: true } });
+      const adj_out_res = await prisma.data_penyesuaian.aggregate({
+        where: {
+          jenis: 'KELUAR',
+          tanggal: {
+            gte: startOfYearDate,
+            lte: endOfPeriodDate
+          }
+        },
+        _sum: { nilai: true }
+      });
       adj_out_sum = Number(adj_out_res._sum.nilai || 0);
     } catch (e) { console.error('[ERROR] ADJ_OUT Query:', e.message); }
 
@@ -2320,7 +2357,7 @@ const getBalanceComparison = async (req, res) => {
       const sjk_res = await prisma.$queryRaw`
         SELECT SUM(CAST(s.nilai AS NUMERIC)) as total
         FROM setoran_pajak s
-        WHERE CAST(s.tanggal AS DATE) <= CAST(${endOfPeriodDate} AS DATE)
+        WHERE s.tanggal::DATE BETWEEN CAST(${startOfYear} AS DATE) AND CAST(${isoDate} AS DATE)
         AND NOT EXISTS (
           SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti
         )
@@ -2529,10 +2566,14 @@ const getDiscrepancyReport = async (req, res) => {
 
     const matchedWithDiscrepancy = await prisma.$queryRaw`
       SELECT * FROM (
-        SELECT id, 'SP2D' as tipe, tanggal_pencairan as tanggal, nomor as bukti, opd, uraian, CAST(nilai_neto AS DECIMAL) as nilai, CAST(COALESCE(selisih_rekon, 0) AS DECIMAL) as selisih, keterangan_rekon, status_rekon FROM data_sp2d WHERE tahun = ${currentYear} AND ABS(COALESCE(selisih_rekon, 0)) > 0
+        SELECT CAST(id AS VARCHAR) as id, 'SP2D' as tipe, tanggal_pencairan as tanggal, nomor as bukti, opd, uraian, CAST(nilai_neto AS DECIMAL) as nilai, CAST(COALESCE(selisih_rekon, 0) AS DECIMAL) as selisih, keterangan_rekon, status_rekon FROM data_sp2d WHERE tahun = ${currentYear} AND (ABS(COALESCE(selisih_rekon, 0)) > 0 OR keterangan_rekon LIKE '%Catatan Admin:%')
         UNION ALL
-        SELECT id, 'PENDAPATAN' as tipe, tanggal, nomor_bukti as bukti, 'BENDAHARA' as opd, uraian, CAST(nilai AS DECIMAL) as nilai, CAST(COALESCE(selisih_rekon, 0) AS DECIMAL) as selisih, keterangan_rekon, status_rekon FROM data_pendapatan WHERE tahun = ${currentYear} AND ABS(COALESCE(selisih_rekon, 0)) > 0
-      ) combined WHERE ABS(selisih) > 0.01 ORDER BY tanggal DESC LIMIT 100
+        SELECT CAST(id AS VARCHAR) as id, 'PENDAPATAN' as tipe, tanggal, nomor_bukti as bukti, 'BENDAHARA' as opd, uraian, CAST(nilai AS DECIMAL) as nilai, CAST(COALESCE(selisih_rekon, 0) AS DECIMAL) as selisih, keterangan_rekon, status_rekon FROM data_pendapatan WHERE tahun = ${currentYear} AND (ABS(COALESCE(selisih_rekon, 0)) > 0 OR keterangan_rekon LIKE '%Catatan Admin:%')
+        UNION ALL
+        SELECT CAST(p.id AS VARCHAR) as id, 'POTONGAN' as tipe, COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal, p.nomor_sp2d as bukti, p.opd, p.uraian, CAST(p.nilai AS DECIMAL) as nilai, CAST(COALESCE(p.selisih_rekon, 0) AS DECIMAL) as selisih, p.keterangan_rekon, p.status_rekon FROM data_sp2d_potongan p LEFT JOIN data_sp2d s ON p.id_sp2d = s.id WHERE EXTRACT(YEAR FROM COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)) = ${currentYear} AND (ABS(COALESCE(p.selisih_rekon, 0)) > 0 OR p.keterangan_rekon LIKE '%Catatan Admin:%')
+        UNION ALL
+        SELECT CAST(id AS VARCHAR) as id, 'PAJAK' as tipe, COALESCE(tanggal_pencairan, tanggal) as tanggal, nomor_bukti as bukti, opd, uraian, CAST(nilai AS DECIMAL) as nilai, CAST(COALESCE(selisih_rekon, 0) AS DECIMAL) as selisih, keterangan_rekon, status_rekon FROM setoran_pajak WHERE EXTRACT(YEAR FROM COALESCE(tanggal_pencairan, tanggal)) = ${currentYear} AND (ABS(COALESCE(selisih_rekon, 0)) > 0 OR keterangan_rekon LIKE '%Catatan Admin:%')
+      ) combined WHERE ABS(selisih) > 0.01 OR keterangan_rekon LIKE '%Catatan Admin:%' ORDER BY tanggal DESC LIMIT 100
     `.catch(e => { console.error('Error Q6:', e); return []; });
 
     // Kolom numerik yang harus di-fallback ke 0 jika null
@@ -2584,7 +2625,12 @@ const getDiscrepancyReport = async (req, res) => {
       ) comb ORDER BY tanggal DESC LIMIT 50
     `.catch(() => []);
 
-    console.log(`[DEBUG DISCREPANCY] Summary: Unmatched=${sp2dUnmatched.length}, Balance=${monthlyBalance.length}, OPD=${opdSummary.length}`);
+    const saldoAwalSilpaRaw = await prisma.$queryRaw`
+      SELECT COALESCE(SUM(CAST(nilai AS DECIMAL)), 0) as total FROM saldo_awal WHERE tahun = ${currentYear}
+    `.catch(() => [{ total: 0 }]);
+    const saldoAwalSilpa = Number(saldoAwalSilpaRaw[0]?.total || 0);
+
+    console.log(`[DEBUG DISCREPANCY] Summary: Unmatched=${sp2dUnmatched.length}, Balance=${monthlyBalance.length}, OPD=${opdSummary.length}, Silpa=${saldoAwalSilpa}`);
 
     res.json({
       sp2dUnmatched: serialize(sp2dUnmatched),
@@ -2594,7 +2640,8 @@ const getDiscrepancyReport = async (req, res) => {
       opdSummary: serialize(opdSummary),
       matchedWithDiscrepancy: serialize(matchedWithDiscrepancy),
       potonganUnmatched: serialize(potonganUnmatched),
-      unmatchedDetails: serialize(unmatchedDetails)
+      unmatchedDetails: serialize(unmatchedDetails),
+      saldoAwalSilpa: saldoAwalSilpa
     });
   } catch (err) {
     console.error('DISCREPANCY REPORT ERROR:', err);
@@ -3396,7 +3443,71 @@ const clusterMatch = async (req, res) => {
   }
 };
 
+
+const getPotonganMengendap = async (req, res) => {
+  try {
+    const { opd, bulan } = req.query;
+
+    let whereClause = {
+      status_rekon: 'BELUM',
+      OR: [
+        { uraian: { contains: 'lainnya', mode: 'insensitive' } },
+        { keterangan: { contains: 'lainnya', mode: 'insensitive' } }
+      ]
+    };
+    
+    const sp2dFilter = {};
+    if (opd) sp2dFilter.opd = opd;
+    if (bulan && bulan !== '0') {
+      const b = Number(bulan);
+      const year = req.query.tahun ? Number(req.query.tahun) : 2026;
+      sp2dFilter.tanggal = {
+        gte: new Date(year, b - 1, 1),
+        lt: new Date(year, b, 1)
+      };
+    }
+    
+    if (Object.keys(sp2dFilter).length > 0) {
+      whereClause.sp2d = sp2dFilter;
+    }
+
+    const records = await prisma.data_sp2d_potongan.findMany({
+      where: whereClause,
+      include: {
+        sp2d: {
+          select: {
+            nomor: true,
+            tanggal: true,
+            opd: true
+          }
+        }
+      },
+      orderBy: {
+        sp2d: {
+          tanggal: 'desc'
+        }
+      }
+    });
+
+    const formatted = records.map(r => ({
+      id: r.id,
+      keterangan: r.uraian || r.keterangan || '-',
+      nilai: Number(r.nilai) || 0,
+      no_sp2d: r.sp2d?.nomor || r.nomor_sp2d || '-',
+      tanggal_sp2d: r.sp2d?.tanggal || null,
+      opd: r.sp2d?.opd || r.opd || '-',
+      status_rekon: r.status_rekon
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error('Error in getPotonganMengendap:', err);
+    res.status(500).json({ message: 'Gagal mengambil data potongan mengendap', error: err.message });
+  }
+};
+
 module.exports = {
+  getPotonganMengendap,
   getReconciliationData,
   runMagicMatch,
   getSuggestions,

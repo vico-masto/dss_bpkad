@@ -17,6 +17,7 @@ import MainLayout from "@/components/MainLayout";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import AIChatBubble from "@/components/AIChatBubble";
+import { ViewTransitions } from "next-view-transitions";
 
 const roboto = Roboto({
   subsets: ["latin"],
@@ -49,11 +50,13 @@ export default function RootLayout({
           `
         }} />
       </head>
-      <body 
+      <body
         className="font-sans antialiased min-h-screen selection:bg-brand/10 selection:text-brand tabular-nums tracking-tight"
         suppressHydrationWarning
       >
-          <MainLayout>{children}</MainLayout>
+          <ViewTransitions>
+            <MainLayout>{children}</MainLayout>
+          </ViewTransitions>
           <Toaster position="top-center" richColors />
           <AIChatBubble />
       </body>

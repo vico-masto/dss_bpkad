@@ -451,9 +451,12 @@ const getSp2dAnalytics = async (req, res) => {
       }
     });
 
-    const masterJenis = await prisma.master_jenis_belanja.findMany({
-      orderBy: { urutan: 'asc' }
-    });
+    const masterJenis = await prisma.$queryRaw(Prisma.sql`
+      SELECT id, nama FROM master_jenis_belanja
+      ORDER BY
+        CASE WHEN id ~ '^[0-9]+$' THEN id::integer ELSE NULL END ASC NULLS LAST,
+        id ASC
+    `);
 
     const trends = await prisma.$queryRaw`
       SELECT EXTRACT(MONTH FROM COALESCE(tanggal_pencairan, tanggal)) as bulan, jenis, SUM(nilai_bruto) as total
@@ -1067,6 +1070,65 @@ const getPotonganOpdRealisasi = async (req, res) => {
   }
 };
 
+const getBelanjaOpdDetail = async (req, res) => {
+  try {
+    const { year, month, opd, jenis, sumber_dana } = req.query;
+    const currentYear = parseInt(year) || new Date().getFullYear();
+
+    let query = `
+      SELECT 
+        h.opd,
+        TRIM(SPLIT_PART(REPLACE(h.jenis, '-', ' '), ' ', 1)) as jenis_belanja,
+        TRIM(SPLIT_PART(COALESCE(s.nama, 'TIDAK DIKETAHUI'), '-', 1)) as sumber_dana,
+        SUM(d.nilai_bruto) as total_bruto,
+        SUM(d.nilai_neto) as total_neto,
+        SUM(d.nilai_bruto - d.nilai_neto) as total_potongan
+      FROM detail_sp2d d
+      JOIN data_sp2d h ON d.id_sp2d = h.id
+      LEFT JOIN master_sumber_dana s ON d.id_sumber_dana = s.id
+      WHERE h.tahun = ${currentYear}
+    `;
+
+    if (month) query += ` AND EXTRACT(MONTH FROM COALESCE(h.tanggal_pencairan, h.tanggal)) = ${parseInt(month)}`;
+    if (opd) query += ` AND h.opd = '${opd.replace(/'/g, "''")}'`;
+    if (jenis) query += ` AND TRIM(SPLIT_PART(REPLACE(h.jenis, '-', ' '), ' ', 1)) = '${jenis.replace(/'/g, "''")}'`;
+    if (sumber_dana) query += ` AND TRIM(SPLIT_PART(s.nama, '-', 1)) = '${sumber_dana.replace(/'/g, "''")}'`;
+
+    query += `
+      GROUP BY h.opd, TRIM(SPLIT_PART(REPLACE(h.jenis, '-', ' '), ' ', 1)), TRIM(SPLIT_PART(COALESCE(s.nama, 'TIDAK DIKETAHUI'), '-', 1))
+      ORDER BY h.opd ASC, jenis_belanja ASC, total_bruto DESC
+    `;
+
+    const rawData = await prisma.$queryRawUnsafe(query);
+
+    const opdTotals = {};
+    rawData.forEach(row => {
+      const val = parseFloat(row.total_bruto) || 0;
+      if (!opdTotals[row.opd]) opdTotals[row.opd] = 0;
+      opdTotals[row.opd] += val;
+    });
+
+    const serializedData = rawData.map(row => {
+      const bruto = parseFloat(row.total_bruto) || 0;
+      return {
+        opd: row.opd,
+        jenis_belanja: row.jenis_belanja,
+        sumber_dana: row.sumber_dana,
+        total_bruto: bruto,
+        total_potongan: parseFloat(row.total_potongan) || 0,
+        total_neto: parseFloat(row.total_neto) || 0,
+        persentase: opdTotals[row.opd] > 0 ? parseFloat(((bruto / opdTotals[row.opd]) * 100).toFixed(2)) : 0
+      };
+    });
+
+    res.json(serializedData);
+
+  } catch (error) {
+    console.error('Error fetching belanja OPD detail:', error);
+    res.status(500).json({ message: 'Error fetching belanja OPD detail', error: error.message });
+  }
+};
+
 module.exports = {
   getBKU,
   getDashboardStats,
@@ -1079,5 +1141,6 @@ module.exports = {
   getOpdTaxSummary,
   getMonthlyTaxAnalytics,
   getBKURister,
-  getPotonganOpdRealisasi
+  getPotonganOpdRealisasi,
+  getBelanjaOpdDetail
 };

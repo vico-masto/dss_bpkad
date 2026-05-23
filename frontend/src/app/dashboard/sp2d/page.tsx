@@ -865,46 +865,50 @@ export default function Sp2dUnifiedPage() {
           >
             {/* Quick Stats Summary */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-               <Card className="bg-fin-surface p-6 rounded-xl border border-fin-border shadow-sm flex items-center gap-4 group hover:border-ds-focus-ring transition-all">
-                  <div className="w-12 h-12 bg-fin-info-bg text-[#175CD3] rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"><Banknote size={24} /></div>
-                  <div>
-                    <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider">Total Bruto (Periode)</p>
-                    <p className="text-xl font-bold text-fin-text-primary mt-0.5">{formatCurrency(data?.totalBruto || 0)}</p>
-                  </div>
-               </Card>
-               <Card className="bg-fin-surface p-6 rounded-xl border border-fin-border shadow-sm flex items-center gap-4 group hover:border-fin-expense transition-all">
-                  <div className="w-12 h-12 bg-[#FEF3F2] text-fin-expense rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"><AlertCircle size={24} /></div>
-                  <div>
-                    <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider">Talangan Aktif</p>
-                    <div className="flex flex-col">
-                       <p className="text-xl font-bold text-[#D92D20] mt-0.5">{formatCurrency(data?.totalNominalTalangan || 0)}</p>
-                       <p className="text-[10px] font-medium text-fin-text-muted">{data?.totalTalangan || 0} Dokumen Terdeteksi</p>
+               <div className="lux-stat lux-stat-navy p-4 rounded-xl flex flex-col group">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[9px] font-bold text-blue-200/70 uppercase tracking-wider">Total Bruto (Periode)</span>
+                    <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                      <Banknote className="w-3.5 h-3.5 text-blue-200" />
                     </div>
                   </div>
-               </Card>
-               <Card className="bg-fin-surface p-6 rounded-xl border border-fin-border shadow-sm flex items-center gap-4 group hover:border-ds-focus-ring transition-all">
-                  <div className="w-12 h-12 bg-[#F5F9FF] text-[#175CD3] rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform"><Activity size={24} /></div>
-                  <div>
-                    <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider">Total Transaksi</p>
-                    <p className="text-xl font-bold text-fin-text-primary mt-0.5">{data?.total || 0} Records</p>
-                  </div>
-               </Card>
-               <Card className={cn(
-                 "bg-fin-surface p-6 rounded-xl border shadow-sm flex items-center gap-4 group transition-all cursor-pointer",
-                 filters.onlySelisih === 'true' ? "border-[#B54708] bg-[#FFFAEB]" : "border-fin-border hover:border-[#B54708]"
-               )} onClick={() => { setFilters({...filters, onlySelisih: filters.onlySelisih === 'true' ? '' : 'true'}); setCurrentPage(1); }}>
-                  <div className={cn(
-                    "w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform",
-                    filters.onlySelisih === 'true' ? "bg-[#B54708] text-white" : "bg-amber-50 text-amber-600"
-                  )}><RefreshCw size={24} className={filters.onlySelisih === 'true' ? "animate-spin-slow" : ""} /></div>
-                  <div>
-                    <p className={cn("text-[10px] font-bold uppercase tracking-wider", filters.onlySelisih === 'true' ? "text-[#B54708]" : "text-fin-text-muted")}>Audit Selisih Bank</p>
-                    <div className="flex flex-col">
-                       <p className="text-xl font-bold text-[#B54708] mt-0.5">{formatCurrency(data?.totalSelisih || 0)}</p>
-                       <p className="text-[10px] font-medium text-[#B54708] opacity-80">{data?.countSelisih || 0} Temuan Selisih</p>
+                  <p className="text-xl font-bold text-white tabular-nums truncate">{formatCurrency(data?.totalBruto || 0)}</p>
+               </div>
+               <div className="lux-stat lux-stat-rose p-4 rounded-xl flex flex-col group">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[9px] font-bold text-red-200/70 uppercase tracking-wider">Talangan Aktif</span>
+                    <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                      <AlertCircle className="w-3.5 h-3.5 text-red-200" />
                     </div>
                   </div>
-               </Card>
+                  <p className="text-xl font-bold text-white tabular-nums truncate">{formatCurrency(data?.totalNominalTalangan || 0)}</p>
+                  <span className="text-[9px] font-medium text-red-200/60 mt-1">{data?.totalTalangan || 0} Dokumen Terdeteksi</span>
+               </div>
+               <div className="lux-stat lux-stat-violet p-4 rounded-xl flex flex-col group">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[9px] font-bold text-violet-200/70 uppercase tracking-wider">Total Transaksi</span>
+                    <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                      <Activity className="w-3.5 h-3.5 text-violet-200" />
+                    </div>
+                  </div>
+                  <p className="text-xl font-bold text-white">{data?.total || 0} Records</p>
+               </div>
+               <div
+                 className={cn(
+                   "lux-stat p-4 rounded-xl flex flex-col group cursor-pointer transition-all hover:opacity-90",
+                   filters.onlySelisih === 'true' ? "lux-stat-amber ring-2 ring-amber-400/40" : "lux-stat-amber"
+                 )}
+                 onClick={() => { setFilters({...filters, onlySelisih: filters.onlySelisih === 'true' ? '' : 'true'}); setCurrentPage(1); }}
+               >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[9px] font-bold text-amber-200/70 uppercase tracking-wider">Audit Selisih Bank</span>
+                    <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                      <RefreshCw className={cn("w-3.5 h-3.5 text-amber-200", filters.onlySelisih === 'true' && "animate-spin-slow")} />
+                    </div>
+                  </div>
+                  <p className="text-xl font-bold text-white tabular-nums truncate">{formatCurrency(data?.totalSelisih || 0)}</p>
+                  <span className="text-[9px] font-medium text-amber-200/60 mt-1">{data?.countSelisih || 0} Temuan Selisih</span>
+               </div>
             </div>
 
             {/* Filter Bar (Modernized Gold Standard) */}

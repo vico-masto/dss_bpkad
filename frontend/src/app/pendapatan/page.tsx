@@ -940,33 +940,29 @@ export default function PendapatanPage() {
           >
             {/* ── STATS ───────────────────────────────────────────────────── */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="bg-fin-surface p-6 rounded-xl border border-fin-border shadow-sm flex items-center gap-4 group hover:border-fin-info transition-all">
-                <div className="w-12 h-12 bg-fin-subtle text-fin-info-text rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Banknote size={24} />
+              <div className="lux-stat lux-stat-navy p-4 rounded-xl flex flex-col group">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] font-bold text-blue-200/70 uppercase tracking-wider">Total Pendapatan (Periode)</span>
+                  <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                    <Banknote className="w-3.5 h-3.5 text-blue-200" />
+                  </div>
                 </div>
-                <div>
-                  <p className="text-micro font-bold text-fin-text-muted uppercase tracking-wider">
-                    Total Pendapatan (Periode)
-                  </p>
-                  <p className="text-xl font-bold text-fin-text-primary mt-0.5">
-                    {formatCurrency(totalNilai || 0)}
-                  </p>
-                </div>
-              </Card>
+                <p className="text-xl font-bold text-white truncate tabular-nums">
+                  {formatCurrency(totalNilai || 0)}
+                </p>
+              </div>
 
-              <Card className="bg-fin-surface p-6 rounded-xl border border-fin-border shadow-sm flex items-center gap-4 group hover:border-fin-info transition-all">
-                <div className="w-12 h-12 bg-fin-subtle text-fin-info-text rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Activity size={24} />
+              <div className="lux-stat lux-stat-emerald p-4 rounded-xl flex flex-col group">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[9px] font-bold text-emerald-200/70 uppercase tracking-wider">Total Transaksi Penerimaan</span>
+                  <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                    <Activity className="w-3.5 h-3.5 text-emerald-200" />
+                  </div>
                 </div>
-                <div>
-                  <p className="text-micro font-bold text-fin-text-muted uppercase tracking-wider">
-                    Total Transaksi Penerimaan
-                  </p>
-                  <p className="text-xl font-bold text-fin-text-primary mt-0.5">
-                    {totalData || 0} Records
-                  </p>
-                </div>
-              </Card>
+                <p className="text-xl font-bold text-white tabular-nums">
+                  {totalData || 0} Records
+                </p>
+              </div>
 
               {(() => {
                 const sortedMonths = [...monthlyTotals].sort(
@@ -989,59 +985,39 @@ export default function PendapatanPage() {
                     })
                   : 'Lalu';
                 return (
-                  <Card className="bg-fin-surface p-6 rounded-xl border border-fin-border shadow-sm flex items-center gap-4 group hover:border-fin-info transition-all">
-                    <div
-                      className={cn(
-                        'w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform',
-                        growth === null
-                          ? 'bg-fin-page text-fin-text-muted'
-                          : growth >= 0
-                          ? 'bg-fin-income-bg text-fin-income'
-                          : 'bg-fin-expense-bg text-fin-expense'
-                      )}
-                    >
-                      {growth === null ? (
-                        <TrendingUp size={24} />
-                      ) : growth >= 0 ? (
-                        <TrendingUp size={24} />
-                      ) : (
-                        <TrendingDown size={24} />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-micro font-bold text-fin-text-muted uppercase tracking-wider">
+                  <div className="lux-stat lux-stat-violet p-4 rounded-xl flex flex-col group">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[9px] font-bold text-violet-200/70 uppercase tracking-wider">
                         Tren Pertumbuhan ({monthName})
-                      </p>
-                      <div className="flex items-baseline gap-2 mt-0.5">
-                        <p
-                          className={cn(
-                            'text-xl font-bold',
-                            growth === null
-                              ? 'text-fin-text-primary'
-                              : growth >= 0
-                              ? 'text-fin-income'
-                              : 'text-fin-expense'
-                          )}
-                        >
-                          {growth !== null
-                            ? `${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%`
-                            : 'Flat / N/A'}
-                        </p>
-                        <p className="text-micro text-fin-text-muted font-medium">
-                          Vs {prevMonthName}
-                        </p>
+                      </span>
+                      <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                        {growth !== null && growth < 0 ? (
+                          <TrendingDown className="w-3.5 h-3.5 text-red-200" />
+                        ) : (
+                          <TrendingUp className="w-3.5 h-3.5 text-violet-200" />
+                        )}
                       </div>
-                      <p className="text-micro text-fin-text-muted mt-1 font-medium truncate">
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <p className={cn(
+                          'text-xl font-bold',
+                          growth === null ? 'text-white' : growth >= 0 ? 'text-emerald-200' : 'text-red-200'
+                        )}
+                      >
                         {growth !== null
-                          ? `Penerimaan ${
-                              growth >= 0 ? 'meningkat' : 'menurun'
-                            } Rp ${formatCurrency(
-                              Math.abs(latest.total - previous.total)
-                            )}`
-                          : 'Data pembanding belum tersedia'}
+                          ? `${growth >= 0 ? '+' : ''}${growth.toFixed(1)}%`
+                          : 'Flat / N/A'}
+                      </p>
+                      <p className="text-[10px] text-violet-200/60 font-medium">
+                        Vs {prevMonthName}
                       </p>
                     </div>
-                  </Card>
+                    <p className="text-[10px] text-violet-200/50 mt-1 font-medium truncate">
+                      {growth !== null
+                        ? `Penerimaan ${growth >= 0 ? 'meningkat' : 'menurun'} ${formatCurrency(Math.abs(latest.total - previous.total))}`
+                        : 'Data pembanding belum tersedia'}
+                    </p>
+                  </div>
                 );
               })()}
             </div>

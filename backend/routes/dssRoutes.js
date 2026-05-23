@@ -30,6 +30,8 @@ router.post('/simulator/scenarios', authMiddleware, simulatorController.saveScen
 router.delete('/simulator/scenarios/:id', authMiddleware, simulatorController.deleteScenario);
 router.get('/simulator/projections', authMiddleware, simulatorController.getProjections);
 router.post('/simulator/projections', authMiddleware, simulatorController.upsertProjection);
+router.post('/simulator/run', authMiddleware, simulatorController.runSimulation);
+router.get('/simulator/auto-project', authMiddleware, simulatorController.autoProjectInflow);
 
 // New Accounting Features
 router.get('/tax-monitoring', authMiddleware, reportController.getTaxMonitoring);

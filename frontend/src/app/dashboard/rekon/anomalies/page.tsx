@@ -206,57 +206,54 @@ export default function AnomalyPage() {
       <TooltipProvider>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[
-            { 
-              label: 'Unmatched SP2D', 
-              count: data?.summary?.totalUnmatchedSP2D || 0, 
-              colorClass: 'text-fin-expense',
-              bgClass: 'bg-fin-expense-bg',
-              borderHoverClass: 'hover:border-fin-expense',
+            {
+              label: 'Unmatched SP2D',
+              count: data?.summary?.totalUnmatchedSP2D || 0,
+              luxClass: 'lux-stat-rose',
+              textColor: 'text-red-200/70',
+              iconColor: 'text-red-200',
               icon: TrendingDown,
               tooltip: 'Daftar SP2D yang sudah terbit namun belum ditemukan kecocokannya pada mutasi debet di rekening koran bank.'
             },
-            { 
-              label: 'Unmatched Inflow', 
-              count: data?.summary?.totalUnmatchedPendapatan || 0, 
-              colorClass: 'text-fin-income',
-              bgClass: 'bg-fin-income-bg',
-              borderHoverClass: 'hover:border-fin-income',
+            {
+              label: 'Unmatched Inflow',
+              count: data?.summary?.totalUnmatchedPendapatan || 0,
+              luxClass: 'lux-stat-emerald',
+              textColor: 'text-emerald-200/70',
+              iconColor: 'text-emerald-200',
               icon: TrendingUp,
               tooltip: 'Data pendapatan/STS yang sudah direkam namun belum ditemukan pada mutasi kredit di rekening koran bank.'
             },
-            { 
-              label: 'Selisih Potongan', 
-              count: data?.summary?.totalUnmatchedPotongan || 0, 
-              colorClass: 'text-fin-info',
-              bgClass: 'bg-fin-info-bg',
-              borderHoverClass: 'hover:border-fin-info',
+            {
+              label: 'Selisih Potongan',
+              count: data?.summary?.totalUnmatchedPotongan || 0,
+              luxClass: 'lux-stat-cyan',
+              textColor: 'text-cyan-200/70',
+              iconColor: 'text-cyan-200',
               icon: ShieldAlert,
               tooltip: 'Daftar rincian potongan/pajak yang belum ditemukan pasangannya di mutasi bank (NTPN belum klop).'
             },
-            { 
-              label: 'Unidentified Bank', 
-              count: data?.summary?.totalUnidentifiedBank || 0, 
-              colorClass: 'text-fin-warning',
-              bgClass: 'bg-fin-warning-bg',
-              borderHoverClass: 'hover:border-fin-warning',
+            {
+              label: 'Unidentified Bank',
+              count: data?.summary?.totalUnidentifiedBank || 0,
+              luxClass: 'lux-stat-amber',
+              textColor: 'text-amber-200/70',
+              iconColor: 'text-amber-200',
               icon: HelpCircle,
               tooltip: 'Transaksi pada rekening koran bank yang sama sekali belum terhubung dengan data SP2D maupun Pendapatan di aplikasi.'
             }
           ].map((stat, i) => (
             <Tooltip key={i}>
               <TooltipTrigger asChild>
-                <Card className={cn(
-                  "bg-fin-surface p-6 rounded-xl border border-fin-border shadow-sm flex items-center gap-4 group transition-all cursor-help",
-                  stat.borderHoverClass
-                )}>
-                  <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform", stat.bgClass, stat.colorClass)}>
-                    <stat.icon size={24} />
+                <div className={cn("lux-stat p-4 rounded-xl flex flex-col group cursor-help", stat.luxClass)}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className={cn("text-[9px] font-bold uppercase tracking-wider", stat.textColor)}>{stat.label}</p>
+                    <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                      <stat.icon className={cn("w-3.5 h-3.5", stat.iconColor)} />
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider">{stat.label}</p>
-                    <p className="text-xl font-bold text-fin-text-primary mt-0.5">{stat.count}</p>
-                  </div>
-                </Card>
+                  <p className="text-xl font-bold text-white">{stat.count}</p>
+                </div>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="bg-ds-primary text-white border-none rounded-lg p-3 text-xs max-w-[250px] font-medium leading-relaxed">
                 {stat.tooltip}

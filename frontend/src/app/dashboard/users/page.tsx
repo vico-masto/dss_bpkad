@@ -340,7 +340,7 @@ export default function UserManagementPage() {
                       </TableCell>
                       <TableCell className="px-8 py-6">
                          <p className="text-[11px] text-fin-text-muted font-bold uppercase">
-                           {new Date(u.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                           {u.created_at ? new Date(u.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
                          </p>
                       </TableCell>
                       <TableCell className="px-8 py-6 text-center">

@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { TransitionLink as Link } from './TransitionLink';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   ChevronDown,
   ChevronRight,
   LayoutDashboard,
-  FilePlus,
   Wallet,
   BookOpen,
   Database,
@@ -15,7 +14,6 @@ import {
   ShieldCheck,
   CreditCard,
   PlusSquare,
-  LogOut,
   FileText,
   Activity,
   User,
@@ -33,18 +31,64 @@ import {
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: boolean; setIsCollapsed: (v: boolean) => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentTab = searchParams.get('tab');
   
   const [openGroups, setOpenGroups] = useState<string[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (userStr) setUser(JSON.parse(userStr));
   }, []);
+
+  // Auto-expand sidebar group that contains the active page
+  useEffect(() => {
+    const menuStructureLocal = [
+      { title: 'Dashboard', items: [] as { href: string }[] },
+      { title: 'Analisa', items: [
+        { href: '/dashboard/simulator' }, { href: '/dashboard/analisa/belanja-opd' }
+      ]},
+      { title: 'Transaksi Kas Masuk', items: [
+        { href: '/pendapatan?tab=rekam' }, { href: '/pendapatan?tab=arsip' }
+      ]},
+      { title: 'Transaksi Kas Keluar', items: [
+        { href: '/dashboard/sp2d?tab=rekam' }, { href: '/dashboard/sp2d?tab=arsip' }, { href: '/dashboard/sp2d/kelengkapan' }
+      ]},
+      { title: 'Manajemen Potongan', items: [
+        { href: '/dashboard/pajak?tab=rekam' }, { href: '/dashboard/pajak?tab=arsip' }, { href: '/dashboard/ledgers/potongan-opd' }
+      ]},
+      { title: 'Rekonsiliasi Bank', items: [
+        { href: '/dashboard/rekon/bank' }, { href: '/dashboard/rekon' }, { href: '/dashboard/rekon/discrepancy' }, { href: '/dashboard/rekon/anomalies' }
+      ]},
+      { title: 'Laporan', items: [
+        { href: '/dashboard/bku' }, { href: '/dashboard/jurnal' }, { href: '/dashboard/talangan' }, { href: '/dashboard/penyesuaian' }
+      ]},
+      { title: 'Buku Pembantu', items: [
+        { href: '/dashboard/ledgers/bank' }, { href: '/dashboard/ledgers/pajak' }, { href: '/dashboard/ledgers/opd' }
+      ]},
+      { title: 'Administrator', items: [
+        { href: '/dashboard/master-data' }, { href: '/dashboard/saldo-awal' }, { href: '/dashboard/logs' }, { href: '/dashboard/users' }, { href: '/dashboard/settings' }
+      ]},
+    ];
+
+    const activeGroup = menuStructureLocal.find(group =>
+      group.items.some(item => {
+        const url = new URL(item.href, 'http://localhost');
+        return pathname.startsWith(url.pathname);
+      })
+    );
+    if (activeGroup && !openGroups.includes(activeGroup.title)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpenGroups(prev => [...new Set([...prev, activeGroup.title])]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   const toggleGroup = (group: string) => {
     setOpenGroups(prev => 
@@ -52,6 +96,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
     );
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sidebarVariants: any = {
     expanded: { 
       width: '240px',
@@ -80,6 +125,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
       dotColor: 'bg-[#6941C6]',
       items: [
         { name: 'Simulator Kas Cerdas', href: '/dashboard/simulator', icon: Activity },
+        { name: 'Analisis Belanja OPD', href: '/dashboard/analisa/belanja-opd', icon: BarChart3 },
       ]
     },
     {
@@ -119,6 +165,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
         { name: 'Manajemen Rekening Koran', href: '/dashboard/rekon/bank', icon: Database },
         { name: 'Rekonsiliasi Cerdas', href: '/dashboard/rekon', icon: RefreshCw },
         { name: 'Laporan Selisih', href: '/dashboard/rekon/discrepancy', icon: BarChart3 },
+        { name: 'Potongan Mengendap', href: '/dashboard/rekon/potongan-mengendap', icon: FileText },
         { name: 'Integritas Data', href: '/dashboard/rekon/anomalies', icon: ShieldAlert },
       ]
     },
@@ -170,7 +217,10 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
     
     const role = user.role;
     
-    // Admin dapat melihat seluruh menu
+    // Hide 'Administrator' group completely from sidebar as it is now in the Profile dropdown
+    if (group.title === 'Administrator') return false;
+
+    // Admin dapat melihat seluruh menu lainnya
     if (role === 'admin') return true;
     
     // Operator Penerimaan hanya melihat Transaksi Kas Masuk
@@ -188,22 +238,22 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
   });
 
   return (
-    <motion.aside 
-      id="sidebar" 
+    <motion.aside
+      id="sidebar"
       initial={false}
       animate={isCollapsed ? "collapsed" : "expanded"}
       variants={sidebarVariants}
       className="bg-fin-surface border-r border-fin-border h-screen sticky top-0 flex flex-col shrink-0 z-40 overflow-hidden shadow-xl"
     >
       {/* Institution Branding */}
-      <div className="h-20 flex items-center px-5 border-b border-fin-border bg-fin-page/30 dark:bg-slate-950/20">
+      <div className="h-14 flex items-center px-5 border-b border-fin-border bg-fin-page/30 dark:bg-slate-950/20">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-fin-text-primary dark:bg-ds-primary rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/10 transition-transform hover:scale-105">
-            <Activity size={20} className="text-white dark:text-indigo-50" />
+          <div className="w-8 h-8 bg-fin-text-primary dark:bg-ds-primary rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/10 transition-transform hover:scale-105">
+            <Activity size={16} className="text-white dark:text-indigo-50" />
           </div>
           <div>
-            <h1 className="text-[15px] font-bold text-fin-text-primary tracking-tight leading-none">DSS BPKAD</h1>
-            <p className="text-xs text-fin-text-secondary mt-1.5 font-medium leading-none">Kab. Kepulauan Aru</p>
+            <h1 className="text-[14px] font-bold text-fin-text-primary tracking-tight leading-none">DSS BPKAD</h1>
+            <p className="text-[10px] text-fin-text-secondary mt-1 font-medium leading-none">Kab. Kepulauan Aru</p>
           </div>
         </div>
       </div>
@@ -221,9 +271,9 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
         {filteredMenuStructure.map((group) => (
           <div key={group.title} className="mb-1">
             <div className="mx-3 h-px bg-fin-subtle mb-1 mt-2 first:hidden" />
-            
+
             {group.title === 'Dashboard' ? (
-              <Link 
+              <Link
                 href="/dashboard"
                 className={cn(
                   "w-full flex items-center justify-between px-3 py-2 mt-1 text-xs font-bold transition-all rounded-lg group/header",
@@ -242,7 +292,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
               </Link>
             ) : (
               <>
-                <button 
+                <button
                   onClick={() => toggleGroup(group.title)}
                   className="w-full flex items-center justify-between px-3 py-2 mt-1 text-xs font-bold text-fin-text-primary hover:bg-fin-page transition-all rounded-lg group/header"
                 >
@@ -262,7 +312,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
 
                 <AnimatePresence>
                   {openGroups.includes(group.title) && (
-                    <motion.div 
+                    <motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
@@ -273,26 +323,25 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
                         const url = new URL(item.href, 'http://localhost');
                         const itemPath = url.pathname;
                         const itemTab = url.searchParams.get('tab');
-                        
+
                         const isPathMatch = pathname === itemPath;
                         const isTabMatch = currentTab === itemTab;
-                        
-                        // Active if path matches AND (no tab requested OR tab matches)
+
                         const isActive = isPathMatch && (itemTab ? isTabMatch : !currentTab);
-                        
+
                         return (
                           <Link
                             key={item.name}
                             href={item.href}
                             className={cn(
-                              "flex items-center pl-11 pr-3 py-1.5 rounded-lg transition-colors text-[12px] relative",
-                              isActive 
-                                ? "bg-fin-subtle dark:bg-indigo-900/10 text-fin-text-primary font-medium" 
+                              "flex items-center pl-11 pr-3 py-2.5 rounded-lg transition-colors text-[12px] relative",
+                              isActive
+                                ? "bg-fin-subtle dark:bg-indigo-900/10 text-fin-text-primary font-semibold"
                                 : "text-fin-text-secondary hover:bg-fin-page hover:text-fin-text-primary"
                             )}
                           >
                             {isActive && (
-                              <div className="absolute left-4 top-1/2 -translate-y-1/2 w-[2px] h-3 bg-fin-text-primary dark:bg-amber-400 rounded-r-full" />
+                              <div className="absolute left-4 top-1/2 -translate-y-1/2 w-[3px] h-4 bg-fin-text-primary dark:bg-amber-400 rounded-r-full" />
                             )}
                             <item.icon size={14} className={cn("mr-3 flex-shrink-0", isActive ? "text-fin-text-primary" : "text-fin-text-muted")} />
                             <span className="truncate">{item.name}</span>

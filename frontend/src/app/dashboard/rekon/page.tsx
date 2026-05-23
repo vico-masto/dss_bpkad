@@ -106,6 +106,7 @@ export default function ReconciliationPage() {
 
   const [smartGroupValue, setSmartGroupValue] = useState<number | null>(null);
   const [batchProgress, setBatchProgress] = useState<{ current: number, total: number, isOpen: boolean }>({ current: 0, total: 0, isOpen: false });
+  const [aiNotes, setAiNotes] = useState<Record<string, string>>({});
   const [manualPairingMap, setManualPairingMap] = useState<Record<number, number>>({}); // Maps Bank Sequence (#1, #2...) to BKU ID
   const [bankTypeFilter, setBankTypeFilter] = useState<'ALL' | 'PENERIMAAN' | 'PENGELUARAN'>('ALL');
 
@@ -746,49 +747,57 @@ export default function ReconciliationPage() {
 
       {/* SUMMARY STATS (The Gold Standard) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-5">
-        <Card className="bg-fin-surface p-5 rounded-xl border border-fin-border shadow-sm">
-           <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest mb-1">Total Penerimaan (BKU)</p>
-           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-fin-text-primary tabular-nums truncate">
-             {isLoading ? '...' : formatCurrency(data?.summary?.totalBkuMasuk || 0)}
-           </h3>
-           <div className="flex items-center gap-2 mt-2">
-              <TrendingUp size={12} className="text-emerald-500" />
-              <span className="text-[9px] font-bold text-emerald-500 uppercase">Penerimaan Kas</span>
-           </div>
-        </Card>
+        <div className="lux-stat lux-stat-emerald p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-bold text-emerald-200/70 uppercase tracking-widest">Total Penerimaan (BKU)</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-200" />
+            </div>
+          </div>
+          <h3 className="text-lg xl:text-xl font-bold tracking-tight text-white tabular-nums truncate">
+            {isLoading ? '...' : formatCurrency(data?.summary?.totalBkuMasuk || 0)}
+          </h3>
+          <span className="text-[9px] font-bold text-emerald-200/60 uppercase mt-2">Penerimaan Kas</span>
+        </div>
 
-        <Card className="bg-fin-surface p-5 rounded-xl border border-fin-border shadow-sm">
-           <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest mb-1">Total Belanja (BKU)</p>
-           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-fin-text-primary tabular-nums truncate">
-             {isLoading ? '...' : formatCurrency(data?.summary?.totalBku || 0)}
-           </h3>
-           <div className="flex items-center gap-2 mt-2">
-              <Database size={12} className="text-fin-info-text" />
-              <span className="text-[9px] font-bold text-fin-info-text uppercase">Pengeluaran Kas</span>
-           </div>
-        </Card>
+        <div className="lux-stat lux-stat-rose p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-bold text-red-200/70 uppercase tracking-widest">Total Belanja (BKU)</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <Database className="w-3.5 h-3.5 text-red-200" />
+            </div>
+          </div>
+          <h3 className="text-lg xl:text-xl font-bold tracking-tight text-white tabular-nums truncate">
+            {isLoading ? '...' : formatCurrency(data?.summary?.totalBku || 0)}
+          </h3>
+          <span className="text-[9px] font-bold text-red-200/60 uppercase mt-2">Pengeluaran Kas</span>
+        </div>
 
-        <Card className="bg-fin-surface p-5 rounded-xl border border-fin-border shadow-sm">
-           <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest mb-1">BKU Belum Rekon</p>
-           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-rose-500 tabular-nums truncate">
-             {isLoading ? '...' : formatCurrency(data?.summary?.totalUnmatched || 0)}
-           </h3>
-           <div className="flex items-center gap-2 mt-2">
-              <AlertTriangle size={12} className="text-rose-500" />
-              <span className="text-[9px] font-bold text-rose-500 uppercase">Menunggu Audit</span>
-           </div>
-        </Card>
+        <div className="lux-stat lux-stat-amber p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-bold text-amber-200/70 uppercase tracking-widest">BKU Belum Rekon</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-200" />
+            </div>
+          </div>
+          <h3 className="text-lg xl:text-xl font-bold tracking-tight text-white tabular-nums truncate">
+            {isLoading ? '...' : formatCurrency(data?.summary?.totalUnmatched || 0)}
+          </h3>
+          <span className="text-[9px] font-bold text-amber-200/60 uppercase mt-2">Menunggu Audit</span>
+        </div>
 
-        <Card className="bg-fin-surface p-5 rounded-xl border border-fin-border border-t-4 border-t-amber-500 shadow-sm">
-           <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-1">Saldo RKUD (Real)</p>
-           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-fin-text-primary tabular-nums truncate">
-             {isLoading ? '...' : formatCurrency(data?.summary?.bankBalance || 0)}
-           </h3>
-           <div className="flex items-center gap-2 mt-2">
-              <ShieldCheck size={12} className="text-amber-500" />
-              <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest">Validated Bank Position</span>
-           </div>
-        </Card>
+        <div className="lux-stat lux-stat-navy p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-bold text-blue-200/70 uppercase tracking-widest">Saldo RKUD (Real)</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <ShieldCheck className="w-3.5 h-3.5 text-blue-200" />
+            </div>
+          </div>
+          <h3 className="text-lg xl:text-xl font-bold tracking-tight text-white tabular-nums truncate">
+            {isLoading ? '...' : formatCurrency(data?.summary?.bankBalance || 0)}
+          </h3>
+          <span className="text-[9px] font-bold text-blue-200/60 uppercase mt-2">Validated Bank Position</span>
+        </div>
       </div>
 
       {/* FILTER BAR (Modernized Gold Standard) */}
@@ -1685,8 +1694,8 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                                  </div>
                                               </div>
 
-                                              <div className="flex justify-between items-center pt-2 border-t border-fin-border">
-                                                 <div className="flex items-center gap-1">
+                                              <div className="flex justify-between items-center pt-2 border-t border-fin-border gap-2">
+                                                 <div className="flex items-center gap-1 shrink-0">
                                                     <p className="text-[7px] font-black text-fin-text-muted uppercase">Selisih:</p>
                                                     <p className={cn(
                                                        "text-[9px] font-black tabular-nums",
@@ -1694,7 +1703,15 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                                     )}>{formatCurrency(selisih)}</p>
                                                  </div>
                                                  
-                                                 <div className="flex items-center gap-1.5">
+                                                 <Input
+                                                   value={aiNotes[sug.id] || ''}
+                                                   onChange={(e) => setAiNotes({...aiNotes, [sug.id]: e.target.value})}
+                                                   onClick={(e) => e.stopPropagation()}
+                                                   placeholder="Catatan..."
+                                                   className="h-6 w-full max-w-[120px] bg-fin-surface border-fin-border text-[9px] font-bold text-fin-text-primary px-2 py-0"
+                                                 />
+
+                                                 <div className="flex items-center gap-1.5 shrink-0">
                                                     <TooltipProvider>
                                                        <Tooltip>
                                                           <TooltipTrigger asChild>
@@ -1715,13 +1732,14 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                                                          ? '/reports/reconciliation/match-multiple' 
                                                                          : '/reports/reconciliation/match-individual';
                                                                       
+                                                                      const customNote = aiNotes[sug.id] || manualRef || 'Konfirmasi Instan AI';
                                                                       const payload = isMultiple 
-                                                                         ? { bkuId: sug.id, bankIds: selectedBankIds, keterangan_admin: manualRef || 'Konfirmasi Instan AI' }
+                                                                         ? { bkuId: sug.id, bankIds: selectedBankIds, keterangan_admin: customNote }
                                                                          : { 
                                                                             bkuId: sug.id, 
                                                                             bankId: selectedBankIds[0], 
                                                                             match_type: sug.match_mode, // Gunakan match_mode dari AI
-                                                                            keterangan_admin: manualRef || 'Konfirmasi Instan AI' 
+                                                                            keterangan_admin: customNote 
                                                                          };
 
                                                                       await api.post(endpoint, payload);
@@ -1904,12 +1922,12 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
 
             <div className="flex items-center gap-3">
               <div className="flex flex-col items-end">
-                <span className="text-[6px] font-black text-fin-text-muted uppercase tracking-widest mb-1">Nomor Manual</span>
+                <span className="text-[6px] font-black text-fin-text-muted uppercase tracking-widest mb-1">Catatan Audit AI</span>
                 <Input 
                    value={manualRef}
                    onChange={(e) => setManualRef(e.target.value)}
-                   placeholder="No. Ref / Group"
-                   className="h-7 w-28 bg-fin-page border-fin-border text-fin-text-primary text-[9px] font-black placeholder:text-fin-text-muted rounded-lg focus:ring-emerald-500"
+                   placeholder="Ket. Selisih / Group"
+                   className="h-7 w-36 bg-fin-page border-fin-border text-fin-text-primary text-[9px] font-black placeholder:text-fin-text-muted rounded-lg focus:ring-emerald-500"
                 />
               </div>
               <div className="flex flex-col items-end">

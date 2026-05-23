@@ -177,36 +177,45 @@ export default function OpdLedgerPage() {
 
       {/* SUMMARY CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="border-fin-border shadow-sm bg-fin-surface overflow-hidden relative group">
-           <CardContent className="p-6">
-              <p className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-1">Pagu Anggaran OPD</p>
-              <h3 className="text-2xl font-black text-fin-text-primary tabular-nums">
-                {isLoading ? '...' : formatCurrency(data?.summary?.totalPagu || 0)}
-              </h3>
-           </CardContent>
-        </Card>
-        <Card className="border-fin-border shadow-sm bg-fin-surface overflow-hidden relative group">
-           <CardContent className="p-6">
-              <p className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-1">Total Realisasi (Bruto)</p>
-              <h3 className="text-2xl font-black text-fin-info tabular-nums">
-                {isLoading ? '...' : formatCurrency(data?.summary?.totalRealisasi || 0)}
-              </h3>
-              <div className="mt-2 flex items-center gap-2">
-                 <div className="flex-1 h-1 bg-fin-subtle rounded-full overflow-hidden">
-                    <div className="h-full bg-fin-info" style={{ width: `${Math.min(100, data?.summary?.persentase || 0)}%` }} />
-                 </div>
-                 <span className="text-[10px] font-black text-fin-info">{data?.summary?.persentase?.toFixed(1)}%</span>
-              </div>
-           </CardContent>
-        </Card>
-        <Card className="border-fin-income/20 shadow-sm bg-fin-income-bg overflow-hidden relative group">
-           <CardContent className="p-5">
-              <p className="text-[10px] font-black text-fin-income uppercase tracking-widest mb-1">Sisa Pagu Anggaran</p>
-              <h3 className="text-2xl font-black text-fin-income tabular-nums">
-                {isLoading ? '...' : formatCurrency(data?.summary?.sisaPagu || 0)}
-              </h3>
-           </CardContent>
-        </Card>
+        <div className="lux-stat lux-stat-navy p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-blue-200/70 uppercase tracking-widest">Pagu Anggaran OPD</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <Building2 className="w-3.5 h-3.5 text-blue-200" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-white tabular-nums">
+            {isLoading ? '...' : formatCurrency(data?.summary?.totalPagu || 0)}
+          </h3>
+        </div>
+        <div className="lux-stat lux-stat-cyan p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-cyan-200/70 uppercase tracking-widest">Total Realisasi (Bruto)</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <TrendingUp className="w-3.5 h-3.5 text-cyan-200" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-white tabular-nums">
+            {isLoading ? '...' : formatCurrency(data?.summary?.totalRealisasi || 0)}
+          </h3>
+          <div className="mt-2 flex items-center gap-2">
+            <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
+              <div className="h-full bg-cyan-300" style={{ width: `${Math.min(100, data?.summary?.persentase || 0)}%` }} />
+            </div>
+            <span className="text-[10px] font-black text-cyan-200">{data?.summary?.persentase?.toFixed(1)}%</span>
+          </div>
+        </div>
+        <div className="lux-stat lux-stat-emerald p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-emerald-200/70 uppercase tracking-widest">Sisa Pagu Anggaran</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <LayoutGrid className="w-3.5 h-3.5 text-emerald-200" />
+            </div>
+          </div>
+          <h3 className="text-2xl font-black text-white tabular-nums">
+            {isLoading ? '...' : formatCurrency(data?.summary?.sisaPagu || 0)}
+          </h3>
+        </div>
       </div>
 
       {/* DATA TABLE */}

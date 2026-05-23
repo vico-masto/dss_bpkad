@@ -527,102 +527,63 @@ export default function TalanganPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
-         <motion.div 
-           initial={{ opacity: 0, y: 10 }}
-           animate={{ opacity: 1, y: 0 }}
-           className="group"
-         >
-           <Card className="p-5 rounded-xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300">
-              <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-fin-info-text transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
-                 <Banknote size={100} />
-              </div>
-              <div className="flex justify-between items-start relative z-10">
-                <div className="space-y-1">
-                   <p className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest">Total Bailout (Bruto)</p>
-                   <h2 className="text-xl font-black tracking-tight text-fin-text-primary">
-                     {formatCurrency(summary.total_diberikan)}
-                   </h2>
-                </div>
-                <div className="w-9 h-9 bg-fin-info-bg text-fin-info-text rounded-xl flex items-center justify-center border border-fin-info-text/20">
-                   <Banknote size={18} />
+         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="group">
+           <div className="lux-stat lux-stat-navy p-4 rounded-xl flex flex-col hover:opacity-95 transition-all duration-300">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] font-bold text-blue-200/70 uppercase tracking-widest">Total Bailout (Bruto)</span>
+                <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                  <Banknote className="w-3.5 h-3.5 text-blue-200" />
                 </div>
               </div>
-           </Card>
+              <h2 className="text-xl font-black tracking-tight text-white tabular-nums truncate">
+                {formatCurrency(summary.total_diberikan)}
+              </h2>
+           </div>
          </motion.div>
 
-         <motion.div 
-           initial={{ opacity: 0, y: 10 }}
-           animate={{ opacity: 1, y: 0 }}
-           transition={{ delay: 0.1 }}
-           className="group"
-         >
-           <Card className="p-5 rounded-xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300">
-              <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-fin-success-text transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
-                 <CheckCircle2 size={100} />
-              </div>
-              <div className="flex justify-between items-start relative z-10">
-                <div className="space-y-1">
-                   <p className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest">Terselesaikan (Lunas)</p>
-                   <h2 className="text-xl font-black tracking-tight text-fin-text-primary">
-                     {formatCurrency(summary.total_dikembalikan)}
-                   </h2>
-                </div>
-                <div className="w-9 h-9 bg-fin-success-bg text-fin-success-text rounded-xl flex items-center justify-center border border-fin-success-text/20">
-                   <CheckCircle2 size={18} />
+         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="group">
+           <div className="lux-stat lux-stat-emerald p-4 rounded-xl flex flex-col hover:opacity-95 transition-all duration-300">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] font-bold text-emerald-200/70 uppercase tracking-widest">Terselesaikan (Lunas)</span>
+                <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
                 </div>
               </div>
-           </Card>
+              <h2 className="text-xl font-black tracking-tight text-white tabular-nums truncate">
+                {formatCurrency(summary.total_dikembalikan)}
+              </h2>
+           </div>
          </motion.div>
 
-         <motion.div 
-           initial={{ opacity: 0, y: 10 }}
-           animate={{ opacity: 1, y: 0 }}
-           transition={{ delay: 0.2 }}
-           className="group"
-         >
-           <Card className="p-5 rounded-xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300">
-              <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-[#F79009] transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
-                 <Clock size={100} />
-              </div>
-              <div className="flex justify-between items-start relative z-10">
-                <div className="space-y-1">
-                   <p className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest">Outstanding (Piutang)</p>
-                   <h2 className="text-xl font-black tracking-tight text-[#B54708]">
-                     {formatCurrency(summary.outstanding)}
-                   </h2>
-                </div>
-                <div className="w-9 h-9 bg-[#FFFAEB] text-[#F79009] rounded-xl flex items-center justify-center border border-[#FEF0C7]">
-                   <Clock size={18} />
+         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="group">
+           <div className="lux-stat lux-stat-amber p-4 rounded-xl flex flex-col hover:opacity-95 transition-all duration-300">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] font-bold text-amber-200/70 uppercase tracking-widest">Outstanding (Piutang)</span>
+                <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                  <Clock className="w-3.5 h-3.5 text-amber-200" />
                 </div>
               </div>
-           </Card>
+              <h2 className="text-xl font-black tracking-tight text-white tabular-nums truncate">
+                {formatCurrency(summary.outstanding)}
+              </h2>
+           </div>
          </motion.div>
 
-         <motion.div 
-           initial={{ opacity: 0, y: 10 }}
-           animate={{ opacity: 1, y: 0 }}
-           transition={{ delay: 0.3 }}
-           className="group"
-         >
-           <Card className="p-5 rounded-xl border-fin-border shadow-sm relative overflow-hidden bg-fin-surface hover:shadow-md transition-all duration-300">
-              <div className="absolute -top-4 -right-4 p-8 opacity-[0.03] text-[#D92D20] transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12">
-                 <ShieldAlert size={100} />
-              </div>
-              <div className="flex justify-between items-start relative z-10">
-                <div className="space-y-1">
-                   <p className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest">Risiko Tinggi (&gt;14 Hr)</p>
-                   <h2 className="text-xl font-black tracking-tight text-[#D92D20]">
-                     {getGroupedBailout().filter((g: any) => {
-                       const days = Math.floor((new Date().getTime() - new Date(g.tanggal).getTime()) / (1000 * 3600 * 24));
-                       return g.status === 'BELUM' && days > 14;
-                     }).length} Dokumen
-                   </h2>
-                </div>
-                <div className="w-9 h-9 bg-[#FEF3F2] text-[#D92D20] rounded-xl flex items-center justify-center border border-[#FEE4E2]">
-                   <ShieldAlert size={18} />
+         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="group">
+           <div className="lux-stat lux-stat-rose p-4 rounded-xl flex flex-col hover:opacity-95 transition-all duration-300">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] font-bold text-red-200/70 uppercase tracking-widest">Risiko Tinggi (&gt;14 Hr)</span>
+                <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+                  <ShieldAlert className="w-3.5 h-3.5 text-red-200" />
                 </div>
               </div>
-           </Card>
+              <h2 className="text-xl font-black tracking-tight text-white">
+                {getGroupedBailout().filter((g: any) => {
+                  const days = Math.floor((new Date().getTime() - new Date(g.tanggal).getTime()) / (1000 * 3600 * 24));
+                  return g.status === 'BELUM' && days > 14;
+                }).length} Dokumen
+              </h2>
+           </div>
          </motion.div>
       </div>
 

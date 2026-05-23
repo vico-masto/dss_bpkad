@@ -600,10 +600,15 @@ const deleteSp2d = async (req, res) => {
 
 const getOpdList = async (req, res) => {
   try {
-    const opds = await prisma.master_opd.findMany({ orderBy: { urutan: 'asc' } });
+    const opds = await prisma.$queryRaw(Prisma.sql`
+      SELECT id, nama FROM master_opd
+      ORDER BY
+        CASE WHEN id ~ '^[0-9]+$' THEN id::integer ELSE NULL END ASC NULLS LAST,
+        id ASC
+    `);
     res.json(opds.map(row => row.nama));
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching OPD list' });
+    res.status(500).json({ message: 'Error fetching OPD list', error: err.message });
   }
 };
 
@@ -622,10 +627,15 @@ const getDistinctOpd = async (req, res) => {
 
 const getJenisList = async (req, res) => {
   try {
-    const jenis = await prisma.master_jenis_belanja.findMany({ orderBy: { urutan: 'asc' } });
+    const jenis = await prisma.$queryRaw(Prisma.sql`
+      SELECT id, nama FROM master_jenis_belanja
+      ORDER BY
+        CASE WHEN id ~ '^[0-9]+$' THEN id::integer ELSE NULL END ASC NULLS LAST,
+        id ASC
+    `);
     res.json(jenis.map(row => row.nama));
   } catch (err) {
-    res.status(500).json({ message: 'Error fetching Jenis Belanja list' });
+    res.status(500).json({ message: 'Error fetching Jenis Belanja list', error: err.message });
   }
 };
 

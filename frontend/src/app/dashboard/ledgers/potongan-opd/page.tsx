@@ -289,65 +289,61 @@ export default function RealisasiPotonganOpdPage() {
 
       {/* SUMMARY CARDS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="border-fin-border shadow-sm bg-fin-surface overflow-hidden relative group">
-          <div className="absolute top-0 right-0 p-6 opacity-5 -mr-4 -mt-4 rotate-12 group-hover:scale-110 transition-transform">
-            <Building2 size={80} />
+        <div className="lux-stat lux-stat-navy p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-blue-200/70 uppercase tracking-widest">Total Dipungut</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <Building2 className="w-3.5 h-3.5 text-blue-200" />
+            </div>
           </div>
-          <CardContent className="p-5">
-            <p className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-1">Total Dipungut</p>
-            <h3 className="text-xl font-black text-fin-text-primary tabular-nums">
-              {isLoading ? '...' : formatCurrency(summary.totalDipungut)}
-            </h3>
-            <p className="text-[10px] text-fin-text-muted mt-1">{summary.jumlahOpd} OPD</p>
-          </CardContent>
-        </Card>
+          <h3 className="text-xl font-black text-white tabular-nums truncate">
+            {isLoading ? '...' : formatCurrency(summary.totalDipungut)}
+          </h3>
+          <span className="text-[9px] text-blue-200/50 mt-1">{summary.jumlahOpd} OPD</span>
+        </div>
 
-        <Card className="border-fin-border shadow-sm bg-fin-surface overflow-hidden relative group">
-          <div className="absolute top-0 right-0 p-6 opacity-5 -mr-4 -mt-4 -rotate-12 group-hover:scale-110 transition-transform">
-            <CheckCircle2 size={80} />
+        <div className="lux-stat lux-stat-emerald p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-emerald-200/70 uppercase tracking-widest">Total Disetor</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />
+            </div>
           </div>
-          <CardContent className="p-5">
-            <p className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-1">Total Disetor</p>
-            <h3 className="text-xl font-black text-fin-income tabular-nums">
-              {isLoading ? '...' : formatCurrency(summary.totalDisetor)}
-            </h3>
-            <p className="text-[10px] text-fin-text-muted mt-1">
-              {summary.totalDipungut > 0
-                ? `${((summary.totalDisetor / summary.totalDipungut) * 100).toFixed(1)}% realisasi`
-                : '—'}
-            </p>
-          </CardContent>
-        </Card>
+          <h3 className="text-xl font-black text-white tabular-nums truncate">
+            {isLoading ? '...' : formatCurrency(summary.totalDisetor)}
+          </h3>
+          <span className="text-[9px] text-emerald-200/50 mt-1">
+            {summary.totalDipungut > 0 ? `${((summary.totalDisetor / summary.totalDipungut) * 100).toFixed(1)}% realisasi` : '—'}
+          </span>
+        </div>
 
-        <Card className="border-fin-expense/20 shadow-sm bg-fin-expense-bg overflow-hidden relative group">
-          <div className="absolute top-0 right-0 p-6 opacity-10 -mr-4 -mt-4 group-hover:scale-110 transition-transform">
-            <TrendingDown size={80} className="text-fin-expense" />
+        <div className="lux-stat lux-stat-rose p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-red-200/70 uppercase tracking-widest">Selisih / Outstanding</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <TrendingDown className="w-3.5 h-3.5 text-red-200" />
+            </div>
           </div>
-          <CardContent className="p-5">
-            <p className="text-[10px] font-black text-fin-expense uppercase tracking-widest mb-1">Selisih / Outstanding</p>
-            <h3 className="text-xl font-black text-fin-expense tabular-nums">
-              {isLoading ? '...' : formatCurrency(summary.selisih)}
-            </h3>
-            <p className="text-[10px] text-fin-expense/70 mt-1">
-              {summary.totalDipungut > 0
-                ? `${((summary.selisih / summary.totalDipungut) * 100).toFixed(1)}% outstanding`
-                : '—'}
-            </p>
-          </CardContent>
-        </Card>
+          <h3 className="text-xl font-black text-white tabular-nums truncate">
+            {isLoading ? '...' : formatCurrency(summary.selisih)}
+          </h3>
+          <span className="text-[9px] text-red-200/50 mt-1">
+            {summary.totalDipungut > 0 ? `${((summary.selisih / summary.totalDipungut) * 100).toFixed(1)}% outstanding` : '—'}
+          </span>
+        </div>
 
-        <Card className="border-fin-border shadow-sm bg-fin-surface overflow-hidden relative group">
-          <div className="absolute top-0 right-0 p-6 opacity-5 -mr-4 -mt-4 rotate-6 group-hover:scale-110 transition-transform">
-            <Receipt size={80} />
+        <div className="lux-stat lux-stat-violet p-4 rounded-xl flex flex-col group">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[9px] font-black text-violet-200/70 uppercase tracking-widest">Jumlah Dokumen</span>
+            <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+              <Receipt className="w-3.5 h-3.5 text-violet-200" />
+            </div>
           </div>
-          <CardContent className="p-5">
-            <p className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-1">Jumlah Dokumen</p>
-            <h3 className="text-xl font-black text-fin-text-primary tabular-nums">
-              {isLoading ? '...' : summary.totalDokumen.toLocaleString('id-ID')}
-            </h3>
-            <p className="text-[10px] text-fin-text-muted mt-1">transaksi tercatat</p>
-          </CardContent>
-        </Card>
+          <h3 className="text-xl font-black text-white tabular-nums">
+            {isLoading ? '...' : summary.totalDokumen.toLocaleString('id-ID')}
+          </h3>
+          <p className="text-[10px] text-violet-200/50 mt-0.5">transaksi tercatat</p>
+        </div>
       </div>
 
       {/* SEARCH + TABLE */}

@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
-import { AlertTriangle, BarChart3, Building2, Calendar, CheckCircle2, ChevronDown, ChevronRight, Download, RefreshCw, XCircle, FileText, ShieldCheck, Lock, Edit3, Sparkles, FileSignature } from 'lucide-react';
+import { AlertTriangle, BarChart3, Building2, Calendar, CheckCircle2, ChevronDown, ChevronRight, Download, RefreshCw, XCircle, FileText, ShieldCheck, Lock, Edit3, Sparkles, FileSignature, Save, User } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
 import api from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -152,161 +152,94 @@ export default function DiscrepancyReportPage() {
     XLSX.writeFile(wb, `Laporan_Selisih_Rekon_${year}.xlsx`);
   };
 
-  const handleGenerateBAR = () => {
+  const handleGenerateBAR = async () => {
     if (!data) return;
-    const doc = new jsPDF();
-    const margin = 14;
-    const pageWidth = doc.internal.pageSize.getWidth();
-    
-    // 1. KOP SURAT
-    if (instansiConfig?.logo) {
-      try { doc.addImage(instansiConfig.logo, 'PNG', margin, 10, 20, 25); } catch (e) {}
+    try {
+      const targetBulanInt = parseInt(barConfig.bulanRekon) || 1;
+      const selectedBlnName = MONTHS[targetBulanInt - 1] || 'Januari';
+      const saldoAwalSilpa = toN(data.saldoAwalSilpa);
+      const saldoAwalKas = targetBulanInt === 1 ? saldoAwalSilpa : 0;
+
+      const monthsUpToTarget = (data.monthlyBalance || []).filter((m: any) => m.bulan <= targetBulanInt);
+      const displayPenerimaan = monthsUpToTarget.reduce((acc: number, m: any) => acc + toN(m.penerimaan), 0);
+      const totalPengeluaran = monthsUpToTarget.reduce((acc: number, m: any) => acc + toN(m.pengeluaran), 0);
+      
+      // Calculate Potongan Mengendap that should not be counted as Selisih
+      const potonganUnmatchedToTarget = (data.potonganUnmatched || []).filter((p: any) => p.bulan <= targetBulanInt);
+      const totalPotonganMengendap = potonganUnmatchedToTarget.reduce((acc: number, p: any) => acc + toN(p.total_nilai), 0);
+
+      // Adjust BKU mathematically to exclude the Potongan Mengendap from discrepancy
+      const saldoAkhirBKU = saldoAwalKas + (displayPenerimaan - saldoAwalSilpa) - totalPengeluaran + totalPotonganMengendap;
+      const saldoBank = toN(data.monthlyBalance?.find((m: any) => m.bulan === targetBulanInt)?.saldo_bank || 0);
+      const selisihNilai = Math.abs(saldoAkhirBKU - saldoBank);
+      const isSesuai = selisihNilai < 1.0;
+
+      const tglObj = new Date(barConfig.tanggalRekon);
+      const formattedLastDay = `${new Date(tglObj.getFullYear(), targetBulanInt, 0).getDate()}/${targetBulanInt}/${tglObj.getFullYear()}`;
+      
+      const previewHari = format(tglObj, 'EEEE', { locale: id });
+      const previewTgl = tglObj.getDate();
+      const previewBln = MONTHS[tglObj.getMonth()];
+      const previewThn = tglObj.getFullYear();
+      const terbilangTgl = terbilang(previewTgl);
+      const terbilangThn = terbilang(previewThn);
+
+      const allAnomalies = [...(data.matchedWithDiscrepancy || []), ...(data.unmatchedDetails || [])];
+      // Filter unresolved outstanding items up to the target month
+      const anomalyRows = allAnomalies
+        .filter((r: any) => {
+          const rDate = new Date(r.tanggal);
+          return rDate.getMonth() + 1 <= targetBulanInt && rDate.getFullYear() === (new Date(barConfig.tanggalRekon || new Date()).getFullYear());
+        })
+        .filter((r: any) => {
+          const isPotongan = r.tipe === 'POTONGAN SP2D' || r.tipe === 'POTONGAN' || r.tipe === 'POTONGAN_BANK';
+          const isLainnya = (r.uraian || '').toLowerCase().includes('lainnya') || (r.keterangan_rekon || '').toLowerCase().includes('lainnya');
+          return !(isPotongan && isLainnya); // Exclude Potongan Mengendap
+        })
+        .map((r: any) => ({
+          tipe: r.tipe,
+          bukti: r.bukti,
+          keterangan: r.keterangan_rekon || r.uraian || 'Belum ada penjelasan',
+          opd: r.opd || '',
+          nilai: toN(r.selisih || r.nilai)
+        }));
+
+      const res = await fetch('/api/cetak-discrepancy-rekon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          barConfig,
+          instansiConfig,
+          year,
+          saldoAwalKas,
+          displayPenerimaan,
+          totalPengeluaran,
+          saldoAkhirBKU,
+          saldoBank,
+          selisihNilai,
+          isSesuai,
+          formattedLastDay,
+          previewBlnRekonName: selectedBlnName,
+          previewHari,
+          previewTgl,
+          previewBln,
+          previewThn,
+          terbilangTgl,
+          terbilangThn,
+          anomalyRows
+        })
+      });
+
+      if (!res.ok) throw new Error('Gagal mencetak dokumen BAR');
+      const blob = await res.blob();
+      const link = document.createElement('a');
+      link.href = window.URL.createObjectURL(blob);
+      link.download = `BAR_REKON_${year}_${selectedBlnName}_${barConfig.noBar.replace(/\//g, '_')}.pdf`;
+      link.click();
+      toast.success('Berita Acara Rekonsiliasi berhasil diunduh!');
+    } catch (err: any) {
+      toast.error(err.message || 'Terjadi kesalahan saat mengunduh BAR');
     }
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('PEMERINTAH KABUPATEN KEPULAUAN ARU', pageWidth / 2 + 10, 15, { align: 'center' });
-    doc.setFontSize(13);
-    doc.text('BADAN PENGELOLAAN KEUANGAN DAN ASET DAERAH', pageWidth / 2 + 10, 22, { align: 'center' });
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Jl. Pemda - Email : bpkad.kepulauanarukab@gmail.com', pageWidth / 2 + 10, 27, { align: 'center' });
-    doc.setLineWidth(0.8);
-    doc.line(margin, 30, pageWidth - margin, 30);
-    
-    // 2. JUDUL
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text('BERITA ACARA REKONSILIASI KAS', pageWidth / 2, 42, { align: 'center' });
-    doc.setFontSize(10);
-    doc.text(`NOMOR: ${barConfig.noBar}`, pageWidth / 2, 47, { align: 'center' });
-    
-    // 3. PEMBUKAAN (TERBILANG INDONESIA)
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    const tglObj = new Date(barConfig.tanggalRekon);
-    const hari = format(tglObj, 'EEEE', { locale: id });
-    const tgl = tglObj.getDate();
-    const bln = MONTHS[tglObj.getMonth()];
-    const thn = tglObj.getFullYear();
-    const selectedBlnName = MONTHS[parseInt(barConfig.bulanRekon) - 1];
-    
-    const openingText = `Pada hari ini, ${hari} tanggal ${terbilang(tgl)} bulan ${bln} tahun ${terbilang(thn)}, kami yang bertanda tangan di bawah ini:`;
-    doc.text(openingText, margin, 58, { maxWidth: pageWidth - (margin * 2), align: 'justify' });
-    
-    // 4. PARA PIHAK
-    const partyY = 65;
-    doc.text(`1. Nama : ${barConfig.pejabat1}`, margin + 5, partyY);
-    doc.text(`   Jabatan : ${barConfig.jabatan1}`, margin + 5, partyY + 5);
-    doc.text(`   NIP : ${barConfig.nip1}`, margin + 5, partyY + 10);
-    doc.text(`   selanjutnya disebut PIHAK KESATU`, margin + 5, partyY + 15);
-    
-    doc.text(`2. Nama : ${barConfig.pejabat2}`, margin + 5, partyY + 25);
-    doc.text(`   Jabatan : ${barConfig.jabatan2}`, margin + 5, partyY + 30);
-    doc.text(`   selanjutnya disebut PIHAK KEDUA`, margin + 5, partyY + 35);
-    
-    doc.setFont('helvetica', 'normal');
-    doc.text(`PIHAK KESATU dan PIHAK KEDUA secara bersama-sama telah melakukan rekonsiliasi atas data Kas pada Pemerintah Kabupaten Kepulauan Aru untuk periode bulan ${selectedBlnName} Tahun Anggaran ${year}.`, margin, partyY + 45, { maxWidth: pageWidth - (margin * 2), align: 'justify' });
-
-    // 5. DASAR HUKUM
-    const hukumY = partyY + 60;
-    doc.setFont('helvetica', 'bold');
-    doc.text('A. DASAR HUKUM', margin, hukumY);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.text(barConfig.dasarHukum, margin, hukumY + 5, { maxWidth: pageWidth - (margin * 2), align: 'justify' });
-
-    // 6. B. HASIL REKONSILIASI
-    const hasilY = hukumY + 20;
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text('B. HASIL REKONSILIASI KAS', margin, hasilY);
-
-    const totalPenerimaan = (data.monthlyBalance || []).reduce((acc: number, m: any) => acc + toN(m.penerimaan), 0);
-    const totalPengeluaran = (data.monthlyBalance || []).reduce((acc: number, m: any) => acc + toN(m.pengeluaran), 0);
-    const saldoAkhirBKU = totalPenerimaan - totalPengeluaran;
-    const saldoBank = toN(data.monthlyBalance?.find((m: any) => String(m.bulan) === barConfig.bulanRekon)?.saldo_bank || data.monthlyBalance?.at(-1)?.saldo_bank);
-    const selisihNilai = Math.abs(saldoBank - saldoAkhirBKU);
-
-    autoTable(doc, {
-      startY: hasilY + 5,
-      head: [['NO', 'URAIAN', 'JUMLAH (RP)']],
-      body: [
-        ['1', 'SALDO AWAL KAS BKU (KAS DAERAH)', formatCurrency(0)],
-        ['2', `TOTAL PENERIMAAN KAS S.D. BULAN ${selectedBlnName.toUpperCase()}`, formatCurrency(totalPenerimaan)],
-        ['3', `TOTAL PENGELUARAN KAS S.D. BULAN ${selectedBlnName.toUpperCase()}`, formatCurrency(totalPengeluaran)],
-        ['4', `SALDO AKHIR BKU RKUD PER TANGGAL ${tgl}/${tglObj.getMonth()+1}/${thn}`, formatCurrency(saldoAkhirBKU)],
-        ['5', `SALDO REKENING KORAN BANK PER TANGGAL ${tgl}/${tglObj.getMonth()+1}/${thn}`, formatCurrency(saldoBank)],
-        ['6', 'SELISIH (NO. 4 - NO. 5)', selisihNilai === 0 ? 'NOL' : formatCurrency(selisihNilai)]
-      ],
-      theme: 'grid',
-      headStyles: { fillColor: [240, 240, 240], textColor: 0, fontStyle: 'bold' },
-      styles: { fontSize: 8, cellPadding: 2 },
-      columnStyles: { 0: { cellWidth: 10, halign: 'center' as const }, 2: { halign: 'right' as const, fontStyle: 'bold' } } as any
-    });
-
-    // 7. C. RINCIAN SELISIH
-    const finalY1 = (doc as any).lastAutoTable.finalY;
-    doc.setFont('helvetica', 'bold');
-    doc.text('C. RINCIAN SELISIH (OUTSTANDING ITEMS)', margin, finalY1 + 10);
-    
-    const anomalyRows = (data.matchedWithDiscrepancy || [])
-      .filter((r: any) => new Date(r.tanggal).getMonth() + 1 === parseInt(barConfig.bulanRekon))
-      .map((r: any, i: number) => [
-        i + 1,
-        `${r.tipe}\n${r.bukti || '-'}`,
-        r.keterangan_rekon || r.uraian || 'Belum ada penjelasan',
-        formatCurrency(toN(r.selisih))
-      ]);
-
-    autoTable(doc, {
-      startY: finalY1 + 15,
-      head: [['NO', 'REFERENSI / TIPE', 'KETERANGAN TRANSAKSI', 'NILAI (RP)']],
-      body: anomalyRows.length > 0 ? anomalyRows : [['-', 'Kas Terverifikasi Sinkron.', 'Tidak terdapat selisih pembukuan.', '0']],
-      theme: 'grid',
-      headStyles: { fillColor: [240, 240, 240], textColor: 0 },
-      styles: { fontSize: 7 }
-    });
-
-    // 8. D. KESIMPULAN & PENUTUP
-    const finalY2 = (doc as any).lastAutoTable.finalY;
-    doc.setFont('helvetica', 'bold');
-    doc.text('D. KESIMPULAN', margin, finalY2 + 10);
-    doc.setFont('helvetica', 'normal');
-    const conclusion = `Berdasarkan hasil rekonsiliasi tersebut di atas, saldo Kas Rekening Kas Umum Daerah (RKUD) Kabupaten Kepulauan Aru per tanggal ${tgl} ${bln} ${thn} dinyatakan ${selisihNilai === 0 ? 'SESUAI' : 'TERDAPAT SELISIH'} antara Buku Kas Umum (BKU) dengan Rekening Koran ${barConfig.jabatan2}.`;
-    doc.text(conclusion, margin, finalY2 + 15, { maxWidth: pageWidth - (margin * 2), align: 'justify' });
-    
-    doc.text('Demikian Berita Acara Rekonsiliasi Kas ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.', margin, finalY2 + 25);
-
-    // 8. TANDA TANGAN
-    let signY = finalY2 + 40;
-    if (signY > 230) { doc.addPage(); signY = 30; }
-    
-    doc.setFontSize(9);
-    doc.text(`Dobo, ${tgl} ${bln} ${thn}`, pageWidth - margin - 40, signY);
-    
-    doc.text('PIHAK KESATU,', margin + 20, signY + 10);
-    doc.text(barConfig.jabatan1, margin + 20, signY + 15);
-    
-    doc.text('PIHAK KEDUA,', pageWidth - margin - 60, signY + 10);
-    doc.text(barConfig.jabatan2, pageWidth - margin - 60, signY + 15);
-    
-    doc.setFont('helvetica', 'bold');
-    doc.text(barConfig.pejabat1, margin + 20, signY + 40);
-    doc.text(barConfig.pejabat2, pageWidth - margin - 60, signY + 40);
-    
-    doc.setFont('helvetica', 'normal');
-    doc.text(`NIP. ${barConfig.nip1}`, margin + 20, signY + 45);
-    doc.text(`NIP / ID. ${barConfig.nip2}`, pageWidth - margin - 60, signY + 45);
-
-    const midY = signY + 65;
-    doc.text('Mengetahui,', pageWidth / 2, midY, { align: 'center' });
-    doc.text(barConfig.jabatan3, pageWidth / 2, midY + 5, { align: 'center' });
-    doc.setFont('helvetica', 'bold');
-    doc.text(barConfig.pejabat3, pageWidth / 2, midY + 30, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
-    doc.text(`NIP. ${barConfig.nip3}`, pageWidth / 2, midY + 35, { align: 'center' });
-
-    doc.save(`BAR_REKON_${year}_${selectedBlnName}_${barConfig.noBar.replace(/\//g, '-')}.pdf`);
   };
 
   const Section = ({ id, title, icon: Icon, color, children }: any) => {
@@ -589,75 +522,342 @@ export default function DiscrepancyReportPage() {
 
       {/* BAR MODAL */}
       <Dialog open={showBarModal} onOpenChange={setShowBarModal}>
-        <DialogContent className="sm:max-w-[1000px] w-[95vw] max-h-[90vh] bg-white rounded-xl p-0 overflow-hidden border-none shadow-2xl flex flex-col">
-            <DialogHeader className="p-6 bg-gradient-to-r from-indigo-600 to-violet-700 text-white relative shrink-0">
-               <div className="absolute right-8 top-6 opacity-20"><FileSignature size={60} /></div>
-               <DialogTitle className="text-xl font-black tracking-tight">Konfigurasi Berita Acara (BAR)</DialogTitle>
-               <DialogDescription className="text-indigo-100 text-xs opacity-90 text-left">Lengkapi parameter resmi sesuai format BPKAD Kab. Kepulauan Aru.</DialogDescription>
-            </DialogHeader>
+        <DialogContent className="sm:max-w-[1400px] w-[96vw] max-h-[92vh] bg-fin-surface rounded-2xl p-0 overflow-hidden border-none shadow-2xl flex flex-col">
+          <DialogHeader className="p-6 bg-gradient-to-r from-indigo-600 to-violet-700 text-white relative shrink-0">
+            <div className="absolute right-8 top-6 opacity-20"><FileSignature size={60} /></div>
+            <DialogTitle className="text-xl font-black tracking-tight">Konfigurasi Berita Acara (BAR)</DialogTitle>
+            <DialogDescription className="text-indigo-100 text-xs opacity-90 text-left">Lengkapi parameter resmi sesuai format BPKAD Kab. Kepulauan Aru.</DialogDescription>
+          </DialogHeader>
 
-            <div className="p-8 space-y-6 overflow-y-auto flex-1 custom-scrollbar">
-               <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 shadow-inner grid grid-cols-3 gap-5">
-                  <div className="space-y-1.5">
-                     <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider ml-1">Nomor BAR</label>
-                     <Input value={barConfig.noBar} onChange={e => setBarConfig({...barConfig, noBar: e.target.value})} className="text-xs font-bold h-10 bg-white border-slate-200 rounded-xl shadow-sm" />
-                  </div>
-                  <div className="space-y-1.5">
-                     <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider ml-1">Bulan Yang Direkon</label>
-                     <Combobox
-                       value={barConfig.bulanRekon}
-                       onValueChange={val => setBarConfig({...barConfig, bulanRekon: val || ''})}
-                       placeholder="Pilih Bulan"
-                       className="h-10"
-                       options={MONTHS.map((m, idx) => ({ value: String(idx + 1), label: m }))}
-                     />
-                  </div>
-                  <div className="space-y-1.5">
-                     <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider ml-1">Tanggal Rekon (Manual)</label>
-                     <Input type="date" value={barConfig.tanggalRekon} onChange={e => setBarConfig({...barConfig, tanggalRekon: e.target.value})} className="text-xs font-bold h-10 bg-white border-slate-200 rounded-xl shadow-sm" />
-                  </div>
-               </div>
+          {/* Split Screen Grid */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 overflow-hidden flex-1 min-h-0 bg-fin-page">
 
-               <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider ml-1 flex items-center gap-2"><ShieldCheck size={14} className="text-indigo-500" /> Dasar Hukum BAR</label>
-                  <Textarea value={barConfig.dasarHukum} onChange={e => setBarConfig({...barConfig, dasarHukum: e.target.value})} className="text-xs font-bold min-h-[80px] bg-white border-slate-200 rounded-xl p-4 shadow-sm" />
-               </div>
+            {/* LEFT SIDE: CONFIGURATION INPUTS */}
+            <div className="xl:col-span-5 bg-fin-surface p-6 space-y-5 overflow-y-auto custom-scrollbar flex flex-col justify-start border-r border-fin-border">
+              <div className="bg-fin-page p-4 rounded-xl border border-fin-border shadow-inner grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-fin-text-secondary tracking-wider ml-1">Nomor BAR</label>
+                  <Input value={barConfig.noBar} onChange={e => setBarConfig({ ...barConfig, noBar: e.target.value })} className="text-xs font-bold h-10 bg-fin-surface border-fin-border text-fin-text-primary rounded-lg shadow-sm focus:border-indigo-500" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-fin-text-secondary tracking-wider ml-1">Bulan Rekon</label>
+                  <select
+                    value={barConfig.bulanRekon}
+                    onChange={e => setBarConfig({ ...barConfig, bulanRekon: e.target.value })}
+                    className="h-10 text-xs bg-fin-surface border border-fin-border text-fin-text-primary rounded-lg shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 px-3 w-full outline-none"
+                  >
+                    <option value="" disabled>Pilih Bulan</option>
+                    {MONTHS.map((m, idx) => (
+                      <option key={idx} value={String(idx + 1)}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase text-fin-text-secondary tracking-wider ml-1">Tgl Rekon</label>
+                  <Input type="date" value={barConfig.tanggalRekon} onChange={e => setBarConfig({ ...barConfig, tanggalRekon: e.target.value })} className="text-xs font-bold h-10 bg-fin-surface border-fin-border text-fin-text-primary rounded-lg shadow-sm focus:border-indigo-500" />
+                </div>
+              </div>
 
-               <div className="grid grid-cols-3 gap-6">
-                  <div className="space-y-4 p-5 bg-indigo-50/30 rounded-xl border border-indigo-100/50">
-                     <label className="text-[11px] font-black uppercase text-indigo-700 tracking-widest flex items-center gap-2">Pihak Pertama (BPKAD)</label>
-                     <div className="space-y-2">
-                        <Input value={barConfig.jabatan1} onChange={e => setBarConfig({...barConfig, jabatan1: e.target.value})} placeholder="Jabatan" className="text-[10px] h-8 bg-white" />
-                        <Input value={barConfig.pejabat1} onChange={e => setBarConfig({...barConfig, pejabat1: e.target.value})} placeholder="Nama Lengkap" className="text-xs font-black h-9 bg-white" />
-                        <Input value={barConfig.nip1} onChange={e => setBarConfig({...barConfig, nip1: e.target.value})} placeholder="NIP" className="text-[10px] h-8 bg-white" />
-                     </div>
+              <div className="space-y-1.5 shrink-0">
+                <label className="text-[10px] font-black uppercase text-fin-text-secondary tracking-wider ml-1 flex items-center gap-1.5"><ShieldCheck size={14} className="text-indigo-500" /> Dasar Hukum BAR</label>
+                <Textarea value={barConfig.dasarHukum} onChange={e => setBarConfig({ ...barConfig, dasarHukum: e.target.value })} className="text-xs font-bold min-h-[70px] bg-fin-surface border-fin-border text-fin-text-primary rounded-lg p-3 shadow-sm resize-none focus:border-indigo-500" />
+              </div>
+
+              <div className="space-y-4 pr-2 pb-6">
+                <div className="space-y-3 p-5 bg-indigo-500/[0.03] dark:bg-indigo-500/[0.05] rounded-xl border border-indigo-500/20 hover:border-indigo-500/40 transition-colors">
+                  <label className="text-[11px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1.5 border-b border-indigo-500/10 pb-2 mb-1">Pihak Pertama (BPKAD)</label>
+                  <div className="space-y-3 mt-2">
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Jabatan Resmi</span>
+                      <Input value={barConfig.jabatan1} onChange={e => setBarConfig({ ...barConfig, jabatan1: e.target.value })} placeholder="Jabatan" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-indigo-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Nama Lengkap</span>
+                      <Input value={barConfig.pejabat1} onChange={e => setBarConfig({ ...barConfig, pejabat1: e.target.value })} placeholder="Nama Lengkap" className="text-sm font-black h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-indigo-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">NIP</span>
+                      <Input value={barConfig.nip1} onChange={e => setBarConfig({ ...barConfig, nip1: e.target.value })} placeholder="NIP" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-indigo-500" />
+                    </div>
                   </div>
-                  <div className="space-y-4 p-5 bg-emerald-50/30 rounded-xl border border-emerald-100/50">
-                     <label className="text-[11px] font-black uppercase text-emerald-700 tracking-widest flex items-center gap-2">Pihak Kedua (BANK)</label>
-                     <div className="space-y-2">
-                        <Input value={barConfig.jabatan2} onChange={e => setBarConfig({...barConfig, jabatan2: e.target.value})} placeholder="Jabatan" className="text-[10px] h-8 bg-white" />
-                        <Input value={barConfig.pejabat2} onChange={e => setBarConfig({...barConfig, pejabat2: e.target.value})} placeholder="Nama Lengkap" className="text-xs font-black h-9 bg-white" />
-                        <Input value={barConfig.nip2} onChange={e => setBarConfig({...barConfig, nip2: e.target.value})} placeholder="ID / NIP" className="text-[10px] h-8 bg-white" />
-                     </div>
+                </div>
+
+                <div className="space-y-3 p-5 bg-emerald-500/[0.03] dark:bg-emerald-500/[0.05] rounded-xl border border-emerald-500/20 hover:border-emerald-500/40 transition-colors">
+                  <label className="text-[11px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider flex items-center gap-1.5 border-b border-emerald-500/10 pb-2 mb-1">Pihak Kedua (BANK)</label>
+                  <div className="space-y-3 mt-2">
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Jabatan Resmi</span>
+                      <Input value={barConfig.jabatan2} onChange={e => setBarConfig({ ...barConfig, jabatan2: e.target.value })} placeholder="Jabatan" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-emerald-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Nama Lengkap</span>
+                      <Input value={barConfig.pejabat2} onChange={e => setBarConfig({ ...barConfig, pejabat2: e.target.value })} placeholder="Nama Lengkap" className="text-sm font-black h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-emerald-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">ID / NIP</span>
+                      <Input value={barConfig.nip2} onChange={e => setBarConfig({ ...barConfig, nip2: e.target.value })} placeholder="ID / NIP" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-emerald-500" />
+                    </div>
                   </div>
-                  <div className="space-y-4 p-5 bg-amber-50/30 rounded-xl border border-amber-100/50">
-                     <label className="text-[11px] font-black uppercase text-amber-700 tracking-widest flex items-center gap-2">Mengetahui (BPKAD)</label>
-                     <div className="space-y-2">
-                        <Input value={barConfig.jabatan3} onChange={e => setBarConfig({...barConfig, jabatan3: e.target.value})} placeholder="Jabatan" className="text-[10px] h-8 bg-white" />
-                        <Input value={barConfig.pejabat3} onChange={e => setBarConfig({...barConfig, pejabat3: e.target.value})} placeholder="Nama Lengkap" className="text-xs font-black h-9 bg-white" />
-                        <Input value={barConfig.nip3} onChange={e => setBarConfig({...barConfig, nip3: e.target.value})} placeholder="NIP" className="text-[10px] h-8 bg-white" />
-                     </div>
+                </div>
+
+                <div className="space-y-3 p-5 bg-amber-500/[0.03] dark:bg-amber-500/[0.05] rounded-xl border border-amber-500/20 hover:border-amber-500/40 transition-colors">
+                  <label className="text-[11px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider flex items-center gap-1.5 border-b border-amber-500/10 pb-2 mb-1">Mengetahui (BPKAD)</label>
+                  <div className="space-y-3 mt-2">
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Jabatan Resmi</span>
+                      <Input value={barConfig.jabatan3} onChange={e => setBarConfig({ ...barConfig, jabatan3: e.target.value })} placeholder="Jabatan" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-amber-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Nama Lengkap</span>
+                      <Input value={barConfig.pejabat3} onChange={e => setBarConfig({ ...barConfig, pejabat3: e.target.value })} placeholder="Nama Lengkap" className="text-sm font-black h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-amber-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">NIP</span>
+                      <Input value={barConfig.nip3} onChange={e => setBarConfig({ ...barConfig, nip3: e.target.value })} placeholder="NIP" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-amber-500" />
+                    </div>
                   </div>
-               </div>
+                </div>
+              </div>
             </div>
 
-            <DialogFooter className="p-6 bg-slate-50 border-t border-slate-100 flex gap-4 justify-end shrink-0">
-               <Button variant="ghost" onClick={() => setShowBarModal(false)} className="h-11 px-8 rounded-xl font-black text-xs uppercase">Batal</Button>
-               <Button onClick={() => { handleGenerateBAR(); setShowBarModal(false); }} className="h-11 bg-ds-primary hover:bg-ds-primary-hover text-white rounded-xl font-black text-xs uppercase px-10 shadow-lg">
-                  <Download size={16} className="mr-2" /> Unduh BAR (PDF)
-               </Button>
-            </DialogFooter>
-         </DialogContent>
+            {/* RIGHT SIDE: LIVE PREVIEW OF THE DOCUMENT */}
+            <div className="xl:col-span-7 bg-fin-subtle p-6 overflow-y-auto custom-scrollbar flex justify-center items-start">
+              {/* Scaled paper preview */}
+              <div className="bg-white p-10 shadow-2xl rounded-sm w-[210mm] min-h-[297mm] text-black text-[9.5pt] leading-relaxed flex flex-col print:shadow-none" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+
+                {/* Kop Surat Preview */}
+                <div className="flex items-center relative pb-3 mb-4 border-b-[3px] border-black shrink-0">
+                  <div className="absolute left-0 bottom-[-1px] w-full border-b-[1px] border-black"></div>
+                  <div className="absolute left-8 top-1 bottom-3 flex items-center justify-center z-10">
+                    <img src="/logo-aru.png" alt="Logo Aru" className="w-[62px] object-contain" />
+                  </div>
+                  <div className="flex-1 text-center font-serif text-black z-10 px-20">
+                    <p className="font-bold text-[11.5pt] tracking-wide uppercase leading-tight">Pemerintah Kabupaten Kepulauan Aru</p>
+                    <p className="font-bold text-[13.5pt] tracking-wide uppercase leading-tight mt-0.5 whitespace-nowrap">Badan Pengelolaan Keuangan dan Aset Daerah</p>
+                    <p className="text-[8.5pt] mt-1 font-serif italic text-black leading-tight">Jl. Pemda - Email : bpkad.kepulauanarukab@gmail.com</p>
+                  </div>
+                </div>
+
+                {/* Judul BAR */}
+                <div className="text-center mb-4 shrink-0">
+                  <p className="font-black text-[12pt] underline uppercase tracking-widest leading-tight">Berita Acara Rekonsiliasi Kas</p>
+                  <p className="font-semibold text-[9.5pt] mt-0.5">Nomor : {barConfig.noBar || '...../BAR/BPKAD/...../20...'}</p>
+                </div>
+
+                {/* Content Generation */}
+                {(() => {
+                  const targetB = parseInt(barConfig.bulanRekon) || 1;
+                  const selectedBlnName = MONTHS[targetB - 1] || '';
+                  const tglObj = barConfig.tanggalRekon ? new Date(barConfig.tanggalRekon) : new Date();
+                  const previewHari = format(tglObj, 'EEEE', { locale: id });
+                  const previewTgl = tglObj.getDate();
+                  const previewBln = MONTHS[tglObj.getMonth()];
+                  const previewThn = tglObj.getFullYear();
+
+                  const previewLastDay = new Date(parseInt(year), parseInt(barConfig.bulanRekon), 0);
+                  const previewFmtLastDay = `${previewLastDay.getDate()}/${previewLastDay.getMonth() + 1}/${previewLastDay.getFullYear()}`;
+
+                  // Calculate preview values
+                  const pSaldoAwalSilpa = toN(data?.saldoAwalSilpa);
+                  const pSaldoAwalKas = targetB === 1 ? pSaldoAwalSilpa : 0;
+
+                  const mUpToT = (data?.monthlyBalance || []).filter((m: any) => m.bulan <= targetB);
+                  const pTotalPen = mUpToT.reduce((acc: number, m: any) => acc + toN(m.penerimaan), 0);
+                  const pDisplayPenerimaan = targetB === 1 ? (pTotalPen - pSaldoAwalSilpa) : pTotalPen;
+                  const pTotalPeng = mUpToT.reduce((acc: number, m: any) => acc + toN(m.pengeluaran), 0);
+                  
+                  const pPotonganUnmatchedToTarget = (data?.potonganUnmatched || []).filter((p: any) => p.bulan <= targetB);
+                  const pTotalPotonganMengendap = pPotonganUnmatchedToTarget.reduce((acc: number, p: any) => acc + toN(p.total_nilai), 0);
+
+                  const pSaldoAkhirBKU = pTotalPen - pTotalPeng + pTotalPotonganMengendap;
+                  const pSaldoBank = toN(data?.monthlyBalance?.find((m: any) => m.bulan === targetB)?.saldo_bank || 0);
+                  const pSelisih = Math.abs(pSaldoBank - pSaldoAkhirBKU);
+                  const pIsSesuai = pSelisih < 1;
+
+                  const pAllAnomalies = [...(data?.matchedWithDiscrepancy || []), ...(data?.unmatchedDetails || [])];
+                  const pAnomalyRows = pAllAnomalies
+                    .filter((r: any) => {
+                      const rDate = new Date(r.tanggal);
+                      return rDate.getMonth() + 1 <= targetB && rDate.getFullYear() === (new Date(barConfig.tanggalRekon || new Date()).getFullYear());
+                    })
+                    .filter((r: any) => {
+                      const isPotongan = r.tipe === 'POTONGAN SP2D' || r.tipe === 'POTONGAN' || r.tipe === 'POTONGAN_BANK';
+                      const isLainnya = (r.uraian || '').toLowerCase().includes('lainnya') || (r.keterangan_rekon || '').toLowerCase().includes('lainnya');
+                      return !(isPotongan && isLainnya);
+                    });
+
+                  return (
+                    <div className="flex-1 flex flex-col text-justify font-serif text-[10pt]">
+                      <p className="leading-snug">
+                        Pada hari ini, <span className="font-bold italic">{previewHari}</span> tanggal <span className="font-bold italic">{terbilang(previewTgl)}</span> bulan <span className="font-bold italic">{previewBln}</span> tahun <span className="font-bold italic">{terbilang(previewThn)}</span>, kami yang bertanda tangan di bawah ini:
+                      </p>
+
+                      <div className="my-2 ml-6 space-y-1.5 text-[9.5pt] font-sans">
+                        <p className="m-0 leading-snug">
+                          <span className="font-black text-slate-700 block mb-1">1. PIHAK KESATU:</span>
+                          <span className="inline-block w-[70px]">Nama</span>: <span className="font-bold uppercase">{barConfig.pejabat1 || '—'}</span><br />
+                          <span className="inline-block w-[70px]">Jabatan</span>: <span className="italic capitalize">{barConfig.jabatan1 || '—'}</span><br />
+                          <span className="inline-block w-[70px]">NIP</span>: {barConfig.nip1 || '—'}
+                        </p>
+                        <p className="m-0 leading-snug">
+                          <span className="font-black text-slate-700 block mb-1">2. PIHAK KEDUA:</span>
+                          <span className="inline-block w-[70px]">Nama</span>: <span className="font-bold uppercase">{barConfig.pejabat2 || '—'}</span><br />
+                          <span className="inline-block w-[70px]">Jabatan</span>: <span className="italic capitalize">{barConfig.jabatan2 || '—'}</span><br />
+                          <span className="inline-block w-[70px]">ID/NIP</span>: {barConfig.nip2 || '—'}
+                        </p>
+                      </div>
+
+                      <p className="leading-snug mt-1.5">
+                        PIHAK KESATU dan PIHAK KEDUA secara bersama-sama telah melakukan rekonsiliasi atas data Kas pada Pemerintah Kabupaten Kepulauan Aru untuk periode bulan <span className="font-bold italic underline">{selectedBlnName}</span> Tahun Anggaran <span className="font-bold">{year}</span>.
+                      </p>
+
+                      {/* A. DASAR HUKUM */}
+                      <div className="mt-3 shrink-0">
+                        <p className="font-bold uppercase text-[9.5pt] tracking-wide mb-1.5">A. DASAR HUKUM</p>
+                        <p className="text-[8.5pt] font-sans italic text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-200/60 leading-snug">{barConfig.dasarHukum || '—'}</p>
+                      </div>
+
+                      {/* B. HASIL REKONSILIASI KAS */}
+                      <div className="mt-3">
+                        <p className="font-bold uppercase text-[9.5pt] tracking-wide mb-1.5">B. HASIL REKONSILIASI KAS</p>
+                        <table className="w-full border-collapse border border-black font-sans text-[8.5pt]">
+                          <thead>
+                            <tr className="bg-slate-100">
+                              <th className="border border-black p-1 text-center w-8">NO</th>
+                              <th className="border border-black p-1 text-left">URAIAN</th>
+                              <th className="border border-black p-1 text-right w-44">JUMLAH (RP)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td className="border border-black p-1 text-center">1</td>
+                              <td className="border border-black p-1">SALDO AWAL KAS BKU (KAS DAERAH)</td>
+                              <td className="border border-black p-1 text-right font-mono">{formatCurrency(pSaldoAwalKas)}</td>
+                            </tr>
+                            <tr>
+                              <td className="border border-black p-1 text-center">2</td>
+                              <td className="border border-black p-1">TOTAL PENERIMAAN KAS S.D. BULAN {selectedBlnName.toUpperCase()}</td>
+                              <td className="border border-black p-1 text-right font-mono">{formatCurrency(pDisplayPenerimaan)}</td>
+                            </tr>
+                            <tr>
+                              <td className="border border-black p-1 text-center">3</td>
+                              <td className="border border-black p-1">TOTAL PENGELUARAN KAS S.D. BULAN {selectedBlnName.toUpperCase()}</td>
+                              <td className="border border-black p-1 text-right font-mono">{formatCurrency(pTotalPeng)}</td>
+                            </tr>
+                            <tr className="font-bold bg-indigo-50/20">
+                              <td className="border border-black p-1 text-center">4</td>
+                              <td className="border border-black p-1">SALDO AKHIR BKU RKUD PER TANGGAL {previewFmtLastDay}</td>
+                              <td className="border border-black p-1 text-right font-mono">{formatCurrency(pSaldoAkhirBKU)}</td>
+                            </tr>
+                            <tr className="font-bold bg-emerald-50/20">
+                              <td className="border border-black p-1 text-center">5</td>
+                              <td className="border border-black p-1">SALDO REKENING KORAN BANK PER TANGGAL {previewFmtLastDay}</td>
+                              <td className="border border-black p-1 text-right font-mono">{formatCurrency(pSaldoBank)}</td>
+                            </tr>
+                            <tr className={`font-bold ${!pIsSesuai ? 'bg-rose-50/40' : 'bg-slate-50'}`}>
+                              <td className="border border-black p-1 text-center">6</td>
+                              <td className="border border-black p-1">SELISIH (NO. 4 - NO. 5)</td>
+                              <td className="border border-black p-1 text-right font-mono">{pIsSesuai ? 'NOL' : formatCurrency(pSelisih)}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* C. RINCIAN SELISIH */}
+                      <div className="mt-3">
+                        <p className="font-bold uppercase text-[9.5pt] tracking-wide mb-1.5">C. RINCIAN SELISIH (OUTSTANDING ITEMS)</p>
+                        <table className="w-full border-collapse border border-black font-sans text-[8pt]">
+                          <thead>
+                            <tr className="bg-slate-100">
+                              <th className="border border-black p-1 text-center w-8">NO</th>
+                              <th className="border border-black p-1 text-left w-32">REFERENSI / TIPE</th>
+                              <th className="border border-black p-1 text-left">KETERANGAN TRANSAKSI</th>
+                              <th className="border border-black p-1 text-right w-36">NILAI (RP)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pAnomalyRows.length > 0 ? (
+                              pAnomalyRows.map((r: any, i: number) => (
+                                <tr key={r.id}>
+                                  <td className="border border-black p-1 text-center">{i + 1}</td>
+                                  <td className="border border-black p-1 uppercase align-top">
+                                    <span className="font-bold">{r.tipe}</span>
+                                    <div className="flex flex-col gap-0 mt-0.5 normal-case">
+                                      <span className="text-[7.5pt] font-mono text-slate-700 tracking-tight">{r.bukti || '-'}</span>
+                                      <span className="text-[7pt] text-slate-600 italic font-medium">Tgl Pencairan: {r.tanggal ? format(new Date(r.tanggal), 'dd/MM/yyyy') : '-'}</span>
+                                    </div>
+                                  </td>
+                                  <td className="border border-black p-1 leading-tight">{r.keterangan_rekon || r.uraian || 'Belum ada penjelasan'} <br /><span className="text-[7pt] text-slate-400 italic">{r.opd}</span></td>
+                                  <td className="border border-black p-1 text-right font-mono">{formatCurrency(toN(r.selisih || r.nilai))}</td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan={4} className="border border-black p-2 text-center italic text-slate-500">Kas Terverifikasi Sinkron. Tidak terdapat selisih pembukuan.</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* D. KESIMPULAN */}
+                      <div className="mt-3 shrink-0">
+                        <p className="font-bold uppercase text-[9.5pt] tracking-wide mb-1">D. KESIMPULAN</p>
+                        <p className="leading-snug">
+                          Berdasarkan hasil rekonsiliasi tersebut di atas, saldo Kas Rekening Kas Umum Daerah (RKUD) Kabupaten Kepulauan Aru per tanggal {previewLastDay.getDate()} {selectedBlnName} {year} dinyatakan <span className="font-bold italic underline">{pIsSesuai ? 'SESUAI' : 'TERDAPAT SELISIH'}</span> antara Buku Kas Umum (BKU) dengan Rekening Koran {barConfig.jabatan2}.
+                        </p>
+                        <p className="leading-snug mt-1.5">
+                          Demikian Berita Acara Rekonsiliasi Kas ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.
+                        </p>
+                      </div>
+
+                      {/* Tanda Tangan */}
+                      <div className="mt-5 shrink-0 font-sans text-[8.5pt]">
+                        <p className="text-right font-bold mb-3">Dobo, {previewTgl} {previewBln} {previewThn}</p>
+                        <div className="grid grid-cols-2 gap-8 text-center">
+                          <div>
+                            <p className="font-bold uppercase">PIHAK KESATU,</p>
+                            <p className="italic font-bold capitalize">{barConfig.jabatan1 || '—'}</p>
+                            <div className="h-16"></div>
+                            <p className="font-bold uppercase underline leading-tight">{barConfig.pejabat1 || '—'}</p>
+                            <p className="leading-tight">NIP. {barConfig.nip1 || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="font-bold uppercase">PIHAK KEDUA,</p>
+                            <p className="italic font-bold capitalize">{barConfig.jabatan2 || '—'}</p>
+                            <div className="h-16"></div>
+                            <p className="font-bold uppercase underline leading-tight">{barConfig.pejabat2 || '—'}</p>
+                            <p className="leading-tight">NIP / ID. {barConfig.nip2 || '—'}</p>
+                          </div>
+                        </div>
+                        <div className="text-center mt-3">
+                          <p className="font-bold uppercase">MENGETAHUI,</p>
+                          <p className="italic font-bold capitalize">{barConfig.jabatan3 || '—'}</p>
+                          <div className="h-16"></div>
+                          <p className="font-bold uppercase underline leading-tight">{barConfig.pejabat3 || '—'}</p>
+                          <p className="leading-tight">NIP. {barConfig.nip3 || '—'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="p-6 bg-slate-50 border-t border-slate-100 flex gap-4 justify-end shrink-0">
+            <Button variant="ghost" onClick={() => setShowBarModal(false)} className="h-11 px-8 rounded-xl font-black text-xs uppercase">Batal</Button>
+            <Button onClick={() => {
+              localStorage.setItem('bar_config_discrepancy', JSON.stringify(barConfig));
+              toast.success('Konfigurasi BAR berhasil disimpan');
+            }} variant="outline" className="h-11 border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-xl font-black text-xs uppercase px-8 shadow-sm flex items-center gap-2">
+              <Save size={16} /> Simpan
+            </Button>
+            <Button onClick={() => { handleGenerateBAR(); setShowBarModal(false); }} className="h-11 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs uppercase px-8 shadow-lg shadow-indigo-200 flex items-center gap-2 transition-all">
+              <Download size={16} /> Unduh Berita Acara
+            </Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
     </div>
   );
