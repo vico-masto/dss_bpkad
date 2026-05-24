@@ -27,6 +27,7 @@ import {
   BarChart3,
   CalendarCheck,
   FileSpreadsheet,
+  Search,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -40,6 +41,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
   const [openGroups, setOpenGroups] = useState<string[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [user, setUser] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -85,14 +87,14 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
     );
     if (activeGroup && !openGroups.includes(activeGroup.title)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setOpenGroups(prev => [...new Set([...prev, activeGroup.title])]);
+      setOpenGroups([activeGroup.title]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
   const toggleGroup = (group: string) => {
     setOpenGroups(prev => 
-      prev.includes(group) ? prev.filter(g => g !== group) : [...prev, group]
+      prev.includes(group) ? [] : [group]
     );
   };
 
@@ -162,7 +164,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
       icon: RefreshCw,
       dotColor: 'bg-ds-primary',
       items: [
-        { name: 'Manajemen Rekening Koran', href: '/dashboard/rekon/bank', icon: Database },
+        { name: 'Rekening Bank', href: '/dashboard/rekon/bank', icon: Database },
         { name: 'Rekonsiliasi Cerdas', href: '/dashboard/rekon', icon: RefreshCw },
         { name: 'Laporan Selisih', href: '/dashboard/rekon/discrepancy', icon: BarChart3 },
         { name: 'Potongan Mengendap', href: '/dashboard/rekon/potongan-mengendap', icon: FileText },
@@ -237,6 +239,49 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
     return true;
   });
 
+  // Auto expand groups when searching
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const groupsToOpen = filteredMenuStructure
+        .filter(group => 
+          group.items.some(item => item.name.toLowerCase().includes(query)) ||
+          group.title.toLowerCase().includes(query)
+        )
+        .map(group => group.title);
+      setOpenGroups(prev => [...new Set([...prev, ...groupsToOpen])]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
+  const displayedMenuStructure = filteredMenuStructure.map(group => {
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const matchedItems = group.items.filter(item => 
+        item.name.toLowerCase().includes(query)
+      );
+      
+      // If group title matches, keep all its items, otherwise keep only matched items
+      const itemsToKeep = group.title.toLowerCase().includes(query) 
+        ? group.items 
+        : matchedItems;
+
+      return {
+        ...group,
+        items: itemsToKeep
+      };
+    }
+    return group;
+  }).filter(group => {
+    if (!searchQuery.trim()) return true;
+    
+    const query = searchQuery.toLowerCase();
+    const titleMatches = group.title.toLowerCase().includes(query);
+    const hasMatchingItems = group.items.length > 0;
+    
+    return titleMatches || hasMatchingItems;
+  });
+
   return (
     <motion.aside
       id="sidebar"
@@ -258,17 +303,32 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
         </div>
       </div>
 
-      {/* Year Badge */}
-      <div className="px-5 py-4 border-b border-fin-border">
-        <div className="flex items-center gap-2.5 px-3 py-2 bg-fin-subtle dark:bg-slate-900/50 rounded-xl border border-fin-border shadow-sm">
-          <div className="w-2 h-2 bg-fin-income rounded-full shadow-[0_0_8px_var(--fin-income)]" />
-          <span className="text-xs font-semibold text-fin-text-secondary">Tahun Anggaran {new Date().getFullYear()}</span>
+      {/* Menu Search Bar */}
+      <div className="px-5 py-3.5 border-b border-fin-border bg-fin-page/10">
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fin-text-muted" />
+          <input
+            type="text"
+            placeholder="Cari menu..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-8 py-1.5 bg-fin-subtle dark:bg-slate-900/40 border border-fin-border text-[12px] placeholder:text-fin-text-muted text-fin-text-primary rounded-xl focus:outline-none focus:ring-1 focus:ring-fin-info/30 hover:border-fin-border-hover transition-all shadow-sm"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-fin-text-muted hover:text-fin-text-primary hover:scale-105 transition-all cursor-pointer"
+              title="Clear search"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1 scrollbar-hide">
-        {filteredMenuStructure.map((group) => (
+        {displayedMenuStructure.map((group) => (
           <div key={group.title} className="mb-1">
             <div className="mx-3 h-px bg-fin-subtle mb-1 mt-2 first:hidden" />
 

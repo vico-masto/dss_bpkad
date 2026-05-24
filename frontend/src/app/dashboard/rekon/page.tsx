@@ -10,7 +10,7 @@ import {
   AlertTriangle, 
   Database, 
   Activity, 
-  Sparkles, 
+  Brain,
   Loader2,
   ChevronLeft,
   ChevronRight,
@@ -699,48 +699,59 @@ export default function ReconciliationPage() {
         icon={<Activity className="size-5" />}
         actions={
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <Button 
-              onClick={openResetModal} 
-              variant="ghost" 
+
+            {/* RESET ALL — destruktif, subtle */}
+            <Button
+              onClick={openResetModal}
+              variant="ghost"
               size="md"
-              className="text-fin-text-muted hover:text-fin-expense-text hover:bg-fin-expense-bg font-bold text-xs uppercase rounded-lg flex items-center gap-1.5"
+              className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-transparent hover:border-rose-200 dark:hover:border-rose-800/40 font-bold text-xs uppercase rounded-lg flex items-center gap-1.5 transition-all duration-150"
             >
-              <RefreshCw size={14} /> Reset All
+              <RefreshCw size={13} /> Reset All
             </Button>
-            <Button 
-              variant="primary" 
-              size="md" 
-              onClick={() => setConfirmSmartMatch(true)} 
-              className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-lg text-xs font-bold font-sans shadow-sm border-none group flex items-center"
-              leftIcon={<Sparkles size={14} className="text-amber-300 group-hover:rotate-12 transition-transform" />}
+
+            {/* MAGIC MATCH AI — hero CTA */}
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => setConfirmSmartMatch(true)}
+              className="relative bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white rounded-lg text-xs font-bold font-sans border-none group flex items-center gap-1.5 px-4 shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-[1.02] transition-all duration-150"
             >
+              <Brain size={14} className="text-yellow-300 group-hover:rotate-12 transition-transform duration-200 shrink-0" />
               Magic Match AI
             </Button>
-            <Button 
-              onClick={() => setRefMatchModal({ isOpen: true, value: '' })} 
-              variant="outline" 
+
+            {/* MATCH NO. BUKTI — secondary manual action */}
+            <Button
+              onClick={() => setRefMatchModal({ isOpen: true, value: '' })}
+              variant="outline"
               size="md"
-              className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5 text-fin-text-primary"
+              className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-700/60 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 hover:border-indigo-400 dark:hover:border-indigo-500 transition-all duration-150"
             >
-              <Hash size={14} className="text-indigo-500" /> Match No. Bukti
+              <Hash size={14} /> Match No. Bukti
             </Button>
+
+            {/* UNMATCH BATCH — destruktif konfirmasi */}
             {selectedBankIds.length > 0 && filters.status !== 'BELUM' && (
-              <Button 
-                onClick={() => handleBatchUnmatch(selectedBankIds)} 
-                variant="destructive" 
+              <Button
+                onClick={() => handleBatchUnmatch(selectedBankIds)}
+                variant="destructive"
                 size="md"
-                className="rounded-lg text-xs font-bold font-sans shadow-sm flex items-center gap-1.5 animate-in zoom-in duration-200"
+                className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5 shadow-sm shadow-rose-500/20 animate-in zoom-in duration-200"
               >
                 <Trash2 size={14} /> Unmatch ({selectedBankIds.length})
               </Button>
             )}
-            <Button 
-              variant="outline" 
+
+            {/* EXPORT — utilitas positif */}
+            <Button
+              variant="outline"
               size="md"
-              className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5 text-fin-text-primary"
+              className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-400 dark:hover:border-emerald-500 transition-all duration-150"
             >
               <Download size={14} /> Export
             </Button>
+
           </div>
         }
       />
@@ -1354,7 +1365,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                 )}
                                 {!bank.is_matched && hasExactMatch && (
                                    <div className="flex items-center gap-1.5 mt-1.5 animate-in fade-in duration-500">
-                                      <Sparkles size={10} className="text-fin-income" />
+                                      <Brain size={10} className="text-fin-income" />
                                       <span className="text-[7px] font-black text-fin-income uppercase tracking-widest">Saran Akurat Ditemukan (100%)</span>
                                    </div>
                                 )}
@@ -1660,7 +1671,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                                      </div>
                                                      {sug.totalConfidence > 100 && (
                                                         <div className="absolute top-1 right-12 flex items-center gap-1 bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-500/20">
-                                                           <Sparkles size={8} className="text-emerald-500 animate-pulse" />
+                                                           <Brain size={8} className="text-emerald-500 animate-pulse" />
                                                            <span className="text-[6px] font-black text-emerald-500 uppercase">Neural</span>
                                                         </div>
                                                      )}
@@ -1817,7 +1828,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
              <DialogContent className="sm:max-w-md rounded-xl">
                <DialogHeader>
                  <DialogTitle className="flex items-center gap-2 text-fin-info-text">
-                    <Sparkles size={20} /> Audit Integritas Data
+                    <Brain size={20} /> Audit Integritas Data
                  </DialogTitle>
                  <DialogDescription className="text-xs">
                     Lakukan penyesuaian nilai jika terdapat selisih antara BKU dan mutasi bank.
@@ -1958,7 +1969,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                 )}
               >
                 {isMatching || batchProgress.isOpen ? <Loader2 className="animate-spin mr-2" size={12} /> : (
-                  smartGroupValue !== null ? <Sparkles className="mr-2 text-amber-400" size={12} /> : (isBalancedForDisplay ? <Zap className="mr-2 fill-current" size={12} /> : <Lock size={12} className="mr-2" />)
+                  smartGroupValue !== null ? <Brain className="mr-2 text-amber-400" size={12} /> : (isBalancedForDisplay ? <Zap className="mr-2 fill-current" size={12} /> : <Lock size={12} className="mr-2" />)
                 )}
                 {smartGroupValue !== null ? `Rekon Massal (${selectedBankIds.length})` : (isBalancedForDisplay ? "Eksekusi Rekon" : "Kunci Balance")}
               </Button>
@@ -2039,7 +2050,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
             <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
             <div className="relative z-10 flex flex-col items-center text-center">
               <div className="w-16 h-16 bg-white/5 rounded-xl flex items-center justify-center mb-4 backdrop-blur-md border border-white/10">
-                <Sparkles size={32} className="text-indigo-400" />
+                <Brain size={32} className="text-indigo-400" />
               </div>
               <h2 className="text-xl font-black uppercase tracking-widest">Aktivasi Smart Engine</h2>
               <p className="text-fin-text-muted text-[10px] font-bold mt-2 uppercase tracking-tight">Otomasi Rekonsiliasi Berbasis AI</p>
@@ -2109,7 +2120,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                    <div className="absolute inset-0 bg-ds-primary/20 rounded-xl rotate-12 animate-reverse-spin"></div>
                    <div className="absolute inset-0 bg-emerald-600/20 rounded-xl -rotate-12 animate-spin"></div>
                    <div className="w-16 h-16 bg-white/10 backdrop-blur-xl rounded-xl flex items-center justify-center border border-white/20 shadow-xl">
-                      <Sparkles size={32} className="text-indigo-400 animate-bounce" />
+                      <Brain size={32} className="text-indigo-400 animate-bounce" />
                    </div>
                 </div>
 

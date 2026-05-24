@@ -1,6 +1,6 @@
 'use client';
  
-import { LogOut, User, Menu, Sun, Moon, Sparkles, ChevronDown, Database, Scale, ScrollText, Users, Settings, Monitor } from 'lucide-react';
+import { LogOut, User, Menu, Sun, Moon, Brain, ChevronDown, Database, Scale, ScrollText, Users, Settings, Monitor } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -49,16 +49,34 @@ export default function Header({ isCollapsed, setIsCollapsed }: { isCollapsed: b
 
   const toggleTheme = () => {
     const newMode = !isDarkMode;
-    setIsDarkMode(newMode);
+    const html = document.documentElement;
+
+    // 1. Aktifkan transition layer SEBELUM ubah tema
+    html.classList.add('theme-switching');
+
+    // 2. Terapkan perubahan tema secara sinkron (sebelum React re-render)
     if (newMode) {
-      document.documentElement.classList.add('dark');
+      html.classList.add('dark');
       localStorage.setItem('theme', 'dark');
-      toast.success('Midnight Audit Mode Aktif');
     } else {
-      document.documentElement.classList.remove('dark');
+      html.classList.remove('dark');
       localStorage.setItem('theme', 'light');
-      toast.info('Normal Mode Aktif');
     }
+
+    // 3. Update state React di frame berikutnya agar tidak bersaing dengan awal transisi CSS
+    requestAnimationFrame(() => {
+      setIsDarkMode(newMode);
+    });
+
+    // 4. Setelah transisi selesai: bersihkan class + tampilkan toast
+    setTimeout(() => {
+      html.classList.remove('theme-switching');
+      if (newMode) {
+        toast.success('Midnight Audit Mode Aktif');
+      } else {
+        toast.info('Normal Mode Aktif');
+      }
+    }, 260);
   };
 
   const toggleAI = () => {
@@ -94,22 +112,11 @@ export default function Header({ isCollapsed, setIsCollapsed }: { isCollapsed: b
 
       {/* Middle — Static Info Bar */}
       <div className="hidden md:flex flex-1 max-w-[42%] mx-8 items-center gap-3 bg-fin-subtle/30 dark:bg-slate-900/40 border border-fin-border rounded-full px-4 py-1.5 backdrop-blur-md overflow-hidden">
-        {/* Greeting */}
+        {/* Fiscal Year */}
         <div className="flex items-center gap-2 shrink-0">
-          <Sparkles size={12} className="text-fin-info dark:text-fin-info-text shrink-0" />
-          <span className="text-[10px] font-extrabold text-fin-info-text dark:text-fin-info uppercase tracking-wider whitespace-nowrap">
-            {(() => {
-              const hour = new Date().getHours();
-              let g = "Malam";
-              if (hour >= 4 && hour < 6) g = "Subuh";
-              else if (hour >= 6 && hour < 11) g = "Pagi";
-              else if (hour >= 11 && hour < 15) g = "Siang";
-              else if (hour >= 15 && hour < 18) g = "Sore";
-              const name = user?.username
-                ? user.username.charAt(0).toUpperCase() + user.username.slice(1)
-                : 'Administrator';
-              return `Selamat ${g}, ${name}`;
-            })()}
+          <div className="w-2 h-2 bg-fin-income rounded-full shadow-[0_0_8px_var(--fin-income)] shrink-0" />
+          <span className="text-[10px] font-extrabold text-fin-text-secondary uppercase tracking-wider whitespace-nowrap">
+            Tahun Anggaran {new Date().getFullYear()}
           </span>
         </div>
 
@@ -125,9 +132,9 @@ export default function Header({ isCollapsed, setIsCollapsed }: { isCollapsed: b
 
         <div className="h-3 w-px bg-fin-border shrink-0" />
 
-        {/* Fiscal Year */}
+        {/* Info */}
         <span className="text-[10px] font-semibold text-fin-text-muted whitespace-nowrap truncate">
-          TA {new Date().getFullYear()} · Rekonsiliasi Otomatis
+          Rekonsiliasi Otomatis
         </span>
       </div>
 
@@ -142,7 +149,7 @@ export default function Header({ isCollapsed, setIsCollapsed }: { isCollapsed: b
           )}
           title={isAIVisible ? "Matikan Asisten AI" : "Aktifkan Asisten AI"}
         >
-          <Sparkles size={18} className={cn(isAIVisible && "animate-pulse")} />
+          <Brain size={18} className={cn(isAIVisible && "animate-pulse")} />
         </button>
 
         {/* Unified Premium Profile Dropdown Pill */}

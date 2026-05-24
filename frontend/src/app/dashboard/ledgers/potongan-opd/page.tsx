@@ -383,9 +383,9 @@ export default function RealisasiPotonganOpdPage() {
                 <TableRow className="border-b border-fin-border">
                   <TableHead className="w-12 text-[10px] font-black text-fin-text-muted uppercase text-center py-3">No</TableHead>
                   <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-3">OPD / Unit Kerja</TableHead>
-                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-3 text-right">Dipungut</TableHead>
-                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-3 text-right">Disetor</TableHead>
-                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-3 text-right">Selisih</TableHead>
+                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-3 text-right min-w-[160px]">Dipungut</TableHead>
+                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-3 text-right min-w-[160px]">Disetor</TableHead>
+                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-3 text-right min-w-[160px]">Selisih</TableHead>
                   <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-3 text-center">Dok</TableHead>
                   <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-3 text-center">Status</TableHead>
                 </TableRow>
@@ -423,13 +423,13 @@ export default function RealisasiPotonganOpdPage() {
                             <span className="text-[12px] font-semibold text-fin-text-primary">{row.opd}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right text-[12px] font-semibold text-fin-text-primary tabular-nums py-3">
+                        <TableCell className="text-right text-[12px] font-semibold text-fin-text-primary tabular-nums py-3 min-w-[160px]">
                           {formatCurrency(row.totalDipungut)}
                         </TableCell>
-                        <TableCell className="text-right text-[12px] font-semibold text-fin-income tabular-nums py-3">
+                        <TableCell className="text-right text-[12px] font-semibold text-fin-income tabular-nums py-3 min-w-[160px]">
                           {formatCurrency(row.totalDisetor)}
                         </TableCell>
-                        <TableCell className={cn('text-right text-[12px] font-bold tabular-nums py-3', row.selisih > 1 ? 'text-fin-expense' : 'text-fin-text-muted')}>
+                        <TableCell className={cn('text-right text-[12px] font-bold tabular-nums py-3 min-w-[160px]', row.selisih > 1 ? 'text-fin-expense' : 'text-fin-text-muted')}>
                           {formatCurrency(row.selisih)}
                         </TableCell>
                         <TableCell className="text-center text-[11px] text-fin-text-secondary py-3">{row.jumlahDokumen}</TableCell>

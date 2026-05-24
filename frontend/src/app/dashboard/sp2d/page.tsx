@@ -34,7 +34,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Activity,
-  Sparkles,
+  Brain,
   Save,
   Pencil,
   Copy,
@@ -1579,7 +1579,7 @@ export default function Sp2dUnifiedPage() {
                       onClick={handleSyncRekon}
                       className="h-9 px-4 border-indigo-100 bg-indigo-50/50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-2 transition-all shadow-sm group"
                     >
-                      <Sparkles size={14} className="group-hover:rotate-12 transition-transform" />
+                      <Brain size={14} className="group-hover:rotate-12 transition-transform" />
                       Auto-Sync Magic Match
                     </Button>
                   </div>
@@ -1779,7 +1779,7 @@ export default function Sp2dUnifiedPage() {
                </div>
                <div className="relative z-10 flex items-center gap-4">
                   <div className="w-16 h-16 bg-fin-surface/10 backdrop-blur-xl rounded-[20px] flex items-center justify-center text-fin-info border border-white/10">
-                     <Sparkles size={32} />
+                     <Brain size={32} />
                   </div>
                   <div>
                      <DialogTitle className="text-xl font-bold tracking-tight">Pratinjau Impor Data</DialogTitle>

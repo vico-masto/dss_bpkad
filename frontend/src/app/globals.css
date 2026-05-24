@@ -183,7 +183,7 @@ header.sticky     { view-transition-name: topbar; }
     font-variant-numeric: tabular-nums;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    transition: font-family 0.3s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s ease, background-color 0.3s ease;
+    transition: font-family 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   * {
     @apply border-border outline-ring/50;
@@ -618,9 +618,18 @@ header.sticky     { view-transition-name: topbar; }
   --sidebar-border:       #3D4D61;
 }
 
-/* Smooth Theme Transitions */
-* {
-  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+/* Smooth Theme Transitions — hanya aktif saat switching, bukan setiap saat */
+html.theme-switching,
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition:
+    background-color 0.22s ease,
+    color            0.22s ease,
+    border-color     0.22s ease,
+    fill             0.22s ease,
+    stroke           0.22s ease !important;
+  transition-delay: 0s !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════

@@ -18,7 +18,7 @@ import {
   Save,
   ArrowUpRight,
   Target,
-  Sparkles,
+  Brain,
   ListFilter,
   ShieldCheck,
   Search,
@@ -28,7 +28,6 @@ import {
   Clock,
   BarChart3,
   Cpu,
-  Bot,
   AlertCircle,
   BookOpen,
 } from 'lucide-react';
@@ -935,7 +934,7 @@ export default function CashSimulatorPage() {
               <Dialog open={openInjection} onOpenChange={val => { setOpenInjection(val); if (val) fetchSP2Ds(); }}>
                 <DialogTrigger render={
                   <Button variant="outline" size="sm" className="h-8 px-2.5 text-[10px] font-bold border-indigo-200 text-fin-info-text hover:bg-indigo-50 gap-1.5 shadow-sm">
-                    <Sparkles size={14} />
+                    <Brain size={14} />
                     SMART INJECTION
                   </Button>
                 } />
@@ -1228,7 +1227,7 @@ export default function CashSimulatorPage() {
           )}>
             <div className="flex items-start gap-4">
               <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center shrink-0', finalKas < 0 ? 'bg-white/20' : 'bg-indigo-50 text-fin-info-text')}>
-                <Sparkles size={20} />
+                <Brain size={20} />
               </div>
               <div className="flex-1">
                 <h4 className={cn('text-sm font-bold uppercase tracking-wider mb-2', finalKas < 0 ? 'text-white' : 'text-fin-text-primary')}>
@@ -1246,7 +1245,7 @@ export default function CashSimulatorPage() {
                     onClick={applyEfficiency}
                     className={cn('h-9 px-4 rounded-lg text-[10px] font-black uppercase tracking-tight flex items-center gap-2', finalKas < 0 ? 'bg-white text-rose-700 hover:bg-rose-50' : 'bg-ds-primary text-white')}
                   >
-                    <Sparkles size={13} />
+                    <Brain size={13} />
                     Terapkan Efisiensi
                   </Button>
                   <Button
@@ -1262,14 +1261,14 @@ export default function CashSimulatorPage() {
                   <Dialog open={openAI} onOpenChange={setOpenAI}>
                     <DialogTrigger render={
                       <Button variant="ghost" className={cn('h-9 px-4 rounded-lg text-[10px] font-black uppercase tracking-tight flex items-center gap-2', finalKas < 0 ? 'text-white/70 hover:bg-white/10' : 'text-fin-text-muted')}>
-                        <Bot size={13} />
+                        <Brain size={13} />
                         Bantuan AI
                       </Button>
                     } />
                     <DialogContent className="max-w-lg">
                       <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-sm font-black">
-                          <Bot size={16} className="text-indigo-500" />
+                          <Brain size={16} className="text-indigo-500" />
                           Konsultan Keuangan AI
                         </DialogTitle>
                         <DialogDescription className="text-xs">Tanyakan analisis likuiditas, rekomendasi, atau simulasi skenario.</DialogDescription>
@@ -1278,7 +1277,7 @@ export default function CashSimulatorPage() {
                         <div className="h-64 overflow-y-auto space-y-3 p-3 bg-fin-page rounded-xl border border-fin-border scrollbar-hide">
                           {aiMessages.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-full text-fin-text-muted">
-                              <Bot size={32} className="mb-2 opacity-30" />
+                              <Brain size={32} className="mb-2 opacity-30" />
                               <p className="text-[11px] font-medium">Tanyakan tentang kondisi kas Anda...</p>
                             </div>
                           )}

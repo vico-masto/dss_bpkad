@@ -571,9 +571,9 @@ export default function BkuPage() {
                 <TableHead className="px-4 py-4 w-44 text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider">Referensi</TableHead>
                 <TableHead className="px-4 py-4 text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider">Uraian Transaksi</TableHead>
                 <TableHead className="px-4 py-4 text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider">Unit Kerja</TableHead>
-                <TableHead className="px-4 py-4 text-right text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider">Penerimaan</TableHead>
-                <TableHead className="px-4 py-4 text-right text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider">Pengeluaran</TableHead>
-                <TableHead className="px-4 py-4 text-right text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider">Saldo</TableHead>
+                <TableHead className="px-4 py-4 text-right text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider min-w-[170px]">Penerimaan</TableHead>
+                <TableHead className="px-4 py-4 text-right text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider min-w-[170px]">Pengeluaran</TableHead>
+                <TableHead className="px-4 py-4 text-right text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider min-w-[170px]">Saldo</TableHead>
                 <TableHead className="px-4 py-4 text-center text-[10px] font-semibold text-fin-text-muted uppercase tracking-wider">Audit Rekon</TableHead>
               </TableRow>
             </TableHeader>
@@ -662,13 +662,13 @@ export default function BkuPage() {
                     <TableCell className="px-4 py-4">
                        <p className="text-[10px] font-medium text-fin-text-muted truncate max-w-[150px]">{item.opd}</p>
                     </TableCell>
-                    <TableCell className="px-4 py-4 text-right font-semibold text-fin-income text-xs" style={{fontVariantNumeric:'tabular-nums'}}>
+                    <TableCell className="px-4 py-4 text-right font-semibold text-fin-income text-xs min-w-[170px]" style={{fontVariantNumeric:'tabular-nums'}}>
                       {item.penerimaan > 0 ? formatCurrency(item.penerimaan) : '-'}
                     </TableCell>
-                    <TableCell className="px-4 py-4 text-right font-semibold text-fin-expense text-xs" style={{fontVariantNumeric:'tabular-nums'}}>
+                    <TableCell className="px-4 py-4 text-right font-semibold text-fin-expense text-xs min-w-[170px]" style={{fontVariantNumeric:'tabular-nums'}}>
                       {item.pengeluaran > 0 ? formatCurrency(item.pengeluaran) : '-'}
                     </TableCell>
-                    <TableCell className="px-4 py-4 text-right font-bold text-fin-text-primary text-xs transition-colors" style={{fontVariantNumeric:'tabular-nums'}}>
+                    <TableCell className="px-4 py-4 text-right font-bold text-fin-text-primary text-xs transition-colors min-w-[170px]" style={{fontVariantNumeric:'tabular-nums'}}>
                       {formatCurrency(item.saldo)}
                     </TableCell>
                     <TableCell className="px-4 py-4 text-center">
@@ -708,13 +708,13 @@ export default function BkuPage() {
                   <TableCell colSpan={5} className="px-3 py-5 text-right text-[10px] font-black text-fin-text-primary uppercase tracking-wider">
                     Jumlah Total (Periode Berjalan)
                   </TableCell>
-                  <TableCell className="px-2 py-5 text-right text-fin-income text-[10px] font-bold bg-[#12B76A]/5 whitespace-nowrap" style={{fontVariantNumeric:'tabular-nums'}}>
+                  <TableCell className="px-2 py-5 text-right text-fin-income text-[10px] font-bold bg-[#12B76A]/5 whitespace-nowrap min-w-[170px]" style={{fontVariantNumeric:'tabular-nums'}}>
                     {formatCurrency(summary.totalPenerimaan)}
                   </TableCell>
-                  <TableCell className="px-2 py-5 text-right text-fin-expense text-[10px] font-bold bg-[#F04438]/5 whitespace-nowrap" style={{fontVariantNumeric:'tabular-nums'}}>
+                  <TableCell className="px-2 py-5 text-right text-fin-expense text-[10px] font-bold bg-[#F04438]/5 whitespace-nowrap min-w-[170px]" style={{fontVariantNumeric:'tabular-nums'}}>
                     {formatCurrency(summary.totalPengeluaran)}
                   </TableCell>
-                  <TableCell className="px-2 py-5 text-right text-fin-text-primary text-[11px] font-black bg-ds-primary/10 whitespace-nowrap" style={{fontVariantNumeric:'tabular-nums'}}>
+                  <TableCell className="px-2 py-5 text-right text-fin-text-primary text-[11px] font-black bg-ds-primary/10 whitespace-nowrap min-w-[170px]" style={{fontVariantNumeric:'tabular-nums'}}>
                     {formatCurrency(summary.saldoAkhir)}
                   </TableCell>
                   <TableCell className="bg-fin-page w-10"></TableCell>

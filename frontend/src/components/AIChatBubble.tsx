@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bot, X, Send, User, Loader2, Sparkles, MessageSquare, Wand2, Zap, BrainCircuit } from 'lucide-react';
+import { Brain, X, Send, User, Loader2, MessageSquare, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -139,7 +139,7 @@ export default function AIChatBubble() {
               {/* Magic Glow Aura */}
               <div className="absolute inset-0 bg-gradient-to-tr from-fin-info via-fin-surplus to-fin-info animate-spin-slow opacity-80" />
               <div className="absolute inset-1 rounded-full bg-[#0B0F1A] flex items-center justify-center border border-white/10">
-                <BrainCircuit size={28} className="text-fin-info animate-pulse group-hover:scale-125 transition-transform" />
+                <Brain size={28} className="text-fin-info animate-pulse group-hover:scale-125 transition-transform" />
               </div>
               
               {/* Orbiting Particles */}
@@ -171,7 +171,7 @@ export default function AIChatBubble() {
                 <div className="relative">
                   <div className="absolute inset-0 bg-fin-info rounded-full blur-md opacity-50 animate-pulse" />
                   <div className="relative w-12 h-12 rounded-full bg-[#0B0F1A] border border-fin-info/30 flex items-center justify-center">
-                    <Wand2 size={22} className="text-fin-info animate-bounce-slow" />
+                    <Brain size={22} className="text-fin-info animate-bounce-slow" />
                   </div>
                   <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-fin-income border-2 border-[#0B0F1A] shadow-[0_0_10px_rgba(18,183,106,0.5)]" />
                 </div>
@@ -254,7 +254,7 @@ export default function AIChatBubble() {
               {isLoading && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
                   <div className="w-8 h-8 rounded-full bg-fin-subtle text-fin-info flex items-center justify-center shrink-0 border border-fin-info/20">
-                    <Bot size={14} />
+                    <Brain size={14} />
                   </div>
                   <div className="px-5 py-3.5 rounded-xl bg-fin-subtle border border-fin-border rounded-tl-none shadow-sm flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 bg-fin-info rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />

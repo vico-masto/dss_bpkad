@@ -36,7 +36,6 @@ import {
   TrendingDown,
   Scale,
   ArrowRightLeft,
-  Sparkles,
   CheckCircle2,
   Info,
   LayoutTemplate,

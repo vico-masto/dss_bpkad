@@ -292,9 +292,9 @@ export default function BankLedgerPage() {
                   <TableHead className="w-[120px] text-[10px] font-black text-fin-text-muted uppercase py-4 text-center">Tanggal</TableHead>
                   <TableHead className="w-[180px] text-[10px] font-black text-fin-text-muted uppercase py-4">No. Bukti</TableHead>
                   <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4">Uraian Transaksi</TableHead>
-                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right">M (Penerimaan)</TableHead>
-                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right">K (Pengeluaran)</TableHead>
-                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right">Saldo (Rp)</TableHead>
+                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right min-w-[160px]">M (Penerimaan)</TableHead>
+                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right min-w-[160px]">K (Pengeluaran)</TableHead>
+                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right min-w-[160px]">Saldo (Rp)</TableHead>
                   <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-center pr-6">Audit Rekon</TableHead>
                 </TableRow>
               </TableHeader>
@@ -335,13 +335,13 @@ export default function BankLedgerPage() {
                            <span className="text-[10px] text-fin-text-muted mt-0.5">{item.opd}</span>
                         </div>
                       </TableCell>
-                       <TableCell className="text-right font-black text-fin-income tabular-nums text-xs">
+                       <TableCell className="text-right font-black text-fin-income tabular-nums text-xs min-w-[160px]">
                         {item.penerimaan > 0 ? formatCurrency(item.penerimaan) : '-'}
                       </TableCell>
-                      <TableCell className="text-right font-black text-fin-expense tabular-nums text-xs">
+                      <TableCell className="text-right font-black text-fin-expense tabular-nums text-xs min-w-[160px]">
                         {item.pengeluaran > 0 ? formatCurrency(item.pengeluaran) : '-'}
                       </TableCell>
-                      <TableCell className="text-right font-black text-fin-text-primary tabular-nums text-xs">
+                      <TableCell className="text-right font-black text-fin-text-primary tabular-nums text-xs min-w-[160px]">
                         {formatCurrency(item.saldo)}
                       </TableCell>
                       <TableCell className="px-6 py-4 text-center pr-6">

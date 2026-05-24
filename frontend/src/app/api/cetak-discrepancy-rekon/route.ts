@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     font-family: 'Times New Roman', Times, serif;
     padding: 0;
     margin: 0;
-    line-height: 1.5;
+    line-height: 1;
     color: #000;
     font-size: 11pt;
   }
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   .kop-text { text-align: center; width: 100%; }
   .kop-text.has-logo { padding-left: 85px; padding-right: 85px; }
   .kop-text .gov  { font-size: 13pt; font-weight: bold; text-transform: uppercase; margin: 0; line-height: 1.2; }
-  .kop-text .inst { font-size: 15pt; font-weight: bold; text-transform: uppercase; margin: 3px 0 0; line-height: 1.2; }
+  .kop-text .inst { font-size: 13pt; font-weight: bold; text-transform: uppercase; margin: 3px 0 0; line-height: 1.2; }
   .kop-text .addr { font-size: 9pt; font-style: italic; font-family: 'Arial', sans-serif; margin: 5px 0 0; line-height: 1.2; }
 
   .title { text-align: center; margin-bottom: 18px; }
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
 
   .signature-row { display: flex; width: 100%; margin-top: 30px; }
   .sig-col { width: 50%; text-align: center; }
-  .sig-space { height: 60px; }
+  .sig-space { height: 45px; }
 </style>
 </head>
 <body>
@@ -118,16 +118,34 @@ export async function POST(req: NextRequest) {
       tahun <span class="font-bold italic">${terbilangThn}</span>, kami yang bertanda tangan di bawah ini:
     </p>
     <div style="margin-left: 28px; margin-top: 14px; margin-bottom: 14px;">
-      <p style="margin: 0 0 10px;">
-        1. Nama&nbsp;&nbsp; : <span class="font-bold uppercase">${barConfig.pejabat1 || '—'}</span><br>
-           &nbsp;&nbsp;&nbsp;&nbsp;Jabatan : <span class="italic">${barConfig.jabatan1 || '—'}</span><br>
-           &nbsp;&nbsp;&nbsp;&nbsp;NIP&nbsp;&nbsp;&nbsp;&nbsp; : ${barConfig.nip1 || '—'}
-      </p>
-      <p style="margin: 0;">
-        2. Nama&nbsp;&nbsp; : <span class="font-bold uppercase">${barConfig.pejabat2 || '—'}</span><br>
-           &nbsp;&nbsp;&nbsp;&nbsp;Jabatan : <span class="italic">${barConfig.jabatan2 || '—'}</span><br>
-           &nbsp;&nbsp;&nbsp;&nbsp;ID/NIP&nbsp; : ${barConfig.nip2 || '—'}
-      </p>
+      <table style="border:none; border-collapse:collapse; font-size:inherit; margin:0 0 10px 0;">
+        <tr><td style="border:none;padding:0;white-space:nowrap;vertical-align:top;width:14px;">1.</td>
+            <td style="border:none;padding:0 0 0 4px;white-space:nowrap;vertical-align:top;width:52px;">Nama</td>
+            <td style="border:none;padding:0 3px;vertical-align:top;">:</td>
+            <td style="border:none;padding:0;vertical-align:top;"><span class="font-bold uppercase">${barConfig.pejabat1 || '—'}</span></td></tr>
+        <tr><td style="border:none;padding:0;"></td>
+            <td style="border:none;padding:0 0 0 4px;white-space:nowrap;vertical-align:top;">Jabatan</td>
+            <td style="border:none;padding:0 3px;vertical-align:top;">:</td>
+            <td style="border:none;padding:0;vertical-align:top;">${barConfig.jabatan1 || '—'}</td></tr>
+        <tr><td style="border:none;padding:0;"></td>
+            <td style="border:none;padding:0 0 0 4px;white-space:nowrap;vertical-align:top;">NIP</td>
+            <td style="border:none;padding:0 3px;vertical-align:top;">:</td>
+            <td style="border:none;padding:0;vertical-align:top;">${barConfig.nip1 || '—'}</td></tr>
+      </table>
+      <table style="border:none; border-collapse:collapse; font-size:inherit; margin:0;">
+        <tr><td style="border:none;padding:0;white-space:nowrap;vertical-align:top;width:14px;">2.</td>
+            <td style="border:none;padding:0 0 0 4px;white-space:nowrap;vertical-align:top;width:52px;">Nama</td>
+            <td style="border:none;padding:0 3px;vertical-align:top;">:</td>
+            <td style="border:none;padding:0;vertical-align:top;"><span class="font-bold uppercase">${barConfig.pejabat2 || '—'}</span></td></tr>
+        <tr><td style="border:none;padding:0;"></td>
+            <td style="border:none;padding:0 0 0 4px;white-space:nowrap;vertical-align:top;">Jabatan</td>
+            <td style="border:none;padding:0 3px;vertical-align:top;">:</td>
+            <td style="border:none;padding:0;vertical-align:top;">${barConfig.jabatan2 || '—'}</td></tr>
+        <tr><td style="border:none;padding:0;"></td>
+            <td style="border:none;padding:0 0 0 4px;white-space:nowrap;vertical-align:top;">ID/NIP</td>
+            <td style="border:none;padding:0 3px;vertical-align:top;">:</td>
+            <td style="border:none;padding:0;vertical-align:top;">${barConfig.nip2 || '—'}</td></tr>
+      </table>
     </div>
     <p>
       PIHAK KESATU dan PIHAK KEDUA secara bersama-sama telah melakukan rekonsiliasi atas data Kas pada Pemerintah Kabupaten Kepulauan Aru untuk periode bulan <span class="font-bold italic underline">${previewBlnRekonName}</span> Tahun Anggaran <span class="font-bold">${year}</span>.
@@ -185,7 +203,7 @@ export async function POST(req: NextRequest) {
   </table>
 
   <!-- C. RINCIAN SELISIH -->
-  <div class="section-title" style="page-break-before: always; padding-top: 1cm;">C. RINCIAN SELISIH (OUTSTANDING ITEMS)</div>
+  <div class="section-title">C. RINCIAN SELISIH (OUTSTANDING ITEMS)</div>
   <table>
     <thead>
       <tr>
@@ -200,7 +218,7 @@ export async function POST(req: NextRequest) {
         ? anomalyRows.map((r: any, idx: number) => `
             <tr>
               <td class="text-center">${idx + 1}</td>
-              <td class="uppercase">${r.tipe}<br><small style="color: #666; font-family: monospace;">${r.bukti || ''}</small></td>
+              <td class="uppercase">${r.tipe}<br><small style="color: #666; font-family: monospace;">${r.bukti || ''}</small><br><small style="color: #666; font-family: monospace;">${r.tanggal || '-'}</small></td>
               <td>${r.keterangan || ''}<br><small style="color: #888; font-style: italic;">${r.opd || ''}</small></td>
               <td class="text-right mono">${formatNum(r.nilai)}</td>
             </tr>
@@ -273,7 +291,7 @@ export async function POST(req: NextRequest) {
     return new NextResponse(Buffer.from(pdf), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="BAR_REKON_${year}_${previewBlnRekonName}_${(barConfig.noBar as string).replace(/\//g, '_')}.pdf"`
+        'Content-Disposition': `inline; filename="BAR_REKON_${year}_${previewBlnRekonName}_${(barConfig.noBar as string).replace(/\//g, '_')}.pdf"`
       }
     });
 

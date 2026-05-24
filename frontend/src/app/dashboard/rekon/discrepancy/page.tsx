@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
-import { AlertTriangle, BarChart3, Building2, Calendar, CheckCircle2, ChevronDown, ChevronRight, Download, RefreshCw, XCircle, FileText, ShieldCheck, Lock, Edit3, Sparkles, FileSignature, Save, User } from 'lucide-react';
+import { AlertTriangle, BarChart3, Building2, Calendar, CheckCircle2, ChevronDown, ChevronRight, Download, RefreshCw, XCircle, FileText, ShieldCheck, Lock, Edit3, Sparkles, FileSignature, Save, User, Printer } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
 import api from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -114,16 +114,24 @@ export default function DiscrepancyReportPage() {
   const [instansiConfig, setInstansiConfig] = useState<any>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('app_config');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setInstansiConfig(parsed);
-      setBarConfig(prev => ({
-        ...prev,
-        pejabat3: parsed.pimpinan_nama || prev.pejabat3,
-        jabatan3: parsed.pimpinan_jabatan || prev.jabatan3,
-        nip3: parsed.pimpinan_nip || prev.nip3
-      }));
+    // Muat konfigurasi BAR yang pernah disimpan user
+    const savedBar = localStorage.getItem('bar_config_discrepancy');
+    if (savedBar) {
+      try { setBarConfig(JSON.parse(savedBar)); } catch {}
+    }
+    // Timpa pejabat3 dengan data pimpinan dari app_config (selalu ikut master)
+    const savedApp = localStorage.getItem('app_config');
+    if (savedApp) {
+      try {
+        const parsed = JSON.parse(savedApp);
+        setInstansiConfig(parsed);
+        setBarConfig(prev => ({
+          ...prev,
+          pejabat3: parsed.pimpinan_nama || prev.pejabat3,
+          jabatan3: parsed.pimpinan_jabatan || prev.jabatan3,
+          nip3: parsed.pimpinan_nip || prev.nip3
+        }));
+      } catch {}
     }
   }, []);
 
@@ -154,6 +162,8 @@ export default function DiscrepancyReportPage() {
 
   const handleGenerateBAR = async () => {
     if (!data) return;
+    // Buka window SEBELUM await pertama agar tidak diblokir popup blocker
+    const pdfWindow = window.open('about:blank', '_blank');
     try {
       const targetBulanInt = parseInt(barConfig.bulanRekon) || 1;
       const selectedBlnName = MONTHS[targetBulanInt - 1] || 'Januari';
@@ -161,22 +171,21 @@ export default function DiscrepancyReportPage() {
       const saldoAwalKas = targetBulanInt === 1 ? saldoAwalSilpa : 0;
 
       const monthsUpToTarget = (data.monthlyBalance || []).filter((m: any) => m.bulan <= targetBulanInt);
-      const displayPenerimaan = monthsUpToTarget.reduce((acc: number, m: any) => acc + toN(m.penerimaan), 0);
+      const rawPenerimaan = monthsUpToTarget.reduce((acc: number, m: any) => acc + toN(m.penerimaan), 0);
+      const displayPenerimaan = targetBulanInt === 1 ? rawPenerimaan - saldoAwalSilpa : rawPenerimaan;
       const totalPengeluaran = monthsUpToTarget.reduce((acc: number, m: any) => acc + toN(m.pengeluaran), 0);
-      
-      // Calculate Potongan Mengendap that should not be counted as Selisih
+
       const potonganUnmatchedToTarget = (data.potonganUnmatched || []).filter((p: any) => p.bulan <= targetBulanInt);
       const totalPotonganMengendap = potonganUnmatchedToTarget.reduce((acc: number, p: any) => acc + toN(p.total_nilai), 0);
 
-      // Adjust BKU mathematically to exclude the Potongan Mengendap from discrepancy
-      const saldoAkhirBKU = saldoAwalKas + (displayPenerimaan - saldoAwalSilpa) - totalPengeluaran + totalPotonganMengendap;
+      const saldoAkhirBKU = saldoAwalKas + displayPenerimaan - totalPengeluaran + totalPotonganMengendap;
       const saldoBank = toN(data.monthlyBalance?.find((m: any) => m.bulan === targetBulanInt)?.saldo_bank || 0);
       const selisihNilai = Math.abs(saldoAkhirBKU - saldoBank);
       const isSesuai = selisihNilai < 1.0;
 
       const tglObj = new Date(barConfig.tanggalRekon);
       const formattedLastDay = `${new Date(tglObj.getFullYear(), targetBulanInt, 0).getDate()}/${targetBulanInt}/${tglObj.getFullYear()}`;
-      
+
       const previewHari = format(tglObj, 'EEEE', { locale: id });
       const previewTgl = tglObj.getDate();
       const previewBln = MONTHS[tglObj.getMonth()];
@@ -185,7 +194,6 @@ export default function DiscrepancyReportPage() {
       const terbilangThn = terbilang(previewThn);
 
       const allAnomalies = [...(data.matchedWithDiscrepancy || []), ...(data.unmatchedDetails || [])];
-      // Filter unresolved outstanding items up to the target month
       const anomalyRows = allAnomalies
         .filter((r: any) => {
           const rDate = new Date(r.tanggal);
@@ -194,11 +202,12 @@ export default function DiscrepancyReportPage() {
         .filter((r: any) => {
           const isPotongan = r.tipe === 'POTONGAN SP2D' || r.tipe === 'POTONGAN' || r.tipe === 'POTONGAN_BANK';
           const isLainnya = (r.uraian || '').toLowerCase().includes('lainnya') || (r.keterangan_rekon || '').toLowerCase().includes('lainnya');
-          return !(isPotongan && isLainnya); // Exclude Potongan Mengendap
+          return !(isPotongan && isLainnya);
         })
         .map((r: any) => ({
           tipe: r.tipe,
           bukti: r.bukti,
+          tanggal: r.tanggal ? format(new Date(r.tanggal), 'dd/MM/yyyy') : '-',
           keterangan: r.keterangan_rekon || r.uraian || 'Belum ada penjelasan',
           opd: r.opd || '',
           nilai: toN(r.selisih || r.nilai)
@@ -208,37 +217,31 @@ export default function DiscrepancyReportPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          barConfig,
-          instansiConfig,
-          year,
-          saldoAwalKas,
-          displayPenerimaan,
-          totalPengeluaran,
-          saldoAkhirBKU,
-          saldoBank,
-          selisihNilai,
-          isSesuai,
-          formattedLastDay,
-          previewBlnRekonName: selectedBlnName,
-          previewHari,
-          previewTgl,
-          previewBln,
-          previewThn,
-          terbilangTgl,
-          terbilangThn,
-          anomalyRows
+          barConfig, instansiConfig, year, saldoAwalKas, displayPenerimaan,
+          totalPengeluaran, saldoAkhirBKU, saldoBank, selisihNilai, isSesuai,
+          formattedLastDay, previewBlnRekonName: selectedBlnName,
+          previewHari, previewTgl, previewBln, previewThn,
+          terbilangTgl, terbilangThn, anomalyRows
         })
       });
 
       if (!res.ok) throw new Error('Gagal mencetak dokumen BAR');
       const blob = await res.blob();
-      const link = document.createElement('a');
-      link.href = window.URL.createObjectURL(blob);
-      link.download = `BAR_REKON_${year}_${selectedBlnName}_${barConfig.noBar.replace(/\//g, '_')}.pdf`;
-      link.click();
-      toast.success('Berita Acara Rekonsiliasi berhasil diunduh!');
+      const url = window.URL.createObjectURL(blob);
+      if (pdfWindow) {
+        pdfWindow.location.href = url;
+      } else {
+        // Fallback jika popup tetap diblokir: download langsung
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `BAR_REKON_${year}_${selectedBlnName}.pdf`;
+        link.click();
+      }
+      setTimeout(() => window.URL.revokeObjectURL(url), 15000);
+      toast.success('Dokumen BAR siap — klik ikon cetak di PDF viewer!');
     } catch (err: any) {
-      toast.error(err.message || 'Terjadi kesalahan saat mengunduh BAR');
+      pdfWindow?.close();
+      toast.error(err.message || 'Terjadi kesalahan saat mencetak BAR');
     }
   };
 
@@ -854,7 +857,7 @@ export default function DiscrepancyReportPage() {
               <Save size={16} /> Simpan
             </Button>
             <Button onClick={() => { handleGenerateBAR(); setShowBarModal(false); }} className="h-11 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black text-xs uppercase px-8 shadow-lg shadow-indigo-200 flex items-center gap-2 transition-all">
-              <Download size={16} /> Unduh Berita Acara
+              <Printer size={16} /> Cetak Berita Acara
             </Button>
           </DialogFooter>
         </DialogContent>

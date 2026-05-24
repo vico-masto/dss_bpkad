@@ -229,9 +229,9 @@ export default function OpdLedgerPage() {
                   <TableHead className="w-[120px] text-[10px] font-black text-fin-text-muted uppercase py-4 text-center">Tanggal</TableHead>
                   <TableHead className="w-[180px] text-[10px] font-black text-fin-text-muted uppercase py-4">No. Bukti</TableHead>
                   <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4">Uraian / Keterangan Belanja</TableHead>
-                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right">Nilai Bruto</TableHead>
-                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right">Realisasi Kumulatif</TableHead>
-                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right">Sisa Pagu</TableHead>
+                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right min-w-[160px]">Nilai Bruto</TableHead>
+                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right min-w-[160px]">Realisasi Kumulatif</TableHead>
+                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right min-w-[160px]">Sisa Pagu</TableHead>
                   <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-center pr-6">Audit Rekon</TableHead>
                 </TableRow>
               </TableHeader>
@@ -260,13 +260,13 @@ export default function OpdLedgerPage() {
                             <Badge variant="outline" className="w-fit mt-1 text-[8px] font-bold border-slate-200 text-fin-text-muted uppercase tracking-tighter">{item.jenis}</Badge>
                          </div>
                       </TableCell>
-                      <TableCell className="text-right font-black tabular-nums text-xs text-fin-text-primary">
+                      <TableCell className="text-right font-black tabular-nums text-xs text-fin-text-primary min-w-[160px]">
                         {formatCurrency(item.nilai_bruto)}
                       </TableCell>
-                      <TableCell className="text-right font-black text-fin-info tabular-nums text-xs">
+                      <TableCell className="text-right font-black text-fin-info tabular-nums text-xs min-w-[160px]">
                         {formatCurrency(item.realisasi_kumulatif)}
                       </TableCell>
-                      <TableCell className="text-right font-black text-fin-income tabular-nums text-xs">
+                      <TableCell className="text-right font-black text-fin-income tabular-nums text-xs min-w-[160px]">
                         {formatCurrency(item.sisa_pagu)}
                       </TableCell>
                       <TableCell className="px-6 py-4 text-center pr-6">

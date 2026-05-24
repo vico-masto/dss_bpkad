@@ -198,8 +198,8 @@ export default function TaxLedgerPage() {
                   <TableHead className="w-[180px] text-[10px] font-black text-fin-text-muted uppercase py-4">No. Bukti</TableHead>
                   <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4">Keterangan Transaksi</TableHead>
                   <TableHead className="w-[100px] text-[10px] font-black text-fin-text-muted uppercase py-4 text-center">Tipe</TableHead>
-                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right">Nilai (Rp)</TableHead>
-                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right pr-6">Saldo Kewajiban</TableHead>
+                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right min-w-[160px]">Nilai (Rp)</TableHead>
+                  <TableHead className="text-[10px] font-black text-fin-text-muted uppercase py-4 text-right pr-6 min-w-[160px]">Saldo Kewajiban</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -249,13 +249,13 @@ export default function TaxLedgerPage() {
                          )}
                       </TableCell>
                       <TableCell className={cn(
-                        "text-right font-black tabular-nums text-xs",
+                        "text-right font-black tabular-nums text-xs min-w-[160px]",
                         item.tipe === 'SALDO_AWAL' ? "text-fin-text-primary" :
                         item.tipe === 'COLLECTED' ? "text-fin-warning" : "text-fin-income"
                       )}>
                         {item.nilai > 0 ? formatCurrency(item.nilai) : '-'}
                       </TableCell>
-                      <TableCell className="text-right font-black text-fin-expense tabular-nums text-xs pr-6">
+                      <TableCell className="text-right font-black text-fin-expense tabular-nums text-xs pr-6 min-w-[160px]">
                         {formatCurrency(item.saldo)}
                       </TableCell>
                     </motion.tr>
