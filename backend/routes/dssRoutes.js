@@ -7,6 +7,8 @@ const talanganController = require('../controllers/talanganController');
 const setoranPajakController = require('../controllers/setoranPajakController');
 const simulatorController = require('../controllers/simulatorController');
 const intelligenceController = require('../controllers/intelligenceController');
+const lraController = require('../controllers/lraController');
+const upload = require('../config/multer');
 const authMiddleware = require('../middleware/authMiddleware');
 
 const reportController = require('../controllers/reportController');
@@ -32,6 +34,7 @@ router.get('/simulator/projections', authMiddleware, simulatorController.getProj
 router.post('/simulator/projections', authMiddleware, simulatorController.upsertProjection);
 router.post('/simulator/run', authMiddleware, simulatorController.runSimulation);
 router.get('/simulator/auto-project', authMiddleware, simulatorController.autoProjectInflow);
+router.get('/simulator/auto-project-outflow', authMiddleware, simulatorController.autoProjectOutflow);
 
 // New Accounting Features
 router.get('/tax-monitoring', authMiddleware, reportController.getTaxMonitoring);
@@ -48,6 +51,14 @@ router.delete('/penyesuaian/:id', authMiddleware, penyesuaianController.deletePe
 router.get('/saldo-awal', authMiddleware, saldoAwalController.getSaldoAwalList);
 router.post('/saldo-awal', authMiddleware, saldoAwalController.saveSaldoAwal);
 
+// Data LRA
+router.get('/lra', authMiddleware, lraController.getLRAList);
+router.post('/lra', authMiddleware, lraController.upsertLRA);
+router.post('/lra/upload', authMiddleware, upload.single('file'), lraController.uploadLRA);
+router.delete('/lra/all', authMiddleware, lraController.deleteAllLRA);
+router.delete('/lra/:id', authMiddleware, lraController.deleteLRA);
+
+
 // Talangan
 router.post('/talangan/:id/split', authMiddleware, talanganController.splitTalangan);
 router.post('/talangan/:id/settle', authMiddleware, talanganController.settleTalanganManual);
@@ -60,6 +71,7 @@ router.post('/talangan', authMiddleware, talanganController.createTalanganManual
 // Setoran Pajak
 router.get('/setoran-pajak', authMiddleware, setoranPajakController.getSetoranPajakList);
 router.post('/setoran-pajak', authMiddleware, setoranPajakController.createSetoranPajak);
+router.put('/setoran-pajak/bulk-jenis', authMiddleware, setoranPajakController.bulkUpdateJenisPajak);
 router.put('/setoran-pajak/:id', authMiddleware, setoranPajakController.updateSetoranPajak);
 router.delete('/setoran-pajak/:id', authMiddleware, setoranPajakController.deleteSetoranPajak);
 

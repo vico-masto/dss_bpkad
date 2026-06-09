@@ -65,6 +65,146 @@ The repo root of `backend/` is littered with ~120 one-off scripts (`check*.js`, 
 
 `frontend/AGENTS.md` (also referenced by `frontend/CLAUDE.md`) warns: this Next.js has breaking changes vs. training data — APIs, conventions, and file structure may differ. **Before writing or modifying frontend Next.js code, read the relevant guide in `frontend/node_modules/next/dist/docs/`** and heed deprecation notices rather than relying on remembered Next.js patterns.
 
+## Locked Business Rules — JANGAN DIUBAH
+
+Bagian ini mendokumentasikan aturan bisnis yang sudah dikonfirmasi dan dikunci oleh pengguna. AI agent TIDAK BOLEH mengubah logika ini tanpa konfirmasi eksplisit dari pengguna terlebih dahulu.
+
+### Taspen Merge ke IWP 8% saat Upload SIPD
+
+**Masalah:** Aplikasi SIPD-RI mengeluarkan baris "Taspen" sebagai entri terpisah dari "Iuran Wajib Pegawai 8%". Namun di rekening koran bank, kedua potongan ini dibayarkan **sekaligus dalam satu debit**. Jika dibiarkan terpisah, nilai IWP 8% tidak akan cocok dengan mutasi bank.
+
+**Solusi yang WAJIB dipertahankan** (dikunci Juni 2026):
+- Fungsi `importExcelPajak` di `backend/controllers/sp2dController.js` melakukan **pre-scan** sebelum loop utama untuk membangun `taspenMergeMap`.
+- Saat loop utama: baris "Taspen" di-**skip** (tidak disimpan sebagai record terpisah).
+- Baris "Iuran Wajib Pegawai 8%" ditambahkan dengan nilai Taspen dari pre-scan → disimpan sebagai **satu record gabungan**.
+- Kolom `keterangan` mencatat `"Termasuk Taspen: [nilai]"` sebagai audit trail.
+
+**Aturan yang WAJIB dipertahankan:**
+- Baris dengan `taxName.toUpperCase().includes('TASPEN')` (di `importExcelPajak`) atau `(rincian.URAIAN || '').toUpperCase().includes('TASPEN')` (di `importPotonganManual`) HARUS di-skip — tidak boleh disimpan ke DB.
+- `taspenMergeMap` HARUS diisi sebelum transaksi dimulai (pre-scan sebelum `prisma.$transaction`) di **kedua fungsi**.
+- Merge HANYA terjadi jika `jenis === 'IWP 8%'` — jangan perluas ke jenis potongan lain.
+- Kolom `keterangan` mencatat `"Termasuk Taspen: [nilai]"` sebagai audit trail di kedua fungsi.
+
+**Lokasi kode (KEDUA fungsi harus dijaga):**
+- `backend/controllers/sp2dController.js`, fungsi `importExcelPajak` — blok komentar `PRE-SCAN` dan `MERGE TASPEN → IWP 8%` (untuk tombol "Impor SIPD").
+- `backend/controllers/sp2dController.js`, fungsi `importPotonganManual` — blok komentar `PRE-SCAN TASPEN` dan `SKIP TASPEN` dan `MERGE TASPEN → IWP 8%` (untuk tombol "Impor Rincian"). **Ditambahkan Juni 2026** karena fungsi ini awalnya tidak memiliki logika merge.
+
+---
+
+### Potongan Mengendap
+
+**Definisi:** Potongan SP2D yang tidak memiliki pos pembayaran di rekening koran bank.
+
+**Kriteria:** `uraian` atau `keterangan` mengandung kata **'lainnya'** (case-insensitive) — tidak ada kondisi tambahan lain.
+
+**Aturan yang WAJIB dipertahankan:**
+- Hanya potongan `'Lainnya'` yang masuk kategori potongan mengendap. Potongan PPN, PPh, BPJS, Taspen, dan jenis lain TIDAK termasuk — mereka harus punya padanan di bank.
+- **SEMUA** potongan 'Lainnya' **TIDAK BOLEH muncul di halaman anomalies** (`/dashboard/rekon/anomalies`) — tanpa syarat status, selisih, atau parent SP2D.
+- Potongan 'Lainnya' **HANYA tampil di halaman** `/dashboard/rekon/potongan-mengendap`.
+- Filter di `getAnomalies` adalah satu baris: `AND NOT (LOWER(p.uraian) LIKE '%lainnya%' OR LOWER(p.keterangan) LIKE '%lainnya%')` — TIDAK BOLEH diperluas ke jenis potongan lain.
+
+**Lokasi kode yang dilindungi** (`backend/controllers/reconciliationController.js`):
+- Fungsi `getPotonganMengendap` — blok komentar `BUSINESS RULE LOCK` di atas fungsi
+- Fungsi `getAnomalies` — dua baris `AND NOT (...)` bertanda `BUSINESS RULE LOCK` di query `unmatchedPotongan` dan `countPotongan`
+
+**Dikunci:** Juni 2026 (diperbarui Juni 2026 — disederhanakan dari 4 kondisi ke filter uraian saja).
+
+---
+
+### Potongan Gelondongan LS Kontraktual / LS Barjas
+
+**Skenario:** SP2D jenis LS Kontraktual dan LS Barjas dicairkan NETTO ke vendor. Pajak yang dipotong (PPN + PPh 4(2) / PPh 22) dibayarkan ke Kas Negara oleh bank dalam **satu debit gelondongan** — 1 mutasi bank = total semua rincian potongan dari SP2D yang sama.
+
+**Komponen match yang dihasilkan:**
+- SP2D header → matched ke vendor payment (NETO) via SMART_AUTO atau MANUAL
+- Bank debit gelondongan → matched ke grup rincian potongan via `GRUP_POTONGAN`
+
+**Aturan yang WAJIB dipertahankan:**
+
+#### 1. Handler GRUP_POTONGAN WAJIB sebelum lookup SP2D (`matchIndividual`)
+
+`bkuId` yang dikirim frontend = **UUID SP2D** (bukan UUID potongan). Jika lookup `data_sp2d` dilakukan lebih dulu:
+- SP2D ditemukan → `bkuRowData` terisi → kondisi `!bkuRowData` menjadi FALSE
+- Handler GRUP_POTONGAN di-skip → match jatuh ke NETO SP2D match (salah)
+- Potongan PPN+PPh tetap BELUM selamanya
+
+**Posisi kode yang dilindungi:** `backend/controllers/reconciliationController.js`, fungsi `matchIndividual` — blok `if (match_type === 'GRUP_POTONGAN')` HARUS berada sebelum `const sp2d = await prisma.data_sp2d.findUnique(...)`.
+
+#### 2. `bank_statement.ref_bku_id` untuk GROUP_POTONGAN = UUID SP2D
+
+Ini desain yang benar, bukan bug. Section 4 `getAnomalies` mendeteksi ghost match via:
+```sql
+bx.ref_bku_id = p.id_sp2d::text AND bx.match_type = 'GROUP_POTONGAN'
+```
+Tergantung pada `ref_bku_id = id_sp2d`. Jangan ubah ke id potongan.
+
+#### 3. `getAnomalies` Section 3 — TIDAK BOLEH JOIN `bank_statement`
+
+Query potongan BELUM di Section 3 tidak boleh memakai `LEFT JOIN bank_statement`. Alasan: JOIN dengan kondisi OR (`ref_bku_id = p.id OR ref_bku_id = p.id_sp2d`) menyebabkan Nested Loop 6,3 juta perbandingan → 3.500 ms per query (dari ~1.033 iterasi potongan × 6.110 bank rows). Ghost match (SUDAH tanpa bank link) ditangani **terpisah** oleh Section 4. Hasil setelah fix: 110 ms (32× lebih cepat).
+
+**Lokasi:** `backend/controllers/reconciliationController.js`, fungsi `getAnomalies` — komentar `BUSINESS RULE LOCK — TIDAK BOLEH JOIN bank_statement DI SINI` di Section 3.
+
+#### 4. `getDiscrepancyReport` Q7 — hanya potongan 'Lainnya'
+
+Query `potonganUnmatched` (Q7) yang mensuplai data koreksi saldo BKU di halaman Ringkasan WAJIB memfilter hanya potongan `'lainnya'`. Potongan non-lainnya (PPN/PPh/BPJS/dll) yang BELUM akan meng-inflate saldo BKU secara salah → selisih palsu di Point B. Wajib menggunakan `COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)` untuk konsistensi tanggal.
+
+**Lokasi:** `backend/controllers/reconciliationController.js`, fungsi `getDiscrepancyReport` — komentar `BUSINESS RULE LOCK — Q7 potonganUnmatched`.
+
+#### 5. Stale `selisih_rekon` pasca GROUP_POTONGAN fix
+
+Jika gelondongan bank debit pernah salah di-NETO-match ke SP2D sebelum GROUP_POTONGAN fix, SP2D akan menyimpan `selisih_rekon` stale. Fix DB fix pada bank dan potongan **tidak** otomatis mereset `selisih_rekon` pada SP2D. Pattern yang perlu diperiksa:
+- SP2D status SUDAH dengan `selisih_rekon` besar negatif
+- Punya bank debit `match_type = GROUP_POTONGAN` ter-link
+- Tapi juga punya bank debit SMART_AUTO = nilai neto (correct match sudah ada)
+
+Dalam kondisi ini, `selisih_rekon` SP2D harus di-reset ke 0 secara manual via DB update.
+
+**Dikunci:** Juni 2026.
+
+---
+
+---
+
+### Berita Acara Rekonsiliasi (BAR) — `dashboard/rekon/discrepancy`
+
+**Dikunci:** Juni 2026. Semua aturan berikut JANGAN DIUBAH tanpa perintah eksplisit.
+
+#### 1. Persistensi data Mengetahui (BPKAD)
+
+`app_config` override untuk `pejabat3` / `jabatan3` / `nip3` di load useEffect (`page.tsx`) WAJIB dibungkus `if (!savedBar)`. Tanpa guard ini, data Mengetahui yang sudah disimpan user akan tertimpa setiap kali halaman dimuat (termasuk saat ganti bulan cetak).
+
+**Lokasi:** `frontend/src/app/dashboard/rekon/discrepancy/page.tsx` — blok komentar `LOCKED: app_config override ... HANYA jika !savedBar`.
+
+#### 2. Alignment tanda tangan Pihak Kesatu vs Pihak Kedua
+
+`sig-col` pada PDF (`route.ts`) WAJIB menggunakan `display: flex; flex-direction: column` dan `sig-space` WAJIB `flex: 1; min-height: 45px`. Ini memastikan nama kedua kolom selalu sejajar di baris yang sama meskipun jabatan Pihak Kedua lebih panjang (multi-baris). `align-items: stretch` pada `signature-row` wajib dipertahankan.
+
+Preview (`page.tsx`) menggunakan `items-stretch` + `flex flex-col` + `flex-1 min-h-[4rem]` dengan logika yang sama.
+
+**Lokasi:** `frontend/src/app/api/cetak-discrepancy-rekon/route.ts` — komentar `LOCKED: sig-col flex-direction:column`.
+
+#### 3. Invisible pangkat placeholder Pihak Kedua
+
+Ketika `barConfig.showPangkat && barConfig.pangkat1` aktif, kolom Pihak Kedua WAJIB memiliki placeholder invisible setinggi satu baris pangkat. Tanpa ini, nama Pihak Kedua akan lebih tinggi dari nama Pihak Pertama.
+
+**Lokasi:** `page.tsx` baris `<p className="leading-tight invisible">_</p>` dan `route.ts` baris `visibility: hidden`.
+
+#### 4. Kalimat "Selanjutnya disebut sebagai PIHAK KESATU/KEDUA"
+
+Setelah NIP/ID masing-masing pihak di paragraf pembuka, WAJIB ada kalimat italic: *"Selanjutnya disebut sebagai **PIHAK KESATU**"* dan *"Selanjutnya disebut sebagai **PIHAK KEDUA**"*. Berlaku di PDF (`route.ts`) dan preview (`page.tsx`).
+
+#### 5. Kalimat kesimpulan (Section D)
+
+Redaksi baku yang dikunci: `"...antara Buku Kas Umum (BKU) dengan Rekening Koran RKUD pada PT. Bank Maluku-Maluku Utara Cabang Dobo."` — JANGAN kembalikan ke `barConfig.jabatan2`.
+
+**Lokasi:** `route.ts` dan `page.tsx` — komentar `LOCKED: Redaksi kalimat kesimpulan`.
+
+#### 6. Kalimat "Telah melakukan rekonsiliasi" — penyebutan pihak
+
+Kalimat harus menyebut **Pihak Kesatu** dan **Pihak Kedua** secara eksplisit: `"...antara Pihak Kesatu Kuasa Bendahara Umum Daerah (KBUD) Kabupaten Kepulauan Aru dengan Pihak Kedua PT. Bank Maluku-Maluku Utara Cabang Dobo..."`.
+
+---
+
 ## AI integration
 
 `backend/services/aiService.js` powers the intelligence/chat features. Primary provider is **OpenRouter** (`deepseek/deepseek-chat`) via `OPENROUTER_API_KEY`; Google Gemini (`@google/generative-ai`, `GEMINI_API_KEY`) is the fallback. Exposed through `intelligenceController` at `/api/dss/intelligence/*`.

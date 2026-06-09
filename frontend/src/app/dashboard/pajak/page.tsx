@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import useSWR from 'swr';
 import {
   PlusSquare,
@@ -31,7 +31,8 @@ import {
   Activity,
   Table as TableIcon,
   Eye,
-  EyeOff
+  EyeOff,
+  Replace
 } from 'lucide-react';
 import { formatCurrency, formatNumber, parseNumber, cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -56,11 +57,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from 'sonner';
 import { NumericInput } from '@/components/NumericInput';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { PageHeader } from '@/components/patterns/page-header';
 
 const fetcher = (url: string) => api.get(url).then(res => res.data);
 
-export default function PajakUnifiedPage() {
+function PajakUnifiedPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
@@ -70,6 +72,8 @@ export default function PajakUnifiedPage() {
   useEffect(() => {
     if (tabParam === 'manajemen' || tabParam === 'bku' || tabParam === 'monitoring') {
       setActiveTab(tabParam);
+    } else if (tabParam === 'rekam' || tabParam === 'arsip') {
+      setActiveTab('manajemen');
     }
   }, [tabParam]);
 
@@ -91,6 +95,36 @@ export default function PajakUnifiedPage() {
   });
   const [editId, setEditId] = useState<string | null>(null);
   const [editSource, setEditSource] = useState<string | null>(null);
+
+  // Ganti Massal State
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkDari, setBulkDari] = useState('');
+  const [bulkKe, setBulkKe] = useState('');
+  const [bulkSaving, setBulkSaving] = useState(false);
+
+  const handleBulkGanti = async () => {
+    if (!bulkKe) return toast.error('Pilih jenis potongan pengganti terlebih dahulu');
+    setBulkSaving(true);
+    try {
+      const [r1, r2] = await Promise.all([
+        api.put('/dss/setoran-pajak/bulk-jenis', { dari: bulkDari || undefined, ke: bulkKe }),
+        api.put('/sp2d/potongan/bulk-jenis',     { dari: bulkDari || undefined, ke: bulkKe }),
+      ]);
+      const total = (r1.data.count || 0) + (r2.data.count || 0);
+      toast.success(`Berhasil memperbarui ${total} record`, {
+        description: `Jenis potongan "${bulkDari || 'semua'}" diganti menjadi "${bulkKe}"`
+      });
+      setShowBulkModal(false);
+      setBulkDari('');
+      setBulkKe('');
+      mutateMonitor();
+      mutateSetoran();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal melakukan ganti massal');
+    } finally {
+      setBulkSaving(false);
+    }
+  };
 
   // Confirm Dialog State
   const [confirmConfig, setConfirmConfig] = useState<{
@@ -115,7 +149,15 @@ export default function PajakUnifiedPage() {
   const [importPotonganTahun, setImportPotonganTahun] = useState<number>(new Date().getFullYear());
   const [isImportingPotongan, setIsImportingPotongan] = useState(false);
   const [isImportingExcel, setIsImportingExcel] = useState(false);
+  const [importProgressModal, setImportProgressModal] = useState({ isOpen: false, percent: 0, label: '', sublabel: '' });
   const [selectedItems, setSelectedItems] = useState<{id: string, source: string}[]>([]);
+
+  // Delete Range Modal State
+  const [showDeleteRangeModal, setShowDeleteRangeModal] = useState(false);
+  const [deleteStartDate, setDeleteStartDate] = useState('');
+  const [deleteEndDate, setDeleteEndDate] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeletingRange, setIsDeletingRange] = useState(false);
   const { data: potonganCountData, mutate: mutatePotonganCount } = useSWR(
     activeTab === 'manajemen' ? `/sp2d/potongan-count?bulan=${importPotonganBulan}&tahun=${importPotonganTahun}` : null,
     fetcher
@@ -151,6 +193,11 @@ export default function PajakUnifiedPage() {
 
   const { data: opdListData } = useSWR('/sp2d/opd', fetcher);
   const opdList = Array.isArray(opdListData) ? opdListData : (opdListData?.data || []);
+
+  const { data: jenisPotonganData } = useSWR('/admin/jenis-potongan', fetcher);
+  const jenisPotonganList: { value: string; label: string }[] = Array.isArray(jenisPotonganData)
+    ? jenisPotonganData.map((j: any) => ({ value: j.id, label: j.nama }))
+    : [];
 
   const fetchSumberDana = async () => {
     try {
@@ -412,8 +459,9 @@ export default function PajakUnifiedPage() {
           onConfirm: async () => {
             setConfirmConfig(prev => ({ ...prev, isLoading: true }));
             setIsImportingPotongan(true);
-            const toastId = toast.loading('Mengunggah data rincian ke server...');
+            setImportProgressModal({ isOpen: true, percent: 5, label: 'Memproses Data Rincian', sublabel: `Memetakan ${rawData.length} baris data...` });
 
+            let trickle: ReturnType<typeof setInterval> | null = null;
             try {
               const processed = rawData.map((item: any) => {
                 const findVal = (keys: string[]) => {
@@ -458,13 +506,31 @@ export default function PajakUnifiedPage() {
                 };
               }).filter(row => row.NILAI_POTONGAN > 0);
 
+              setImportProgressModal(prev => ({ ...prev, percent: 20, sublabel: 'Mengunggah ke server...' }));
               const res = await api.post('/sp2d/import-potongan-manual', {
                 data: processed,
                 bulan: Number(importPotonganBulan),
                 tahun: importPotonganTahun
+              }, {
+                onUploadProgress: (event) => {
+                  if (event.total && event.total > 0) {
+                    const pct = Math.round((event.loaded / event.total) * 55) + 20;
+                    setImportProgressModal(prev => ({ ...prev, percent: Math.min(pct, 75), sublabel: 'Mengunggah ke server...' }));
+                    if (event.loaded >= event.total && !trickle) {
+                      trickle = setInterval(() => {
+                        setImportProgressModal(prev => {
+                          if (prev.percent >= 96) { clearInterval(trickle!); return { ...prev, percent: 96, sublabel: 'Memproses data rincian...' }; }
+                          return { ...prev, percent: prev.percent + 0.3, sublabel: 'Memproses data rincian...' };
+                        });
+                      }, 100);
+                    }
+                  }
+                }
               });
 
-              toast.dismiss(toastId);
+              if (trickle) clearInterval(trickle);
+              setImportProgressModal(prev => ({ ...prev, percent: 100, sublabel: 'Selesai!' }));
+              setTimeout(() => setImportProgressModal({ isOpen: false, percent: 0, label: '', sublabel: '' }), 800);
               toast.success('Impor Rincian Selesai', {
                 description: `Berhasil mengolah data rincian potongan bank.`
               });
@@ -472,7 +538,8 @@ export default function PajakUnifiedPage() {
               mutateRisterBku();
               setConfirmConfig(prev => ({ ...prev, isOpen: false, isLoading: false }));
             } catch (err: any) {
-              toast.dismiss(toastId);
+              if (trickle) clearInterval(trickle);
+              setImportProgressModal({ isOpen: false, percent: 0, label: '', sublabel: '' });
               const errMsg = err.response?.data?.message || err.message;
               toast.error('Gagal memproses file potongan: ' + errMsg);
               setConfirmConfig(prev => ({ ...prev, isLoading: false }));
@@ -507,19 +574,36 @@ export default function PajakUnifiedPage() {
       type: 'question',
       onConfirm: async () => {
         setConfirmConfig(prev => ({ ...prev, isLoading: true }));
-        const toastId = toast.loading('Mengunggah dan memproses rincian dari SIPD RI...');
+        setImportProgressModal({ isOpen: true, percent: 5, label: 'Impor Data SIPD', sublabel: 'Mengunggah file ke server...' });
 
         const formData = new FormData();
         formData.append('file', file);
         formData.append('bulan', importPotonganBulan.toString());
         formData.append('tahun', importPotonganTahun.toString());
 
+        let trickle: ReturnType<typeof setInterval> | null = null;
         try {
           const res = await api.post('/sp2d/import-excel-pajak', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (event) => {
+              if (event.total && event.total > 0) {
+                const pct = Math.round((event.loaded / event.total) * 70) + 5;
+                setImportProgressModal(prev => ({ ...prev, percent: Math.min(pct, 75), sublabel: 'Mengunggah file ke server...' }));
+                if (event.loaded >= event.total && !trickle) {
+                  trickle = setInterval(() => {
+                    setImportProgressModal(prev => {
+                      if (prev.percent >= 96) { clearInterval(trickle!); return { ...prev, percent: 96, sublabel: 'Memproses rincian potongan...' }; }
+                      return { ...prev, percent: prev.percent + 0.3, sublabel: 'Memproses rincian potongan...' };
+                    });
+                  }, 100);
+                }
+              }
+            }
           });
 
-          toast.dismiss(toastId);
+          if (trickle) clearInterval(trickle);
+          setImportProgressModal(prev => ({ ...prev, percent: 100, sublabel: 'Selesai!' }));
+          setTimeout(() => setImportProgressModal({ isOpen: false, percent: 0, label: '', sublabel: '' }), 800);
           toast.success(res.data.message, {
             description: `Berhasil memproses ${res.data.summary.success} rincian potongan.`
           });
@@ -528,7 +612,8 @@ export default function PajakUnifiedPage() {
           mutateMonitor();
           setConfirmConfig(prev => ({ ...prev, isOpen: false, isLoading: false }));
         } catch (err: any) {
-          toast.dismiss(toastId);
+          if (trickle) clearInterval(trickle);
+          setImportProgressModal({ isOpen: false, percent: 0, label: '', sublabel: '' });
           toast.error(err.response?.data?.message || 'Gagal mengimpor file Excel');
           setConfirmConfig(prev => ({ ...prev, isLoading: false }));
         } finally {
@@ -661,6 +746,72 @@ export default function PajakUnifiedPage() {
     });
   };
 
+  const handleDeletePeriode = () => {
+    if (!importPotonganBulan || importPotonganBulan === 0) {
+      return toast.error('Pilih bulan tertentu terlebih dahulu untuk menghapus per periode');
+    }
+    
+    const namaBulan = new Date(0, importPotonganBulan - 1).toLocaleString('id-ID', { month: 'long' });
+    
+    setConfirmConfig({
+      isOpen: true,
+      title: `Hapus Data Periode ${namaBulan} ${importPotonganTahun}`,
+      message: `Apakah Anda yakin ingin menghapus SELURUH rincian potongan dan setoran pajak periode ${namaBulan} ${importPotonganTahun}? Tindakan ini akan menghapus data permanen beserta jurnal akuntansinya!`,
+      type: 'danger',
+      onConfirm: async () => {
+        setConfirmConfig(prev => ({ ...prev, isLoading: true }));
+        try {
+          const res = await api.delete(`/sp2d/potongan-bulan?bulan=${importPotonganBulan}&tahun=${importPotonganTahun}`);
+          toast.success(res.data.message || 'Data periode berhasil dihapus');
+          setSelectedItems([]);
+          mutateMonitor();
+          mutateSetoran();
+          mutateRisterBku();
+          mutatePotonganCount();
+          mutateOpdSummary();
+          setConfirmConfig(prev => ({ ...prev, isOpen: false, isLoading: false }));
+        } catch (err: any) {
+          const errMsg = err.response?.data?.message || err.message;
+          toast.error('Gagal menghapus periode: ' + errMsg);
+          setConfirmConfig(prev => ({ ...prev, isLoading: false }));
+        }
+      }
+    });
+  };
+
+  const handleDeleteRangeSubmit = async () => {
+    if (!deleteStartDate || !deleteEndDate) {
+      return toast.error('Pilih tanggal awal dan akhir terlebih dahulu');
+    }
+    if (new Date(deleteStartDate) > new Date(deleteEndDate)) {
+      return toast.error('Tanggal awal tidak boleh melebihi tanggal akhir');
+    }
+    if (deleteConfirmText !== 'HAPUS') {
+      return toast.error('Ketik "HAPUS" untuk mengonfirmasi tindakan ini');
+    }
+
+    setIsDeletingRange(true);
+    try {
+      const res = await api.delete(`/sp2d/potongan-range?startDate=${deleteStartDate}&endDate=${deleteEndDate}`);
+      toast.success(res.data.message || 'Data rincian potongan dan setoran pajak berhasil dihapus');
+      setSelectedItems([]);
+      mutateMonitor();
+      mutateSetoran();
+      mutateRisterBku();
+      mutatePotonganCount();
+      mutateOpdSummary();
+      setShowDeleteRangeModal(false);
+      setDeleteStartDate('');
+      setDeleteEndDate('');
+      setDeleteConfirmText('');
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || err.message;
+      toast.error('Gagal menghapus data: ' + errMsg);
+    } finally {
+      setIsDeletingRange(false);
+    }
+  };
+
   const toggleSelection = (id: string, source: string) => {
     setSelectedItems(prev => {
       const exists = prev.find(i => i.id === id && i.source === source);
@@ -768,7 +919,18 @@ export default function PajakUnifiedPage() {
                     <h3 className="text-sm font-semibold text-fin-text-primary flex items-center gap-2">
                       <PlusSquare size={18} className="text-fin-info" /> Form Perekaman Potongan
                     </h3>
-                    {editId && <Badge variant="outline" className="bg-fin-warning/10 text-fin-warning border-fin-warning/20 px-3 py-1 rounded-lg text-[10px] font-semibold">Mode Edit Aktif</Badge>}
+                    <div className="flex items-center gap-2">
+                      {editId && <Badge variant="outline" className="bg-fin-warning/10 text-fin-warning border-fin-warning/20 px-3 py-1 rounded-lg text-[10px] font-semibold">Mode Edit Aktif</Badge>}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowBulkModal(true)}
+                        className="h-8 px-3 text-[11px] font-semibold text-fin-text-muted hover:text-fin-text-primary hover:bg-fin-subtle gap-1.5"
+                      >
+                        <Replace size={13} /> Ganti Massal
+                      </Button>
+                    </div>
                   </div>
 
                   <CardContent className="p-8 space-y-6">
@@ -780,21 +942,9 @@ export default function PajakUnifiedPage() {
                             value={formData.jenis_pajak}
                             onValueChange={(v) => setFormData({...formData, jenis_pajak: v || ''})}
                             placeholder="Pilih Jenis..."
+                            searchPlaceholder="Cari jenis potongan..."
                             className="h-11"
-                            options={[
-                              { value: 'PPN', label: 'PPN (Pajak Pertambahan Nilai)' },
-                              { value: 'PPh 21', label: 'PPh 21 (Gaji/Honor)' },
-                              { value: 'PPh 4(2)', label: 'PPh Pasal 4 Ayat 2 (Final)' },
-                              { value: 'IWP 8%', label: 'Iuran Wajib Pegawai 8%' },
-                              { value: 'IWP 1%', label: 'Iuran Wajib Pegawai 1%' },
-                              { value: 'JKES 4%', label: 'Iuran Jaminan Kesehatan 4%' },
-                              { value: 'JKK', label: 'Iuran Jaminan Kecelakaan Kerja' },
-                              { value: 'JKM', label: 'Iuran Jaminan Kematian' },
-                              { value: 'Taperum', label: 'Taperum' },
-                              { value: 'BULOG', label: 'Beras (BULOG)' },
-                              { value: 'Zakat', label: 'Zakat' },
-                              { value: 'LAINNYA', label: 'Potongan Lain-lain' },
-                            ]}
+                            options={jenisPotonganList}
                           />
                         </div>
                         <div className="space-y-2">
@@ -981,6 +1131,9 @@ export default function PajakUnifiedPage() {
                        />
                        <Button variant="outline" size="sm" className="h-9 gap-2 text-xs font-bold" onClick={() => mutateOpdSummary()}>
                           <RefreshCw size={14} /> Segarkan
+                       </Button>
+                       <Button variant="destructive" size="sm" className="h-9 gap-2 text-xs font-bold bg-fin-expense hover:opacity-90 transition-all text-white shadow-lg shadow-fin-expense/20" onClick={() => setShowDeleteRangeModal(true)}>
+                          <Trash2 size={14} /> Hapus Tanggal
                        </Button>
                     </div>
                  </div>
@@ -1492,7 +1645,121 @@ export default function PajakUnifiedPage() {
         )}
       </AnimatePresence>
 
-      <ConfirmDialog 
+      {/* Modal Ganti Massal Jenis Potongan */}
+      <Dialog open={showBulkModal} onOpenChange={setShowBulkModal}>
+        <DialogContent className="max-w-md rounded-xl p-8 border-none shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-fin-text-primary flex items-center gap-2">
+              <Replace size={18} className="text-fin-info" /> Ganti Massal Jenis Potongan
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-2">
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-fin-text-muted ml-1">Dari Jenis (kosongkan = semua)</label>
+              <Combobox
+                options={[{ value: '', label: '— Semua Jenis —' }, ...jenisPotonganList]}
+                value={bulkDari}
+                onValueChange={(v) => setBulkDari(v)}
+                placeholder="— Semua Jenis —"
+                searchPlaceholder="Cari jenis..."
+                className="h-10"
+              />
+            </div>
+            <div className="flex items-center justify-center text-fin-text-muted">
+              <Replace size={16} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-fin-text-muted ml-1">Ganti Menjadi <span className="text-rose-500">*</span></label>
+              <Combobox
+                options={jenisPotonganList}
+                value={bulkKe}
+                onValueChange={(v) => setBulkKe(v)}
+                placeholder="Pilih jenis pengganti..."
+                searchPlaceholder="Cari jenis..."
+                className="h-10"
+              />
+            </div>
+            <p className="text-[11px] text-fin-text-muted bg-fin-page rounded-lg px-3 py-2 border border-fin-border">
+              Perubahan ini akan memperbarui semua record setoran pajak <strong>dan</strong> potongan SP2D yang cocok secara serentak.
+            </p>
+          </div>
+          <DialogFooter className="flex flex-col gap-2 sm:flex-col">
+            <Button
+              onClick={handleBulkGanti}
+              disabled={bulkSaving || !bulkKe}
+              className="w-full h-10 bg-ds-primary hover:bg-ds-primary-hover text-white font-semibold text-sm rounded-lg"
+            >
+              {bulkSaving ? <Loader2 className="animate-spin" size={16} /> : <><Replace size={14} className="mr-2" />Terapkan Perubahan</>}
+            </Button>
+            <Button variant="ghost" onClick={() => setShowBulkModal(false)} className="w-full h-10 text-fin-text-muted font-semibold text-sm rounded-lg">
+              Batalkan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showDeleteRangeModal} onOpenChange={setShowDeleteRangeModal}>
+        <DialogContent className="max-w-md rounded-xl p-8 border-none shadow-2xl bg-fin-surface">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold text-fin-text-primary flex items-center gap-2">
+              <Trash2 size={18} className="text-fin-expense" /> Hapus Rincian & Setoran Pajak
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-2">
+            <p className="text-xs text-fin-text-muted leading-relaxed">
+              Tindakan ini akan menghapus <strong>semua</strong> rincian potongan dan setoran pajak beserta jurnal akuntansinya secara permanen pada rentang tanggal yang ditentukan.
+            </p>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-fin-text-muted ml-1">Tanggal Awal <span className="text-rose-500">*</span></label>
+                <input
+                  type="date"
+                  className="w-full h-10 px-3 rounded-lg border border-fin-border bg-fin-page text-fin-text-primary text-sm focus:outline-none focus:ring-1 focus:ring-fin-info"
+                  value={deleteStartDate}
+                  onChange={(e) => setDeleteStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-fin-text-muted ml-1">Tanggal Akhir <span className="text-rose-500">*</span></label>
+                <input
+                  type="date"
+                  className="w-full h-10 px-3 rounded-lg border border-fin-border bg-fin-page text-fin-text-primary text-sm focus:outline-none focus:ring-1 focus:ring-fin-info"
+                  value={deleteEndDate}
+                  onChange={(e) => setDeleteEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-fin-border">
+              <label className="text-xs font-bold text-fin-text-muted ml-1 uppercase tracking-wider">
+                Ketik <span className="text-rose-500 font-black">HAPUS</span> untuk konfirmasi
+              </label>
+              <Input
+                type="text"
+                placeholder="HAPUS"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                className="h-10 text-center uppercase font-bold text-fin-text-primary border-fin-border placeholder:opacity-50"
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex flex-col gap-2 sm:flex-col pt-4">
+            <Button
+              onClick={handleDeleteRangeSubmit}
+              disabled={isDeletingRange || !deleteStartDate || !deleteEndDate || deleteConfirmText !== 'HAPUS'}
+              className="w-full h-10 bg-fin-expense hover:opacity-90 text-white font-semibold text-sm rounded-lg"
+            >
+              {isDeletingRange ? <Loader2 className="animate-spin" size={16} /> : <><Trash2 size={14} className="mr-2" />Hapus Permanen</>}
+            </Button>
+            <Button variant="ghost" onClick={() => { setShowDeleteRangeModal(false); setDeleteConfirmText(''); }} className="w-full h-10 text-fin-text-muted font-semibold text-sm rounded-lg">
+              Batalkan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
         isOpen={confirmConfig.isOpen}
         onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
         onConfirm={confirmConfig.onConfirm}
@@ -1501,6 +1768,44 @@ export default function PajakUnifiedPage() {
         type={confirmConfig.type}
         isLoading={confirmConfig.isLoading}
       />
+
+      {/* Import Progress Modal — SP2D style */}
+      <Dialog open={importProgressModal.isOpen} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md rounded-2xl border-none shadow-2xl bg-fin-surface p-0 overflow-hidden" showCloseButton={false}>
+          <div className="p-8 space-y-6">
+            <div className="space-y-1">
+              <p className="text-[10px] font-black text-fin-text-primary uppercase tracking-widest">Status Pengunggahan</p>
+              <p className="text-lg font-black text-fin-text-primary">{importProgressModal.label}</p>
+              <p className="text-xs font-medium text-[#667085]">{importProgressModal.sublabel}</p>
+            </div>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-semibold text-fin-text-muted">Progress</span>
+                <span className="text-xl font-black text-fin-text-primary tabular-nums">{Math.round(importProgressModal.percent)}%</span>
+              </div>
+              <div className="h-3 w-full bg-[#EAECF0] rounded-full overflow-hidden border border-fin-border-strong/20 shadow-inner">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${importProgressModal.percent}%` }}
+                  transition={{ duration: 0.15, ease: "easeOut" }}
+                  className="h-full bg-ds-primary rounded-full"
+                />
+              </div>
+              <p className="text-[10px] text-center font-bold text-fin-text-muted uppercase tracking-widest">
+                {importProgressModal.percent < 75 ? 'MENGUNGGAH DATA KE SERVER...' : importProgressModal.percent < 96 ? 'SERVER MEMPROSES DATA...' : importProgressModal.percent < 100 ? 'HAMPIR SELESAI...' : 'BERHASIL!'}
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
+  );
+}
+
+export default function PajakUnifiedPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-96"><Loader2 className="animate-spin size-8 text-fin-text-muted" /></div>}>
+      <PajakUnifiedPageContent />
+    </Suspense>
   );
 }

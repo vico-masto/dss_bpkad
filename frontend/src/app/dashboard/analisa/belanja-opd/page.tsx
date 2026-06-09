@@ -36,10 +36,27 @@ interface RawRow {
   opd: string;
   jenis_belanja: string;
   sumber_dana: string;
+  jumlah_sp2d: number;
   total_bruto: number;
   total_potongan: number;
   total_neto: number;
   persentase: number;
+}
+
+interface SummaryJenisItem {
+  jenis_belanja: string;
+  jumlah_sp2d: number;
+  jumlah_opd: number;
+  total_bruto: number;
+  total_neto: number;
+  total_potongan: number;
+  persentase: number;
+}
+
+interface ApiResponse {
+  data: RawRow[];
+  summaryByJenis: SummaryJenisItem[];
+  grandTotal: number;
 }
 
 interface JenisGroup {
@@ -65,13 +82,15 @@ export default function BelanjaOpdPage() {
   const [expandedOpds, setExpandedOpds] = useState<Set<string>>(new Set());
   const [expandedJenis, setExpandedJenis] = useState<Set<string>>(new Set());
 
-  const { data, isLoading } = useSWR(
+  const { data: apiData, isLoading } = useSWR(
     ['/reports/belanja-opd-detail', year, month],
     ([url, y, m]: [string, string, string]) =>
-      api.get(url, { params: { year: y, month: m || undefined } }).then(res => res.data)
+      api.get(url, { params: { year: y, month: m || undefined } }).then(res => res.data as ApiResponse)
   );
 
-  const rawData = useMemo<RawRow[]>(() => data || [], [data]);
+  const rawData = useMemo<RawRow[]>(() => apiData?.data || [], [apiData]);
+  const summaryByJenis = useMemo<SummaryJenisItem[]>(() => apiData?.summaryByJenis || [], [apiData]);
+  const grandTotal = useMemo(() => apiData?.grandTotal || 0, [apiData]);
 
   const filteredData = useMemo(
     () => rawData.filter(r =>
@@ -229,7 +248,7 @@ export default function BelanjaOpdPage() {
       {/* ── Header ── */}
       <PageHeader
         title="Analisis Belanja OPD"
-        description="Rincian penyerapan anggaran per OPD · Jenis Belanja · Sumber Dana"
+        description="Rincian penyerapan anggaran per OPD · Rincian Jenis Belanja · Sumber Dana — LS ditampilkan per jenis (Gaji, Barjas, Kontraktual, THR)"
         icon={<BarChart3 size={18} />}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
@@ -311,43 +330,168 @@ export default function BelanjaOpdPage() {
         </div>
       </div>
 
-      {/* ── Ringkasan Per Jenis Belanja ── */}
-      {allJenis.length > 0 && (() => {
-        const jenisAgg = allJenis.map((jenis, idx) => {
-          const total_bruto = filteredData.filter(r => r.jenis_belanja === jenis).reduce((s, r) => s + r.total_bruto, 0);
-          const total_neto  = filteredData.filter(r => r.jenis_belanja === jenis).reduce((s, r) => s + r.total_neto, 0);
-          const pct = totalBruto > 0 ? (total_bruto / totalBruto) * 100 : 0;
-          return { jenis, total_bruto, total_neto, pct, color: PALETTE[idx % PALETTE.length] };
-        }).sort((a, b) => b.total_bruto - a.total_bruto);
-
+      {/* ── Ringkasan Per Rincian Jenis Belanja ── */}
+      {summaryByJenis.length > 0 && (() => {
         return (
           <Card className="p-5 border-none shadow-lg ring-1 ring-fin-border bg-fin-surface">
             <div className="flex items-center gap-2 mb-4">
               <div className="p-1.5 bg-fin-subtle rounded-md"><BarChart3 size={14} className="text-fin-text-secondary" /></div>
-              <h3 className="text-xs font-black text-fin-text-primary uppercase tracking-widest">Realisasi per Jenis Belanja</h3>
-              <span className="ml-auto text-[10px] font-semibold text-fin-text-muted">{allJenis.length} jenis · {treeData.length} OPD</span>
+              <h3 className="text-xs font-black text-fin-text-primary uppercase tracking-widest">Realisasi per Rincian Jenis Belanja</h3>
+              <span className="ml-auto text-[10px] font-semibold text-fin-text-muted">
+                {summaryByJenis.length} rincian · {treeData.length} OPD
+              </span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {jenisAgg.map(({ jenis, total_bruto, total_neto, pct, color }) => (
-                <div key={jenis} className="flex flex-col gap-2 p-3.5 rounded-xl border overflow-hidden"
-                  style={{ background: `linear-gradient(135deg, ${color}0d 0%, ${color}22 100%)`, borderColor: `${color}38` }}>
-                  {/* Color dot + label */}
-                  <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                    <span className="text-[11px] font-black text-fin-text-primary truncate" title={jenis}>{jenis}</span>
-                    <span className="ml-auto text-[11px] font-black shrink-0" style={{ color }}>{pct.toFixed(1)}%</span>
+
+            {/* ── Cards Ringkasan ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+              {summaryByJenis.map((item, idx) => {
+                const color = PALETTE[idx % PALETTE.length];
+                return (
+                  <div key={item.jenis_belanja} className="flex flex-col gap-2 p-3.5 rounded-xl border overflow-hidden relative"
+                    style={{ background: `linear-gradient(135deg, ${color}0d 0%, ${color}22 100%)`, borderColor: `${color}38` }}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                      <span className="text-[11px] font-black text-fin-text-primary truncate" title={item.jenis_belanja}>{item.jenis_belanja}</span>
+                      <span className="ml-auto text-[11px] font-black shrink-0" style={{ color }}>{item.persentase.toFixed(1)}%</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-fin-text-primary tabular-nums">{formatCurrency(item.total_bruto)}</p>
+                      <p className="text-[10px] font-semibold text-fin-text-muted">Neto {formatCurrency(item.total_neto)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 text-[9px] font-semibold text-fin-text-muted">
+                      <span>{item.jumlah_opd} OPD</span>
+                      <span>·</span>
+                      <span>{item.jumlah_sp2d} SP2D</span>
+                      <span>·</span>
+                      <span>Pot {formatCurrency(item.total_potongan)}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: `${color}22` }}>
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${item.persentase}%`, backgroundColor: color }} />
+                    </div>
                   </div>
-                  {/* Amounts */}
-                  <div>
-                    <p className="text-sm font-black text-fin-text-primary tabular-nums">{formatCurrency(total_bruto)}</p>
-                    <p className="text-[10px] font-semibold text-fin-text-muted">Neto {formatCurrency(total_neto)}</p>
-                  </div>
-                  {/* Progress bar */}
-                  <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: `${color}22` }}>
-                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, backgroundColor: color }} />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
+            </div>
+
+            {/* ── Detail Table ── */}
+            <div className="rounded-xl border border-fin-border overflow-hidden">
+              <div className="px-4 py-2.5 bg-fin-page border-b border-fin-border">
+                <span className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider">
+                  Rincian Detail per Jenis Belanja — LS dipisah per sub-jenis (GAJI, BARJAS, KONTRAKTUAL, HIBAH, THR)
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-fin-border bg-fin-page">
+                      <TableHead className="font-black text-fin-text-muted uppercase text-[10px] tracking-wider py-3">Jenis Belanja</TableHead>
+                      <TableHead className="font-black text-fin-text-muted uppercase text-[10px] tracking-wider py-3 text-right">SP2D</TableHead>
+                      <TableHead className="font-black text-fin-text-muted uppercase text-[10px] tracking-wider py-3 text-right">OPD</TableHead>
+                      <TableHead className="font-black text-fin-text-muted uppercase text-[10px] tracking-wider py-3 text-right">Bruto</TableHead>
+                      <TableHead className="font-black text-fin-text-muted uppercase text-[10px] tracking-wider py-3 text-right">Potongan</TableHead>
+                      <TableHead className="font-black text-fin-text-muted uppercase text-[10px] tracking-wider py-3 text-right">Neto</TableHead>
+                      <TableHead className="font-black text-fin-text-muted uppercase text-[10px] tracking-wider py-3 text-right">Rata-rata/OPD</TableHead>
+                      <TableHead className="font-black text-fin-text-muted uppercase text-[10px] tracking-wider py-3 text-center w-24">% Porsi</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {summaryByJenis.map((jb, idx) => {
+                      const color = PALETTE[idx % PALETTE.length];
+                      const rataOpd = jb.jumlah_opd > 0 ? jb.total_bruto / jb.jumlah_opd : 0;
+                      const opdRows = filteredData.filter(r => r.jenis_belanja === jb.jenis_belanja);
+                      const opdMap: Record<string, { bruto: number; neto: number; potongan: number; sp2d: number }> = {};
+                      opdRows.forEach(r => {
+                        if (!opdMap[r.opd]) opdMap[r.opd] = { bruto: 0, neto: 0, potongan: 0, sp2d: 0 };
+                        opdMap[r.opd].bruto += r.total_bruto;
+                        opdMap[r.opd].neto += r.total_neto;
+                        opdMap[r.opd].potongan += r.total_potongan;
+                        opdMap[r.opd].sp2d += r.jumlah_sp2d;
+                      });
+                      const opdEntries = Object.entries(opdMap).sort((a, b) => b[1].bruto - a[1].bruto);
+                      const jenisKey = `rincian-${jb.jenis_belanja}`;
+
+                      return (
+                        <Fragment key={jenisKey}>
+                          {/* Level 1: Jenis Belanja */}
+                          <TableRow
+                            className="cursor-pointer hover:bg-fin-page bg-fin-surface border-b border-fin-border transition-colors select-none"
+                            style={{ borderLeft: `3px solid ${color}` }}
+                            onClick={() => {
+                              setExpandedJenis(prev => {
+                                const s = new Set(prev);
+                                if (s.has(jenisKey)) s.delete(jenisKey); else s.add(jenisKey);
+                                return s;
+                              });
+                            }}
+                          >
+                            <TableCell className="py-2.5">
+                              <div className="flex items-center gap-2">
+                                <ChevronRight
+                                  size={13}
+                                  className={cn('text-fin-text-muted transition-transform duration-200 flex-shrink-0', expandedJenis.has(jenisKey) && 'rotate-90')}
+                                />
+                                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                                <span className="font-bold text-fin-text-primary text-sm">{jb.jenis_belanja}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-fin-text-primary text-sm py-2.5">{jb.jumlah_sp2d}</TableCell>
+                            <TableCell className="text-right font-bold text-fin-text-primary text-sm py-2.5">{jb.jumlah_opd}</TableCell>
+                            <TableCell className="text-right font-bold text-fin-text-primary text-sm py-2.5">{formatCurrency(jb.total_bruto)}</TableCell>
+                            <TableCell className="text-right font-semibold text-rose-500 text-sm py-2.5">{formatCurrency(jb.total_potongan)}</TableCell>
+                            <TableCell className="text-right font-bold text-emerald-600 text-sm py-2.5">{formatCurrency(jb.total_neto)}</TableCell>
+                            <TableCell className="text-right font-medium text-fin-text-secondary text-xs py-2.5">{formatCurrency(rataOpd)}</TableCell>
+                            <TableCell className="py-2.5 text-center">
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="text-[11px] font-bold text-fin-text-secondary">{jb.persentase.toFixed(1)}%</span>
+                                <div className="w-14 h-1.5 bg-fin-subtle rounded-full overflow-hidden">
+                                  <div className="h-full rounded-full" style={{ width: `${Math.min(jb.persentase, 100)}%`, backgroundColor: color }} />
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+
+                          {/* Level 2: OPD Breakdown */}
+                          {expandedJenis.has(jenisKey) && opdEntries.map(([opd, vals], oi) => {
+                            const opdPct = jb.total_bruto > 0 ? (vals.bruto / jb.total_bruto) * 100 : 0;
+                            return (
+                              <TableRow
+                                key={`${jenisKey}-opd-${oi}`}
+                                className="bg-fin-surface hover:bg-fin-page/70 border-b border-fin-subtle transition-colors"
+                                style={{ borderLeft: `3px solid ${color}30` }}
+                              >
+                                <TableCell className="py-2">
+                                  <div className="flex items-center gap-2 pl-7">
+                                    <div className="w-px h-4 bg-fin-border flex-shrink-0" />
+                                    <Building2 size={11} className="text-fin-text-muted flex-shrink-0" />
+                                    <span className="text-[11px] font-semibold text-fin-text-primary">{opd}</span>
+                                    <span className="text-[10px] text-fin-text-muted font-medium">
+                                      {vals.sp2d} SP2D
+                                    </span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right text-xs font-medium text-fin-text-secondary py-2">—</TableCell>
+                                <TableCell className="text-right text-xs font-medium text-fin-text-secondary py-2">—</TableCell>
+                                <TableCell className="text-right text-xs font-semibold text-fin-text-primary py-2">{formatCurrency(vals.bruto)}</TableCell>
+                                <TableCell className="text-right text-xs font-medium text-rose-400 py-2">{formatCurrency(vals.potongan)}</TableCell>
+                                <TableCell className="text-right text-xs font-semibold text-emerald-600 py-2">{formatCurrency(vals.neto)}</TableCell>
+                                <TableCell className="text-right text-xs font-medium text-fin-text-secondary py-2">—</TableCell>
+                                <TableCell className="py-2 text-center">
+                                  <div className="flex items-center gap-1.5 justify-center">
+                                    <div className="w-10 h-1.5 bg-fin-subtle rounded-full overflow-hidden">
+                                      <div className="h-full rounded-full" style={{ width: `${Math.min(opdPct, 100)}%`, backgroundColor: color }} />
+                                    </div>
+                                    <span className="text-[10px] font-bold text-fin-text-muted">{opdPct.toFixed(1)}%</span>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </Fragment>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           </Card>
         );
@@ -522,7 +666,7 @@ export default function BelanjaOpdPage() {
               Rincian OPD · Jenis Belanja · Sumber Dana
             </h3>
             <p className="text-xs text-fin-text-muted font-medium mt-0.5">
-              Klik baris OPD atau Jenis Belanja untuk buka/tutup rincian
+              Rincian detail per OPD · Rincian Jenis Belanja · Sumber Dana
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">

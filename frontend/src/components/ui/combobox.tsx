@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { CheckIcon, ChevronDownIcon, SearchIcon, XIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -36,9 +37,14 @@ function Combobox({
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState("")
   const containerRef = React.useRef<HTMLDivElement>(null)
-  const inputRef = React.useRef<HTMLInputElement>(null)
-  const listRef = React.useRef<HTMLDivElement>(null)
+  const dropdownRef  = React.useRef<HTMLDivElement>(null)
+  const inputRef     = React.useRef<HTMLInputElement>(null)
+  const listRef      = React.useRef<HTMLDivElement>(null)
   const [activeIndex, setActiveIndex] = React.useState(-1)
+  const [position, setPosition] = React.useState({ top: 0, left: 0, width: 0 })
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => { setMounted(true) }, [])
 
   const selectedOption = options.find((o) => o.value === value)
 
@@ -48,16 +54,17 @@ function Combobox({
       )
     : options
 
-  // Reset active index when filtered list changes
   React.useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveIndex(-1)
   }, [query])
 
-  // Close on outside click
+  // ── Tutup saat klik di luar trigger maupun dropdown portal ──
   React.useEffect(() => {
     function onMouseDown(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      const inTrigger  = containerRef.current?.contains(target)
+      const inDropdown = dropdownRef.current?.contains(target)
+      if (!inTrigger && !inDropdown) {
         setOpen(false)
         setQuery("")
       }
@@ -66,8 +73,36 @@ function Combobox({
     return () => document.removeEventListener("mousedown", onMouseDown)
   }, [])
 
+  // ── Reposisi saat scroll / resize; abaikan scroll di dalam dropdown ──
+  React.useEffect(() => {
+    if (!open) return
+    function handleScroll(e: Event) {
+      // Jika scroll terjadi di dalam dropdown (list), biarkan — jangan reposisi
+      if (dropdownRef.current?.contains(e.target as Node)) return
+      // Scroll di luar (halaman/parent): sesuaikan posisi agar tetap sejajar trigger
+      computePosition()
+    }
+    function handleResize() {
+      computePosition()
+    }
+    window.addEventListener("scroll", handleScroll, true)
+    window.addEventListener("resize", handleResize)
+    return () => {
+      window.removeEventListener("scroll", handleScroll, true)
+      window.removeEventListener("resize", handleResize)
+    }
+  }, [open])
+
+  function computePosition() {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      setPosition({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+    }
+  }
+
   function openDropdown() {
     if (disabled) return
+    computePosition()
     setOpen(true)
     setQuery("")
     setActiveIndex(-1)
@@ -111,7 +146,6 @@ function Combobox({
     }
   }
 
-  // Scroll active item into view
   React.useEffect(() => {
     if (activeIndex >= 0 && listRef.current) {
       const el = listRef.current.querySelector<HTMLButtonElement>(
@@ -157,11 +191,20 @@ function Combobox({
         />
       </button>
 
-      {/* ── Dropdown ── */}
-      {open && (
+      {/* ── Dropdown — dirender ke document.body via portal ──
+           Posisi fixed agar tidak terpengaruh overflow:hidden pada ancestor */}
+      {open && mounted && createPortal(
         <div
+          ref={dropdownRef}
+          style={{
+            position: 'fixed',
+            top: position.top,
+            left: position.left,
+            width: position.width,
+            zIndex: 9999,
+          }}
           className={cn(
-            "absolute left-0 z-50 mt-1 w-full min-w-36",
+            "min-w-36",
             "rounded-lg border border-fin-border bg-fin-surface",
             "shadow-lg ring-1 ring-fin-border/50",
             "overflow-hidden",
@@ -234,7 +277,8 @@ function Combobox({
               ))
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

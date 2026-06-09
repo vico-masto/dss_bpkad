@@ -1,5 +1,5 @@
 # PROJECT KNOWLEDGE BASE: DSS BPKAD
-> Referensi komprehensif untuk Claude. Berisi profil aplikasi, arsitektur, logika bisnis, standar, dan riwayat update lengkap. Diperbarui terakhir: 2026-05-18.
+> Referensi komprehensif untuk Claude. Berisi profil aplikasi, arsitektur, logika bisnis, standar, dan riwayat update lengkap. Diperbarui terakhir: 2026-05-30.
 
 ---
 
@@ -19,7 +19,7 @@
 ## 2. ARSITEKTUR BACKEND
 
 ```
-server.js → 7 route modules (semua prefix /api):
+server.js → 8 route modules (semua prefix /api):
 
   /api/auth       → authRoutes.js       → authController.js
   /api/sp2d       → sp2dRoutes.js       → sp2dController.js
@@ -31,6 +31,7 @@ server.js → 7 route modules (semua prefix /api):
   /api/reports    → reportRoutes.js     → reconciliationController.js, reportController.js
   /api/admin      → adminRoutes.js      → referenceController.js, systemController.js
   /api/bku        → bkuRoutes.js        → bkuController.js
+  /api/bridge     → bridgeRoutes.js     → bridgeController.js (GAS SP2D + Antigravity PDF)
 
 Layering: routes → authMiddleware (JWT Bearer, req.user) → controllers → services/utils
 Services: aiService.js, auditService.js, dssService.js
@@ -201,6 +202,12 @@ WAJIB gunakan ini untuk semua backend call. Jangan buat Axios instance baru.
 /dashboard/settings          → profil & pengaturan
 /pendapatan                  → arsip kas masuk (?tab=rekam | ?tab=arsip)
 
+/dashboard/rekon/ba               → Berita Acara Rekonsiliasi (cetak dokumen resmi)
+/dashboard/rekon/potongan-mengendap → Monitor potongan mengendap belum ter-match
+/dashboard/analisa/belanja-opd    → Analisa belanja pengeluaran per OPD
+/dashboard/ledgers/potongan-opd   → BP Potongan per OPD (breakdown jenis potongan)
+/dashboard/sp2d/audit-potongan    → Audit konsistensi potongan SP2D
+
 GOLDEN REFERENCE: frontend/src/app/dashboard/sp2d/page.tsx
 → Template untuk semua halaman arsip baru
 ```
@@ -369,6 +376,103 @@ Sebelum modifikasi frontend Next.js, baca `frontend/node_modules/next/dist/docs/
 - **Pencocokan kini murni 2 parameter**: Nilai Nominal (exact cents) + Jarak Tanggal
 - **Threshold disesuaikan di 3 engine**: runMagicMatch, bulkMatchSmart, getSuggestions
 
+### 2026-05-30: Bridge GAS→DSS + Antigravity→DSS + Kolom Sumber
+
+**[Bridge API Baru — bridgeController.js]**
+- `POST /api/bridge/sp2d` — terima SP2D dari GAS (e-Arsip SP2D), validasi strict (nomor, opd, penerima, nilai_bruto wajib)
+- `POST /api/bridge/sp2d/batch` — batch import dari GAS
+- `GET /api/bridge/health` — health check untuk GAS test koneksi
+- `POST /api/bridge/antigravity` — terima data partial dari Antigravity PDF Splitter (nomor, tanggal, jenis, file_path). Hanya SP2D yang masuk DB; SPM/TIDAK_DIKENAL di-skip.
+- `POST /api/bridge/antigravity/batch` — batch import dari Antigravity
+- Auth: API Key via `X-API-Key` header (S2S, bukan JWT)
+
+**[Schema Baru — data_sp2d]**
+- Kolom `sumber VARCHAR(20) DEFAULT 'MANUAL'` — indicator asal data: MANUAL, GAS, ANTIGRAVITY
+- Update `init.sql` + `schema.prisma` → perlu `prisma db push` + `npx prisma generate`
+
+**[Antigravity Integration]**
+- Script `backend/bridge_to_dss.py` — baca SQLite `log_pemisahan.db`, copy PDF ke `uploads/hasil_pemisahan/`, kirim ke DSS bridge API
+- `watcher.py` — auto-trigger bridge setelah proses PDF selesai (subprocess call)
+- Kolom `sync_status` + `sync_message` ditambahkan di `log_pemisahan.db`
+- DSS uploads dir: `backend/uploads/hasil_pemisahan/` (static serve via `/uploads`)
+
+### 2026-05-22 — 2026-05-29: Batch Update Besar
+
+**[Halaman Baru Frontend]**
+
+| Route | File | Keterangan |
+|-------|------|-----------|
+| `/dashboard/rekon/ba` | `rekon/ba/page.tsx` | Cetak **Berita Acara Rekonsiliasi** resmi — kop surat BPKAD Kab. Kepulauan Aru, TTD Kuasa BUD + Bank Maluku. Data saldo otomatis dari `balance-comparison`. Config simpan di `localStorage`. |
+| `/dashboard/rekon/potongan-mengendap` | `rekon/potongan-mengendap/page.tsx` | Monitor potongan SP2D yang belum ter-match ke bank atau setoran pajak |
+| `/dashboard/analisa/belanja-opd` | `analisa/belanja-opd/page.tsx` | Analisa belanja pengeluaran per OPD |
+| `/dashboard/ledgers/potongan-opd` | `ledgers/potongan-opd/page.tsx` | **BP Potongan per OPD** — breakdown per jenis potongan (PPH 21/22/23/Final, PPN, IWP, BPJS, TAPERUM, dll). Filter: OPD, bulan, jenis. Endpoint: `GET /reports/potongan-opd-realisasi` |
+
+**[Komponen Baru]**
+```
+src/components/patterns/page-header.tsx   → PageHeader reusable (judul + breadcrumb + aksi)
+src/components/patterns/breadcrumb.tsx    → Breadcrumb reusable
+src/components/patterns/index.ts          → re-export barrel
+src/components/LogoutConfirmDialog.tsx    → Dialog konfirmasi logout
+```
+
+**[Backend — reconciliationController.js: Fungsi-Fungsi Baru]**
+
+| Fungsi | Endpoint | Keterangan |
+|--------|----------|-----------|
+| `getSmartMatchProgress` | `GET /reconciliation/smart-progress` | Progress tracker untuk batch smart match (polling) |
+| `clusterMatch` | `POST /reconciliation/cluster-match` | Matching cluster: deteksi mutasi bank dengan nilai sama (>5 anggota), cocokkan ke SP2D dalam jendela tanggal |
+| `getPotonganMengendap` | `GET /reconciliation/potongan-mengendap` | List potongan SP2D yang belum ter-match ke bank/setoran pajak |
+| `getPotonganIntegrity` | `GET /reconciliation/potongan-integrity` | Audit integritas data potongan (null, orphan, mismatch) |
+| `resetReconciliationByDateRange` | `POST /reconciliation/reset-range` | Reset status rekon untuk rentang tanggal tertentu saja |
+| `saveResolution` | `POST /reconciliation/save-resolution` | Simpan resolusi manual selisih rekon |
+| `exportReconciliationAudit` | `GET /reconciliation/export-audit` | Export trail audit rekonsiliasi ke Excel |
+
+**[Backend — reportController.js: Fungsi-Fungsi Baru]**
+
+| Fungsi | Endpoint | Keterangan |
+|--------|----------|-----------|
+| `getPotonganOpdRealisasi` | `GET /reports/potongan-opd-realisasi` | BP Potongan per OPD — breakdown jenis potongan per unit kerja |
+| `getBelanjaOpdDetail` | `GET /reports/belanja-opd-detail` | Detail belanja pengeluaran per OPD |
+| `getSp2dBruto` | `GET /reports/sp2d-bruto` | Laporan SP2D dengan nilai bruto (untuk rekap RKUD) |
+| `getMonthlyTaxAnalytics` | `GET /reports/tax-monthly-analytics` | Analitik potongan pajak per bulan |
+
+**[Update rekon/page.tsx — Rekonsiliasi Cerdas]**
+- **Cluster Detection**: `useMemo` mendeteksi otomatis mutasi bank dengan nilai identik (>5 anggota) → tampil badge cluster
+- **Smart Group Mode**: mode matching berbasis cluster untuk data massal (bankIds hanya kirim 1 ID saat grup)
+- **Bank Type Filter**: toggle `PENERIMAAN` / `PENGELUARAN` / `ALL` pada kolom bank
+- **Batch Progress Bar**: indikator `{ current, total, isOpen }` untuk bulk smart match
+- **Performance**: lookup `Set()` O(n) menggantikan `.some()` O(n²) pada semua filter BKU & bank
+- **Reset per Range**: modal reset rekon per rentang tanggal via `POST /reconciliation/reset-range`
+
+**[sp2dController.js — Update Audit Potongan]**
+- Halaman `/dashboard/sp2d/audit-potongan` diperkuat — investigasi SP2D dengan potongan yang tidak konsisten
+
+**[Script Utilitas Baru di backend/]**
+```
+merge_taspen_mei2026.js  → Merge data Taspen Mei 2026 ke DB
+cleanup_mei_2026.js      → Bersihkan data ganda/duplikat Mei 2026
+analyze_bank_may.js      → Analisa mutasi bank Mei
+analyze_sp2d_may.js      → Analisa SP2D Mei
+check_bku_may_dates.js   → Cek konsistensi tanggal BKU Mei
+```
+
+**[Route Baru di reportRoutes.js]**
+```
+GET  /reports/potongan-opd-realisasi   → getPotonganOpdRealisasi
+GET  /reports/belanja-opd-detail       → getBelanjaOpdDetail
+GET  /reports/sp2d-bruto               → getSp2dBruto
+GET  /reports/tax-monthly-analytics    → getMonthlyTaxAnalytics
+GET  /reconciliation/smart-progress    → getSmartMatchProgress
+POST /reconciliation/cluster-match     → clusterMatch
+GET  /reconciliation/potongan-mengendap → getPotonganMengendap
+GET  /reconciliation/potongan-integrity → getPotonganIntegrity
+POST /reconciliation/reset-range       → resetReconciliationByDateRange
+POST /reconciliation/save-resolution   → saveResolution
+GET  /reconciliation/export-audit      → exportReconciliationAudit
+```
+
+---
+
 ### 2026-05-18: Investigasi Data + Fitur Baru
 
 **[Investigasi Rp 32.369.682.925 BELUM Rekon]**
@@ -418,22 +522,70 @@ Sesudah : <button> opacity-40 (selalu samar terlihat), hover → opacity-100
 Lokasi  : sp2d/page.tsx ~baris 1107 (tabel arsip utama) & ~1675 (secondary view)
 ```
 
+### 2026-06-06: Realisasi per Rincian Jenis Belanja — LS Ditampilkan Per-Jenis
+
+**Endpoint:** `GET /reports/belanja-opd-detail` (reportController.js)
+
+**Perubahan Backend:**
+- `jenis_belanja` diubah dari `SPLIT_PART(first-word)` menjadi full `REPLACE(h.jenis, '-', ' ')`
+- Normalisasi "LS-GAJI" (hyphen) → "LS GAJI" — menyatu dengan 522 records LS GAJI → total 657
+- GROUP BY dan filter ikut diupdate
+- Hasil untuk 2026: **8 rincian** (*dulu ~4 grup karena LS digabung*):
+  `LS GAJI (657)` · `LS GAJI THR (126)` · `LS BARJAS (80)` · `GU (49)` · `UP (45)` · `TU (13)` · `LS KONTRAKTUAL (7)` · `LS (2)`
+
+**Perubahan Frontend:** `analisa/belanja-opd/page.tsx`
+- Card title → "Realisasi per Rincian Jenis Belanja"
+- Setiap card: badge kategori (LS/GU/TU/UP), metadata `{opdCount} OPD · Pot {currency}`
+- PageHeader description + tree subtitle diupdate dengan notasi "LS ditampilkan per jenis"
+
+**Catatan:** Wajib restart backend agar query baru tercermin.
+
 ---
 
-## 10. STATUS & TINDAKAN PENDING (per 2026-05-18)
+## 10. STATUS & TINDAKAN PENDING (per 2026-05-30)
 
 **Perlu tindakan user:**
 1. **IMPORT** bank statement Feb 27, 2026 → resolve Rp 344M BELUM
 2. **IMPORT** bank statement Mar 31, 2026 → resolve Rp ~2.5B BELUM
 3. **IMPORT** seluruh bank statement April 2026 → resolve Rp 28.2B BELUM
-4. **REVIEW MANUAL**: bank id:20147 "SETORAN PEMINDAHBUKUAN" Rp 19.119,80
-5. **RESTART backend** server agar endpoint `/missing-pencairan/*` aktif
+4. **IMPORT** bank statement Mei 2026 → reconcile data Mei yang sudah masuk ke DB
+5. **REVIEW MANUAL**: bank id:20147 "SETORAN PEMINDAHBUKUAN" Rp 19.119,80
+6. **UPDATE DSS_BPKAD_Memory.md** setelah setiap sesi coding (wajib per PANDUAN_KOLABORASI)
+7. **JALANKAN** `prisma db push` + `npx prisma generate` di `DSS_BPKAD\backend\` untuk menambahkan kolom `sumber` ke DB
+8. **JALANKAN** `python bridge_to_dss.py --force` di `Aplikasi_Pemisah_SPM_SP2D\backend\` untuk sync data Antigravity yang sudah ada (34 entry, 22 SP2D)
+9. **TEST** koneksi GAS→DSS: pastikan endpoint bridge aktif (bisa cek via `GET /api/bridge/health` dengan header `X-API-Key`)
+
+**Route baru yang wajib diverifikasi aktif (perlu restart backend):**
+```
+GET  /reports/potongan-opd-realisasi
+GET  /reports/belanja-opd-detail
+GET  /reports/sp2d-bruto
+GET  /reports/tax-monthly-analytics
+GET  /reconciliation/smart-progress
+POST /reconciliation/cluster-match
+GET  /reconciliation/potongan-mengendap
+GET  /reconciliation/potongan-integrity
+POST /reconciliation/reset-range
+POST /reconciliation/save-resolution
+GET  /reconciliation/export-audit
+```
 
 **Script diagnostik tersedia di `backend/`:**
 ```
-cek_total_belum.js    → ringkasan total BELUM per bulan
-audit_sp2d_claim.js   → cek duplikat / coincidence nilai SP2D
-audit_bpjs_match.js   → investigasi match BPJS potongan vs bank
-fix_bpjs_potongan.js  → fix matching BPJS dengan OPD keyword + jenis
-fix_bpjs_sisa.js      → fix matching BPJS tanpa filter jenis (untuk JKM→JKK mismatch)
+cek_total_belum.js       → ringkasan total BELUM per bulan
+audit_sp2d_claim.js      → cek duplikat / coincidence nilai SP2D
+audit_bpjs_match.js      → investigasi match BPJS potongan vs bank
+fix_bpjs_potongan.js     → fix matching BPJS dengan OPD keyword + jenis
+fix_bpjs_sisa.js         → fix matching BPJS tanpa filter jenis (JKM→JKK mismatch)
+merge_taspen_mei2026.js  → merge data Taspen Mei 2026
+cleanup_mei_2026.js      → bersihkan data ganda Mei 2026
+```
+
+**Halaman frontend yang perlu diverifikasi UI-nya:**
+```
+/dashboard/rekon/ba               → Cetak Berita Acara Rekonsiliasi
+/dashboard/rekon/potongan-mengendap → Monitor potongan mengendap
+/dashboard/analisa/belanja-opd    → Analisa belanja per OPD
+/dashboard/ledgers/potongan-opd   → BP Potongan per OPD
+/dashboard/sp2d/audit-potongan    → Audit konsistensi potongan SP2D
 ```

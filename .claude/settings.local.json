@@ -60,7 +60,11 @@
       "PowerShell(Set-Location \"D:\\\\Antigravity\\\\DSS_BPKAD\\\\frontend\"; $out = npx eslint src/app/dashboard/page.tsx 2>&1; $out | Where-Object { $_ -match \"purity|set-state|impure|Cannot call\" } | Select-Object -First 10)",
       "PowerShell(Set-Location \"D:\\\\Antigravity\\\\DSS_BPKAD\\\\frontend\"; \\(npx eslint src/app/dashboard/page.tsx 2>&1 | Out-String\\) -match \"purity|set-state|impure|Cannot call\")",
       "Bash(Remove-Item -Path \"C:\\\\Users\\\\USER\\\\.clone\\\\projects\\\\D--Antigravity-DSS-BPKAD\\\\memory\\\\project_view_transitions_mei2026.md\" -Force)",
-      "Bash(Remove-Item -Path \"C:\\\\Users\\\\USER\\\\.clone\" -Recurse -Force)"
+      "Bash(Remove-Item -Path \"C:\\\\Users\\\\USER\\\\.clone\" -Recurse -Force)",
+      "Bash(\" \"D:/Antigravity/DSS_BPKAD/frontend/src/app/dashboard/rekon/page.tsx\" | head -20)",
+      "Bash(grep -n \"\\\\\\\\\\\\\\\\`\" \"D:/Antigravity/DSS_BPKAD/frontend/src/app/dashboard/rekon/page.tsx\" | head -20)",
+      "Bash(python3 *)",
+      "Bash(Select-String \"audit-potongan\")"
     ]
   }
 }

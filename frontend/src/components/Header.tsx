@@ -1,9 +1,11 @@
 'use client';
- 
-import { LogOut, User, Menu, Sun, Moon, Brain, ChevronDown, Database, Scale, ScrollText, Users, Settings, Monitor } from 'lucide-react';
+
+import { LogOut, User, Menu, Sun, Moon, Brain, ChevronDown, Database, Scale, ScrollText, Users, Settings, Monitor, Maximize2, Minimize2 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { ConfirmDialog } from './ConfirmDialog';
+import { LogoutConfirmDialog } from './LogoutConfirmDialog';
 import { toast } from 'sonner';
 import { TransitionLink as Link } from './TransitionLink';
 
@@ -14,8 +16,14 @@ export default function Header({ isCollapsed, setIsCollapsed }: { isCollapsed: b
 
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isAIVisible, setIsAIVisible] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const triggerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropPosition, setDropPosition] = useState({ top: 0, right: 0 });
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -28,24 +36,53 @@ export default function Header({ isCollapsed, setIsCollapsed }: { isCollapsed: b
       setIsDarkMode(true);
       document.documentElement.classList.add('dark');
     }
-    
+
     // AI Visibility logic
     const savedAI = localStorage.getItem('ai_visible');
     if (savedAI === 'false') {
       setIsAIVisible(false);
     }
 
-    // Click outside handler for profile dropdown
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    // Sync fullscreen state saat user keluar via F11 / ESC
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
+
+  // Click outside — close when clicking outside both trigger and dropdown portal
+  useEffect(() => {
+    function onMouseDown(e: MouseEvent) {
+      const target = e.target as Node;
+      const inTrigger  = triggerRef.current?.contains(target);
+      const inDropdown = dropdownRef.current?.contains(target);
+      if (!inTrigger && !inDropdown) setIsDropdownOpen(false);
+    }
+    document.addEventListener('mousedown', onMouseDown);
+    return () => document.removeEventListener('mousedown', onMouseDown);
+  }, []);
+
+  // Reposition on scroll/resize; ignore scroll inside the dropdown portal
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+    function handleScroll(e: Event) {
+      if (dropdownRef.current?.contains(e.target as Node)) return;
+      computeDropPosition();
+    }
+    function handleResize() { computeDropPosition(); }
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [isDropdownOpen]);
+
+  function computeDropPosition() {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropPosition({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+    }
+  }
 
   const toggleTheme = () => {
     const newMode = !isDarkMode;
@@ -88,6 +125,14 @@ export default function Header({ isCollapsed, setIsCollapsed }: { isCollapsed: b
       toast.success('Asisten Bro Jenius Aktif');
     } else {
       toast.info('Asisten Bro Jenius Dinonaktifkan');
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
     }
   };
 
@@ -152,10 +197,22 @@ export default function Header({ isCollapsed, setIsCollapsed }: { isCollapsed: b
           <Brain size={18} className={cn(isAIVisible && "animate-pulse")} />
         </button>
 
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="w-9 h-9 flex items-center justify-center rounded-full text-fin-text-muted hover:text-fin-text-primary hover:bg-fin-subtle/60 transition-all duration-300 active:scale-95 cursor-pointer"
+          title={isFullscreen ? "Keluar Layar Penuh" : "Layar Penuh"}
+        >
+          {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+        </button>
+
         {/* Unified Premium Profile Dropdown Pill */}
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative" ref={triggerRef}>
           <div
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            onClick={() => {
+              if (!isDropdownOpen) computeDropPosition();
+              setIsDropdownOpen(!isDropdownOpen);
+            }}
             className="rounded-full bg-fin-subtle/50 hover:bg-fin-subtle border border-fin-border cursor-pointer select-none pl-1 pr-3 py-1 flex items-center gap-2 transition-all duration-300 active:scale-[0.98]"
           >
             {/* Avatar container with online dot */}
@@ -178,9 +235,12 @@ export default function Header({ isCollapsed, setIsCollapsed }: { isCollapsed: b
             />
           </div>
 
-          {/* Floating Dropdown Card strictly matching visual specs */}
-          {isDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-[240px] bg-fin-surface border border-fin-border rounded-xl shadow-xl z-50 p-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
+          {/* Floating Dropdown Card — rendered via portal so it's never clipped by overflow */}
+          {isDropdownOpen && mounted && createPortal(
+            <div
+              ref={dropdownRef}
+              style={{ position: 'fixed', top: dropPosition.top, right: dropPosition.right, zIndex: 9999, width: 240 }}
+              className="bg-fin-surface border border-fin-border rounded-xl shadow-xl p-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
               
               {/* Dropdown Header Info */}
               <div className="flex items-center gap-2.5 px-2.5 py-2">
@@ -311,20 +371,17 @@ export default function Header({ isCollapsed, setIsCollapsed }: { isCollapsed: b
                 </button>
               </div>
 
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       </div>
 
-      <ConfirmDialog 
+      <LogoutConfirmDialog
         isOpen={showLogoutConfirm}
         onClose={() => setShowLogoutConfirm(false)}
         onConfirm={handleLogout}
-        title="Konfirmasi Logout"
-        message="Apakah Anda yakin ingin keluar dari sistem? Sesi Anda akan diakhiri."
-        confirmText="Ya, Keluar"
-        cancelText="Batal"
-        type="danger"
+        user={user}
       />
     </header>
   );

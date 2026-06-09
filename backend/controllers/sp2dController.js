@@ -679,16 +679,44 @@ const importPotonganManual = async (req, res) => {
     return res.status(400).json({ message: 'Data tidak valid' });
   }
 
+  console.log(`[IMPORT-MANUAL v3-iwp-fix] Menerima ${data?.length || 0} baris — jenis detection IURAN WAJIB aktif`);
+
+  // ── PRE-SCAN: Bangun map nilai Taspen per SP2D ──────────────────────────────
+  // Sama dengan importExcelPajak: SIPD mengekspor "Taspen" sebagai baris terpisah
+  // padahal di rekening koran bank dibayar sekaligus dengan "Iuran Wajib Pegawai 8%".
+  // LOCKED: Juni 2026 — jangan ubah logika ini tanpa konfirmasi pengguna.
+  const taspenMergeMap = new Map(); // key: nomor_sp2d.toUpperCase() → total nilai Taspen
+  for (const row of data) {
+    const _nama = (row.URAIAN || '').toUpperCase();
+    const _nomor = (row.NOMOR_SP2D || '').trim().toUpperCase();
+    const _nilai = parseFloat(row.NILAI_POTONGAN || 0);
+    if (_nomor && _nama.includes('TASPEN') && _nilai > 0) {
+      taspenMergeMap.set(_nomor, (taspenMergeMap.get(_nomor) || 0) + _nilai);
+    }
+  }
+  if (taspenMergeMap.size > 0) {
+    console.log(`[IMPORT-MANUAL] Pre-scan: ${taspenMergeMap.size} SP2D dengan Taspen akan digabung ke IWP 8%`);
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
+
   try {
     await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`
-        DELETE FROM data_sp2d_potongan 
+        DELETE FROM data_sp2d_potongan
         WHERE (EXTRACT(MONTH FROM tanggal_pencairan) = ${parseInt(bulan)} AND EXTRACT(YEAR FROM tanggal_pencairan) = ${parseInt(tahun)})
       `;
 
       for (const rincian of data) {
+        // ── SKIP TASPEN — nilainya sudah digabung ke IWP 8% via pre-scan ──────
+        // LOCKED: Juni 2026 — jangan ubah tanpa konfirmasi pengguna.
+        if ((rincian.URAIAN || '').toUpperCase().includes('TASPEN')) {
+          continue;
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         let sp2dId = null;
         let nomorSp2d = (rincian.NOMOR_SP2D || '').trim();
+        const rawNomorKey = nomorSp2d.toUpperCase(); // simpan sebelum di-overwrite DB lookup — dipakai untuk taspenMergeMap
         let opdFinal = (rincian.OPD || '').trim();
         let sp2dSumberDana = null;
 
@@ -698,7 +726,7 @@ const importPotonganManual = async (req, res) => {
           });
           if (sp2dMatch) {
             sp2dId = sp2dMatch.id;
-            nomorSp2d = sp2dMatch.nomor;
+            nomorSp2d = sp2dMatch.nomor; // DB nomor untuk create/update
             opdFinal = sp2dMatch.opd;
             const sdMatch = await tx.detail_sp2d.findFirst({ where: { id_sp2d: sp2dId } });
             if (sdMatch) sp2dSumberDana = sdMatch.id_sumber_dana;
@@ -710,8 +738,8 @@ const importPotonganManual = async (req, res) => {
         if (u.includes('PPN')) jenis = 'PPN';
         else if (u.includes('PPH 21')) jenis = 'PPh 21';
         else if (u.includes('PPH 4(2)') || u.includes('PASAL 4')) jenis = 'PPh 4(2)';
-        else if (u.includes('IWP 8')) jenis = 'IWP 8%';
-        else if (u.includes('IWP 1')) jenis = 'IWP 1%';
+        else if (u.includes('IWP 8') || (u.includes('IURAN WAJIB') && u.includes('8%'))) jenis = 'IWP 8%';
+        else if (u.includes('IWP 1') || (u.includes('IURAN WAJIB') && u.includes('1%'))) jenis = 'IWP 1%';
         else if (u.includes('KESEHATAN 4') || u.includes('BPJS 4')) jenis = 'JKES 4%';
         else if (u.includes('KECELAKAAN') || u.includes('JKK')) jenis = 'JKK';
         else if (u.includes('KEMATIAN') || u.includes('JKM')) jenis = 'JKM';
@@ -724,24 +752,70 @@ const importPotonganManual = async (req, res) => {
         const finalSumberDana = await dssService.getSumberDanaIdByName(rincian.SUMBER_DANA || sp2dSumberDana);
         const importOpdId = await dssService.getOpdIdByName(opdFinal);
 
+        // ── MERGE TASPEN → IWP 8% ────────────────────────────────────────────
+        // Jika baris ini IWP 8% dan SP2D-nya punya Taspen di pre-scan,
+        // gabungkan nilai Taspen ke nilai IWP 8% — sama dengan logika importExcelPajak.
+        // LOCKED: Juni 2026 — jangan ubah tanpa konfirmasi pengguna.
+        // rawNomorKey dipakai (bukan nomorSp2d) karena pre-scan map memakai nomor raw Excel —
+        // setelah DB lookup nomorSp2d bisa berubah format sehingga key tidak cocok.
+        let nilaiPotongan = parseFloat(rincian.NILAI_POTONGAN || 0);
+        let taspenAddon = 0;
+        if (jenis === 'IWP 8%' && taspenMergeMap.has(rawNomorKey)) {
+          taspenAddon = taspenMergeMap.get(rawNomorKey);
+          nilaiPotongan = nilaiPotongan + taspenAddon;
+          console.log(`[IMPORT-MANUAL] Merge Taspen: IWP8 ${rincian.NILAI_POTONGAN} + Taspen ${taspenAddon} = ${nilaiPotongan} (${nomorSp2d})`);
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
+        const tglPencairan = rincian.TANGGAL_PENCAIRAN ? parseDateSafe(rincian.TANGGAL_PENCAIRAN) : parseDateSafe();
+        const uraianPotongan = rincian.URAIAN;
+        const keteranganFinal = taspenAddon > 0
+          ? `${uraianPotongan ? uraianPotongan + ' | ' : ''}Termasuk Taspen: ${taspenAddon}`
+          : (uraianPotongan || null);
+
+        // Dedup: cek (nomor_sp2d + uraian) tanpa nilai — agar re-upload bisa UPDATE record lama
+        // (nilai sengaja tidak dimasukkan karena merge Taspen mengubah nilai dari versi sebelumnya)
+        const existingManual = nomorSp2d ? await tx.data_sp2d_potongan.findFirst({
+          where: {
+            nomor_sp2d: { equals: nomorSp2d, mode: 'insensitive' },
+            uraian: { equals: uraianPotongan, mode: 'insensitive' }
+          }
+        }) : null;
+
+        if (existingManual) {
+          if (!existingManual.status_rekon || existingManual.status_rekon === 'BELUM') {
+            await tx.data_sp2d_potongan.update({
+              where: { id: existingManual.id },
+              data: {
+                tanggal_pencairan: tglPencairan,
+                id_sp2d: sp2dId || existingManual.id_sp2d,
+                nilai: nilaiPotongan,
+                keterangan: keteranganFinal
+              }
+            });
+          }
+          // Jika sudah SUDAH, biarkan — skip
+          continue;
+        }
+
         await tx.data_sp2d_potongan.create({
           data: {
             id_sp2d: sp2dId,
             jenis_potongan: jenis,
-            nilai: parseFloat(rincian.NILAI_POTONGAN || 0),
+            nilai: nilaiPotongan,
             id_billing: rincian.ID_BILLING || null,
-            keterangan: rincian.URAIAN,
-            tanggal_pencairan: rincian.TANGGAL_PENCAIRAN ? parseDateSafe(rincian.TANGGAL_PENCAIRAN) : parseDateSafe(),
+            keterangan: keteranganFinal,
+            tanggal_pencairan: tglPencairan,
             nomor_sp2d: nomorSp2d,
             opd: importOpdId,
-            uraian: rincian.URAIAN,
+            uraian: uraianPotongan,
             id_sumber_dana: finalSumberDana
           }
         });
       }
     });
 
-    res.json({ message: 'Proses impor rincian selesai', summary: { total: data.length } });
+    res.json({ message: 'Proses impor rincian selesai', summary: { total: data.length }, _v: 'taspen-merge-v2' });
   } catch (err) {
     console.error('ERROR IMPORT POTONGAN:', err.message);
     res.status(500).json({ message: 'Server Error during import', error: err.message });
@@ -803,6 +877,34 @@ const importExcelPajak = async (req, res) => {
 
     console.log(`[SIPD-IMPORT] Berhasil membaca ${rawData.length} baris data`);
 
+    // ── PRE-SCAN: Bangun map nilai Taspen per SP2D ──────────────────────────────
+    // Bug SIPD-RI: untuk SP2D PNS, "Taspen" muncul sebagai baris terpisah,
+    // padahal di rekening koran bank dibayar sekaligus dengan "Iuran Wajib Pegawai 8%".
+    // Solusi: saat upload, nilai Taspen digabungkan ke IWP 8% SP2D yang sama,
+    // baris Taspen di-skip agar tidak membuat record terpisah.
+    // LOCKED: Juni 2026 — jangan ubah logika ini tanpa konfirmasi pengguna.
+    const taspenMergeMap = new Map(); // key: nomor_sp2d.toUpperCase() → total nilai Taspen
+    {
+      let _lastNomor = '';
+      for (const _row of rawData) {
+        let _nomor = (_row[colIdx.sp2d] || '').toString().trim();
+        if (!_nomor && _lastNomor) _nomor = _lastNomor;
+        if (_nomor && !_nomor.startsWith('(') && _nomor.length > 5) _lastNomor = _nomor;
+
+        const _nama = (_row[colIdx.pNama] || '').toString().trim().toUpperCase();
+        const _nilai = parseNilaiExcel(_row[colIdx.pNilai] || '0');
+
+        if (_nomor && _nama.includes('TASPEN') && _nilai > 0) {
+          const _key = _nomor.trim().toUpperCase();
+          taspenMergeMap.set(_key, (taspenMergeMap.get(_key) || 0) + _nilai);
+        }
+      }
+    }
+    if (taspenMergeMap.size > 0) {
+      console.log(`[SIPD-IMPORT] Pre-scan: ${taspenMergeMap.size} SP2D dengan Taspen akan digabung ke IWP 8%`);
+    }
+    // ─────────────────────────────────────────────────────────────────────────────
+
     let successCount = 0;
     let failCount = 0;
     let lastNomorSp2d = '';
@@ -821,6 +923,7 @@ const importExcelPajak = async (req, res) => {
       // Tahap 2: Iterasi Data
       const potonganEntries = [];
       const autoHeaderDeletedIds = new Set(); // Tracking per-import agar tidak delete berulang
+      const batchKeys = new Set();
       for (const row of rawData) {
         try {
           let nomorSp2d = (row[colIdx.sp2d] || '').toString().trim();
@@ -850,6 +953,11 @@ const importExcelPajak = async (req, res) => {
 
           // Validasi Baris
           if (!nomorSp2d || isNaN(taxValue) || taxValue <= 0 || taxName.toUpperCase() === 'NAMA' || nomorSp2d.toUpperCase() === 'NOMOR') {
+            continue;
+          }
+
+          // Skip baris Taspen — nilainya akan digabung ke IWP 8% SP2D yang sama (fix bug SIPD-RI)
+          if (taxName.toUpperCase().includes('TASPEN')) {
             continue;
           }
 
@@ -929,8 +1037,8 @@ const importExcelPajak = async (req, res) => {
           else if (u.includes('PPH 4(2)') || u.includes('PASAL 4')) jenis = 'PPh 4(2)';
           else if (u.includes('PPH 22')) jenis = 'PPh 22';
           else if (u.includes('PPH 23')) jenis = 'PPh 23';
-          else if (u.includes('IWP 8')) jenis = 'IWP 8%';
-          else if (u.includes('IWP 1')) jenis = 'IWP 1%';
+          else if (u.includes('IWP 8') || (u.includes('IURAN WAJIB') && u.includes('8%'))) jenis = 'IWP 8%';
+          else if (u.includes('IWP 1') || (u.includes('IURAN WAJIB') && u.includes('1%'))) jenis = 'IWP 1%';
           else if (u.includes('KESEHATAN 4') || u.includes('BPJS 4')) jenis = 'JKES 4%';
           else if (u.includes('KECELAKAAN')) jenis = 'JKK';
           else if (u.includes('KEMATIAN')) jenis = 'JKM';
@@ -947,16 +1055,75 @@ const importExcelPajak = async (req, res) => {
             autoHeaderDeletedIds.add(sp2dMatch.id);
           }
 
+          // ── DEDUPLICATION CHECK (No.SP2D + Uraian + Nilai, tanpa tanggal) ──
+          // PENTING: jangan masukkan tanggal_pencairan ke key — tanggal bisa berubah
+          // saat SP2D di-update (Jan→Mei), sehingga dedup berbasis tanggal akan gagal
+          // dan menghasilkan record ganda (bug yang ditemukan Juni 2026).
+          const normSp2d = nomorSp2d.trim().toUpperCase();
+          const normName = (taxName || 'Rincian SIPD').trim().toUpperCase();
+
+          // ── MERGE TASPEN → IWP 8% (fix bug SIPD-RI) ────────────────────────
+          // Jika baris ini adalah IWP 8% dan SP2D-nya punya Taspen di pre-scan,
+          // tambahkan nilai Taspen ke nilai IWP 8% agar cocok dengan bank.
+          // LOCKED: Juni 2026 — jangan ubah tanpa konfirmasi pengguna.
+          let mergedTaxValue = taxValue;
+          let taspenAddon = 0;
+          if (jenis === 'IWP 8%' && taspenMergeMap.has(normSp2d)) {
+            taspenAddon = taspenMergeMap.get(normSp2d);
+            mergedTaxValue = taxValue + taspenAddon;
+            console.log(`[SIPD-IMPORT] Merge Taspen: IWP8 ${taxValue} + Taspen ${taspenAddon} = ${mergedTaxValue} (${nomorSp2d})`);
+          }
+          // ─────────────────────────────────────────────────────────────────────
+
+          const key = `${normSp2d}|${mergedTaxValue}|${normName}`;
+
+          if (batchKeys.has(key)) {
+            console.log(`[SIPD-IMPORT] Skip duplicate row in Excel batch: ${key}`);
+            continue;
+          }
+          batchKeys.add(key);
+
+          // Cek DB: cukup cocokkan nomor_sp2d + uraian + nilai (tanpa tanggal_pencairan).
+          const existingPotongan = await tx.data_sp2d_potongan.findFirst({
+            where: {
+              nomor_sp2d: { equals: nomorSp2d, mode: 'insensitive' },
+              nilai: mergedTaxValue,
+              uraian: { equals: taxName || 'Rincian SIPD', mode: 'insensitive' }
+            }
+          });
+
+          if (existingPotongan) {
+            // Jika record belum direkonsiliasi, perbarui tanggal_pencairan saja (bukan buat baru).
+            // Jika sudah SUDAH/SUDAH_BRUTO, biarkan — jangan timpa data yang sudah clean.
+            if (!existingPotongan.status_rekon || existingPotongan.status_rekon === 'BELUM') {
+              await tx.data_sp2d_potongan.update({
+                where: { id: existingPotongan.id },
+                data: {
+                  tanggal_pencairan: finalDate,
+                  id_sp2d: sp2dMatch?.id || existingPotongan.id_sp2d,
+                  id_billing: billingCode ? String(billingCode).substring(0, 50) : existingPotongan.id_billing,
+                  keterangan: ntpn ? `NTPN: ${String(ntpn).substring(0, 50)}` : existingPotongan.keterangan,
+                }
+              });
+              console.log(`[SIPD-IMPORT] Update tanggal record BELUM (nomor=${nomorSp2d}, uraian=${taxName})`);
+            } else {
+              console.log(`[SIPD-IMPORT] Skip duplicate SUDAH/SUDAH_BRUTO: ${key}`);
+            }
+            continue;
+          }
+
           const newPotongan = await tx.data_sp2d_potongan.create({
             data: {
               id_sp2d: sp2dMatch?.id || null,
               nomor_sp2d: nomorSp2d.substring(0, 100),
               opd: String(finalOpd).substring(0, 255),
               jenis_potongan: jenis,
-              nilai: taxValue,
+              nilai: mergedTaxValue,
               uraian: taxName || 'Rincian SIPD',
               id_billing: billingCode ? String(billingCode).substring(0, 50) : null,
-              keterangan: ntpn ? `NTPN: ${String(ntpn).substring(0, 50)}` : null,
+              keterangan: ntpn
+                ? `NTPN: ${String(ntpn).substring(0, 50)}${taspenAddon > 0 ? ` | Termasuk Taspen: ${taspenAddon}` : ''}`
+                : taspenAddon > 0 ? `Termasuk Taspen: ${taspenAddon}` : null,
               tanggal_pencairan: finalDate,
               id_sumber_dana: sp2dSumberDana
             }
@@ -999,21 +1166,35 @@ const importExcelPajak = async (req, res) => {
 };
 
 const updatePotongan = async (req, res) => {
-  const { jenis_potongan, nilai, id_billing, keterangan, tanggal_pencairan, uraian, opd, status_rekon, selisih_rekon, keterangan_rekon } = req.body;
+  const { id } = req.params;
+  const {
+    jenis_potongan, jenis_pajak,
+    nilai,
+    id_billing, nomor_bukti,
+    keterangan,
+    tanggal_pencairan, tanggal,
+    uraian, opd,
+    status_rekon, selisih_rekon, keterangan_rekon
+  } = req.body;
+
+  const resolvedJenis = jenis_potongan || jenis_pajak;
+  const resolvedTanggal = tanggal_pencairan || tanggal;
+  const resolvedBilling = id_billing || nomor_bukti;
+
   try {
     const updated = await prisma.data_sp2d_potongan.update({
-      where: { id: id },
-      data: { 
-        jenis_potongan, 
-        nilai: nilai !== undefined ? parseFloat(nilai) : undefined, 
-        id_billing, 
+      where: { id },
+      data: {
+        jenis_potongan: resolvedJenis,
+        nilai: nilai !== undefined ? parseFloat(nilai) : undefined,
+        id_billing: resolvedBilling,
         keterangan,
         uraian,
         opd,
         status_rekon,
         selisih_rekon: selisih_rekon !== undefined ? parseFloat(selisih_rekon) : undefined,
         keterangan_rekon,
-        tanggal_pencairan: tanggal_pencairan ? new Date(tanggal_pencairan) : undefined
+        tanggal_pencairan: resolvedTanggal ? new Date(resolvedTanggal) : undefined
       }
     });
     res.json({ message: 'Potongan diperbarui', data: updated });
@@ -1036,17 +1217,181 @@ const deletePotonganByMonth = async (req, res) => {
   const { bulan, tahun } = req.query;
   if (!bulan || !tahun) return res.status(400).json({ message: 'Bulan dan Tahun harus diisi' });
 
+  const b = parseInt(bulan);
+  const t = parseInt(tahun);
+
   try {
-    const result = await prisma.$executeRaw`
-      DELETE FROM data_sp2d_potongan 
-      WHERE id_sp2d IN (
-        SELECT id FROM data_sp2d 
-        WHERE tahun = ${parseInt(tahun)} AND EXTRACT(MONTH FROM tanggal) = ${parseInt(bulan)}
-      )
-    `;
-    res.json({ message: `Berhasil menghapus rincian untuk periode ${bulan}/${tahun}`, deletedCount: result });
+    let deletedCount = 0;
+    await prisma.$transaction(async (tx) => {
+      // 1. Dapatkan daftar ID & ID Billing dari data_sp2d_potongan yang akan dihapus
+      const potonganList = await tx.$queryRaw`
+        SELECT id::text, id_billing 
+        FROM data_sp2d_potongan 
+        WHERE EXTRACT(MONTH FROM tanggal_pencairan) = ${b} 
+          AND EXTRACT(YEAR FROM tanggal_pencairan) = ${t}
+      `;
+
+      // 2. Dapatkan daftar ID & Nomor Bukti dari setoran_pajak yang akan dihapus
+      const setoranList = await tx.$queryRaw`
+        SELECT id, nomor_bukti 
+        FROM setoran_pajak 
+        WHERE EXTRACT(MONTH FROM tanggal) = ${b} 
+          AND EXTRACT(YEAR FROM tanggal) = ${t}
+      `;
+
+      const refIds = new Set();
+      potonganList.forEach(p => {
+        if (p.id) refIds.add(p.id);
+        if (p.id_billing) refIds.add(p.id_billing);
+      });
+      setoranList.forEach(s => {
+        if (s.id) refIds.add(s.id);
+        if (s.nomor_bukti) refIds.add(s.nomor_bukti);
+      });
+
+      const refIdsArray = Array.from(refIds);
+
+      // 3. Hapus jurnal terkait jika ada ref_id yang cocok
+      if (refIdsArray.length > 0) {
+        await tx.$executeRaw`
+          DELETE FROM jurnal_umum 
+          WHERE ref_id IN (
+            SELECT unnest(${refIdsArray})
+          )
+        `;
+      }
+
+      // 4. Hapus data_sp2d_potongan untuk periode tersebut
+      const delPot = await tx.$executeRaw`
+        DELETE FROM data_sp2d_potongan 
+        WHERE EXTRACT(MONTH FROM tanggal_pencairan) = ${b} 
+          AND EXTRACT(YEAR FROM tanggal_pencairan) = ${t}
+      `;
+
+      // 5. Hapus setoran_pajak untuk periode tersebut
+      const delSet = await tx.$executeRaw`
+        DELETE FROM setoran_pajak 
+        WHERE EXTRACT(MONTH FROM tanggal) = ${b} 
+          AND EXTRACT(YEAR FROM tanggal) = ${t}
+      `;
+
+      deletedCount = delPot + delSet;
+    });
+
+    res.json({ 
+      message: `Berhasil menghapus rincian dan setoran pajak periode ${b}/${t}`, 
+      deletedCount 
+    });
   } catch (err) {
+    console.error('ERROR DELETE POTONGAN BY MONTH:', err);
     res.status(500).json({ message: 'Error deleting monthly deductions', error: err.message });
+  }
+};
+
+const deletePotonganByRange = async (req, res) => {
+  const { startDate, endDate } = req.query;
+  if (!startDate || !endDate) {
+    return res.status(400).json({ message: 'Tanggal awal dan akhir harus diisi' });
+  }
+
+  try {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({ message: 'Format tanggal tidak valid' });
+    }
+
+    if (start > end) {
+      return res.status(400).json({ message: 'Tanggal awal tidak boleh melebihi tanggal akhir' });
+    }
+
+    let deletedCount = 0;
+    await prisma.$transaction(async (tx) => {
+      // 1. Dapatkan daftar ID & ID Billing dari data_sp2d_potongan yang akan dihapus
+      const potonganList = await tx.data_sp2d_potongan.findMany({
+        where: {
+          tanggal_pencairan: {
+            gte: start,
+            lte: end
+          }
+        },
+        select: { id: true, id_billing: true }
+      });
+
+      // 2. Dapatkan daftar ID & Nomor Bukti dari setoran_pajak yang akan dihapus
+      const setoranList = await tx.setoran_pajak.findMany({
+        where: {
+          tanggal: {
+            gte: start,
+            lte: end
+          }
+        },
+        select: { id: true, nomor_bukti: true }
+      });
+
+      const refIds = new Set();
+      potonganList.forEach(p => {
+        if (p.id) refIds.add(String(p.id));
+        if (p.id_billing) refIds.add(String(p.id_billing));
+      });
+      setoranList.forEach(s => {
+        if (s.id) refIds.add(String(s.id));
+        if (s.nomor_bukti) refIds.add(String(s.nomor_bukti));
+      });
+
+      const refIdsArray = Array.from(refIds);
+
+      // 3. Hapus jurnal terkait jika ada ref_id yang cocok
+      if (refIdsArray.length > 0) {
+        await tx.$executeRaw`
+          DELETE FROM jurnal_umum 
+          WHERE ref_id IN (
+            SELECT unnest(${refIdsArray})
+          )
+        `;
+      }
+
+      // 4. Hapus data_sp2d_potongan untuk periode tersebut
+      const delPot = await tx.data_sp2d_potongan.deleteMany({
+        where: {
+          tanggal_pencairan: {
+            gte: start,
+            lte: end
+          }
+        }
+      });
+
+      // 5. Hapus setoran_pajak untuk periode tersebut
+      const delSet = await tx.setoran_pajak.deleteMany({
+        where: {
+          tanggal: {
+            gte: start,
+            lte: end
+          }
+        }
+      });
+
+      deletedCount = delPot.count + delSet.count;
+
+      await tx.log_aktivitas.create({
+        data: {
+          user_pelaksana: req.user?.username || 'SYSTEM',
+          aksi: 'DELETE_POTONGAN_RANGE',
+          detail: `Dihapus ${deletedCount} record rincian potongan & setoran pajak periode ${startDate} s.d ${endDate}`
+        }
+      }).catch(() => {});
+    });
+
+    res.json({ 
+      message: `Berhasil menghapus rincian dan setoran pajak periode ${startDate} s.d ${endDate}`, 
+      deletedCount 
+    });
+  } catch (err) {
+    console.error('ERROR DELETE POTONGAN BY RANGE:', err);
+    res.status(500).json({ message: 'Error deleting range deductions', error: err.message });
   }
 };
 
@@ -1402,12 +1747,13 @@ const getSelisihPotonganStats = async (req, res) => {
     const rows = await prisma.$queryRaw`
       SELECT
         CASE
+          WHEN h.status_rekon = 'SUDAH_BRUTO' THEN 'BRUTO'
           WHEN ROUND(COALESCE(r.total_manual, 0), 0) < ROUND(CAST(h.nilai_potongan AS DECIMAL), 0) THEN 'KURANG'
           WHEN ROUND(COALESCE(r.total_manual, 0), 0) > ROUND(CAST(h.nilai_potongan AS DECIMAL), 0) THEN 'LEBIH'
           ELSE 'LENGKAP'
         END as status_kel,
         COUNT(*)::int as jumlah,
-        COALESCE(SUM(CAST(h.nilai_potongan AS DECIMAL) - COALESCE(r.total_manual, 0)), 0) as total_selisih
+        COALESCE(SUM(CASE WHEN h.status_rekon = 'SUDAH_BRUTO' THEN 0 ELSE CAST(h.nilai_potongan AS DECIMAL) - COALESCE(r.total_manual, 0) END), 0) as total_selisih
       FROM data_sp2d h
       LEFT JOIN (
         SELECT id_sp2d,
@@ -1425,6 +1771,7 @@ const getSelisihPotonganStats = async (req, res) => {
       KURANG:  { jumlah: 0, total_selisih: 0 },
       LENGKAP: { jumlah: 0, total_selisih: 0 },
       LEBIH:   { jumlah: 0, total_selisih: 0 },
+      BRUTO:   { jumlah: 0, total_selisih: 0 },
     };
     for (const row of rows) {
       result[row.status_kel] = {
@@ -1432,7 +1779,7 @@ const getSelisihPotonganStats = async (req, res) => {
         total_selisih: Math.abs(Number(row.total_selisih)),
       };
     }
-    result.total = result.KURANG.jumlah + result.LENGKAP.jumlah + result.LEBIH.jumlah;
+    result.total = result.KURANG.jumlah + result.LENGKAP.jumlah + result.LEBIH.jumlah + result.BRUTO.jumlah;
     res.json(result);
   } catch (err) {
     console.error('getSelisihPotonganStats error:', err);
@@ -1462,7 +1809,7 @@ const getSelisihPotongan = async (req, res) => {
   const whereClause = conditions.join(' AND ');
 
   // Subquery status HAVING-style: filter dilakukan di outer query
-  const statusFilter = ['KURANG', 'LENGKAP', 'LEBIH'].includes(status)
+  const statusFilter = ['KURANG', 'LENGKAP', 'LEBIH', 'BRUTO'].includes(status)
     ? `WHERE status_kel = '${status}'`
     : '';
 
@@ -1472,6 +1819,7 @@ const getSelisihPotongan = async (req, res) => {
       FROM (
         SELECT
           CASE
+            WHEN h.status_rekon = 'SUDAH_BRUTO' THEN 'BRUTO'
             WHEN ROUND(COALESCE(r.total_manual, 0), 0) < ROUND(CAST(h.nilai_potongan AS DECIMAL), 0) THEN 'KURANG'
             WHEN ROUND(COALESCE(r.total_manual, 0), 0) > ROUND(CAST(h.nilai_potongan AS DECIMAL), 0) THEN 'LEBIH'
             ELSE 'LENGKAP'
@@ -1493,13 +1841,14 @@ const getSelisihPotongan = async (req, res) => {
     const rows = await prisma.$queryRawUnsafe(`
       SELECT
         h.id, h.nomor, h.tanggal, h.tanggal_pencairan,
-        h.opd, h.penerima, h.uraian, h.jenis,
+        h.opd, h.penerima, h.uraian, h.jenis, h.status_rekon,
         CAST(h.nilai_bruto AS DECIMAL) as nilai_bruto,
         CAST(h.nilai_potongan AS DECIMAL) as potongan_gelondongan,
         COALESCE(r.total_manual, 0) as sum_rincian_manual,
-        CAST(h.nilai_potongan AS DECIMAL) - COALESCE(r.total_manual, 0) as selisih,
+        CASE WHEN h.status_rekon = 'SUDAH_BRUTO' THEN 0 ELSE CAST(h.nilai_potongan AS DECIMAL) - COALESCE(r.total_manual, 0) END as selisih,
         COALESCE(r.count_manual, 0)::int as count_rincian,
         CASE
+          WHEN h.status_rekon = 'SUDAH_BRUTO' THEN 'BRUTO'
           WHEN ROUND(COALESCE(r.total_manual, 0), 0) < ROUND(CAST(h.nilai_potongan AS DECIMAL), 0) THEN 'KURANG'
           WHEN ROUND(COALESCE(r.total_manual, 0), 0) > ROUND(CAST(h.nilai_potongan AS DECIMAL), 0) THEN 'LEBIH'
           ELSE 'LENGKAP'
@@ -1515,14 +1864,14 @@ const getSelisihPotongan = async (req, res) => {
       ) r ON r.id_sp2d = h.id
       WHERE ${whereClause}
       ORDER BY
-        CASE WHEN ROUND(COALESCE(r.total_manual, 0), 0) < ROUND(CAST(h.nilai_potongan AS DECIMAL), 0) THEN 0 ELSE 1 END,
+        CASE WHEN h.status_rekon <> 'SUDAH_BRUTO' AND ROUND(COALESCE(r.total_manual, 0), 0) < ROUND(CAST(h.nilai_potongan AS DECIMAL), 0) THEN 0 ELSE 1 END,
         ABS(CAST(h.nilai_potongan AS DECIMAL) - COALESCE(r.total_manual, 0)) DESC,
         h.tanggal DESC
       LIMIT ${parseInt(limit)} OFFSET ${offset}
     `);
 
     // Filter status di JS agar lebih aman
-    const filtered = status && ['KURANG', 'LENGKAP', 'LEBIH'].includes(status)
+    const filtered = status && ['KURANG', 'LENGKAP', 'LEBIH', 'BRUTO'].includes(status)
       ? rows.filter(r => r.status_kel === status)
       : rows;
 
@@ -1536,6 +1885,7 @@ const getSelisihPotongan = async (req, res) => {
         penerima: r.penerima,
         uraian: r.uraian,
         jenis: r.jenis,
+        status_rekon: r.status_rekon,
         nilai_bruto: Number(r.nilai_bruto),
         potongan_gelondongan: Number(r.potongan_gelondongan),
         sum_rincian_manual: Number(r.sum_rincian_manual),
@@ -1744,6 +2094,24 @@ const fixAutoHeaderPotongan = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+const bulkUpdateJenisPotongan = async (req, res) => {
+  const { dari, ke } = req.body;
+  if (!ke) return res.status(400).json({ message: 'Parameter "ke" wajib diisi' });
+
+  try {
+    const where = dari ? { jenis_potongan: dari } : {};
+    const result = await prisma.data_sp2d_potongan.updateMany({
+      where,
+      data: { jenis_potongan: ke }
+    });
+    await auditService.logActivity(req, 'BULK_UPDATE', 'SP2D_POTONGAN',
+      `Ganti jenis potongan: "${dari || 'SEMUA'}" → "${ke}" | ${result.count} record`);
+    res.json({ message: `${result.count} record potongan SP2D berhasil diperbarui`, count: result.count });
+  } catch (err) {
+    res.status(500).json({ message: 'Gagal melakukan update massal', error: err.message });
+  }
+};
+
 module.exports = {
   createSp2d,
   getSp2dList,
@@ -1761,6 +2129,7 @@ module.exports = {
   updatePotongan,
   deletePotongan,
   deletePotonganByMonth,
+  deletePotonganByRange,
   getPotonganCount,
   bulkDeletePotongan,
   bulkDeleteIntegrated,
@@ -1772,4 +2141,5 @@ module.exports = {
   restoreTanggalPencairanPreview,
   restoreTanggalPencairan,
   fixAutoHeaderPotongan,
+  bulkUpdateJenisPotongan,
 };

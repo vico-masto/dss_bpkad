@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS master_jenis_belanja (
     nama VARCHAR(255) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS master_jenis_potongan (
+    id VARCHAR(100) PRIMARY KEY,
+    nama VARCHAR(255) NOT NULL
+);
+
 -- 2. Tabel Kas Masuk
 CREATE TABLE IF NOT EXISTS data_pendapatan (
     id VARCHAR(100) PRIMARY KEY,
@@ -51,6 +56,7 @@ CREATE TABLE IF NOT EXISTS data_sp2d (
     nilai_neto NUMERIC(15, 2) GENERATED ALWAYS AS (nilai_bruto - nilai_potongan) STORED,
     status_dana VARCHAR(50) CHECK (status_dana IN ('Aman', 'Talangan')),
     status_rekon VARCHAR(50) DEFAULT 'BELUM',
+    sumber VARCHAR(20) DEFAULT 'MANUAL',
     file_url TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -135,7 +141,7 @@ CREATE TABLE IF NOT EXISTS master_pagu (
 
 -- 11. Insert Data Master Default
 INSERT INTO users (username, password_hash, role) 
-VALUES ('vigit', '$2b$10$k7viweh.0GpMDCUC//AzHOMwgtiyP1wSgEd2J0vrPLudJgd6Lde0m', 'admin') ON CONFLICT DO NOTHING;
+VALUES ('vigit', '$2b$10$gHccCUc6zruMbxtjg134oeUA5iuvWvsjFHYLLflzGsVpX4nt0Mxmi', 'admin') ON CONFLICT DO NOTHING;
 
 INSERT INTO master_sumber_dana (id, nama, kategori) VALUES 
 ('SD-PAD', 'PAD - Pendapatan Asli Daerah', 'BEBAS'),
@@ -146,3 +152,26 @@ INSERT INTO master_sumber_dana (id, nama, kategori) VALUES
 ('SD-SILPA', 'SiLPA', 'BEBAS'),
 ('SD-ALL', 'TOTAL APBD (GLOBAL)', 'BEBAS')
 ON CONFLICT DO NOTHING;
+
+-- 12. Tabel Data LRA (Historis Bulanan & Tahunan)
+CREATE TABLE IF NOT EXISTS data_lra (
+    id SERIAL PRIMARY KEY,
+    tahun INT NOT NULL,
+    bulan INT,
+    kode_rekening VARCHAR(50) NOT NULL,
+    uraian TEXT NOT NULL,
+    anggaran DECIMAL(20, 2) DEFAULT 0,
+    realisasi DECIMAL(20, 2) DEFAULT 0,
+    keterangan TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_lra_tahun_bulan ON data_lra(tahun, bulan);
+
+-- Proteksi duplikat rincian potongan SP2D.
+-- Mengecualikan AUTO_HEADER (record placeholder agregat dari header SP2D, bukan rincian manual).
+-- Dibuat Juni 2026 setelah ditemukan 466 record ganda akibat re-import SIPD dengan tanggal berbeda.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_potongan_nomor_uraian_nilai
+    ON data_sp2d_potongan (nomor_sp2d, uraian, CAST(nilai AS NUMERIC(20,2)))
+    WHERE keterangan IS DISTINCT FROM 'AUTO_HEADER';

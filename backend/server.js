@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const compression = require('compression');
-require('dotenv').config();
+require('dotenv').config({ override: true });
 process.on('exit', (code) => {
   console.log(`Process exiting with code: ${code}`);
 });
@@ -19,6 +19,7 @@ const dssRoutes = require('./routes/dssRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const bkuRoutes = require('./routes/bkuRoutes');
+const bridgeRoutes = require('./routes/bridgeRoutes');
 
 const path = require('path');
 
@@ -45,6 +46,7 @@ app.use('/api/pendapatan', pendapatanRoutes);
 app.use('/api/dss', dssRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/bku', bkuRoutes);
+app.use('/api/bridge', bridgeRoutes);
 
 // Health Check
 app.get('/', (req, res) => {
@@ -82,6 +84,10 @@ app.use((err, req, res, next) => {
 const server = app.listen(PORT, () => {
   console.log(`[SUCCESS] Server is running on http://127.0.0.1:${PORT}`);
 });
+
+// Auto-cleanup data sampah setiap 24 jam
+const { scheduleAutoCleanup } = require('./services/cleanupService');
+scheduleAutoCleanup();
 
 setInterval(() => {}, 60000);
 

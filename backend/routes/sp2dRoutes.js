@@ -18,6 +18,7 @@ const {
   updatePotongan,
   deletePotongan,
   deletePotonganByMonth,
+  deletePotonganByRange,
   bulkDeletePotongan,
   bulkDeleteIntegrated,
   getMissingPencairanStats,
@@ -28,6 +29,7 @@ const {
   restoreTanggalPencairanPreview,
   restoreTanggalPencairan,
   fixAutoHeaderPotongan,
+  bulkUpdateJenisPotongan,
 } = require('../controllers/sp2dController');
 const authMiddleware = require('../middleware/authMiddleware');
 const upload = require('../config/multer');
@@ -58,9 +60,11 @@ router.get('/jenis', authMiddleware, operatorSp2dOrAdminOnly, getJenisList);
 router.get('/potongan-count', authMiddleware, adminOnly, getPotonganCount);
 router.post('/import-potongan-manual', authMiddleware, adminOnly, importPotonganManual);
 router.post('/import-excel-pajak', authMiddleware, adminOnly, upload.single('file'), importExcelPajak);
+router.put('/potongan/bulk-jenis', authMiddleware, adminOnly, bulkUpdateJenisPotongan);
 router.put('/potongan/:id', authMiddleware, adminOnly, updatePotongan);
 router.post('/potongan/bulk-delete', authMiddleware, adminOnly, bulkDeletePotongan);
 router.delete('/potongan-bulan', authMiddleware, adminOnly, deletePotonganByMonth);
+router.delete('/potongan-range', authMiddleware, adminOnly, deletePotonganByRange);
 router.delete('/potongan/:id', authMiddleware, adminOnly, deletePotongan);
 
 // Kelengkapan Tanggal Pencairan — harus sebelum /:id

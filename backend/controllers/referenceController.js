@@ -160,8 +160,50 @@ const updateSumberDana = async (req, res) => {
   }
 };
 
+// Jenis Potongan CRUD
+const getJenisPotongan = async (req, res) => {
+  try {
+    const result = await prisma.master_jenis_potongan.findMany({ orderBy: { nama: 'asc' } });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: 'Gagal mengambil data Jenis Potongan', error: err.message });
+  }
+};
+
+const createJenisPotongan = async (req, res) => {
+  try {
+    const { id, nama } = req.body;
+    await prisma.master_jenis_potongan.create({ data: { id, nama } });
+    res.status(201).json({ message: 'Jenis Potongan berhasil ditambahkan' });
+  } catch (err) {
+    res.status(500).json({ message: 'Gagal menambahkan Jenis Potongan. Pastikan Kode/ID belum digunakan.', error: err.message });
+  }
+};
+
+const updateJenisPotongan = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nama } = req.body;
+    await prisma.master_jenis_potongan.update({ where: { id }, data: { nama } });
+    res.json({ message: 'Jenis Potongan berhasil diperbarui' });
+  } catch (err) {
+    res.status(500).json({ message: 'Gagal memperbarui Jenis Potongan', error: err.message });
+  }
+};
+
+const deleteJenisPotongan = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.master_jenis_potongan.delete({ where: { id } });
+    res.json({ message: 'Jenis Potongan berhasil dihapus' });
+  } catch (err) {
+    res.status(500).json({ message: 'Gagal menghapus Jenis Potongan', error: err.message });
+  }
+};
+
 module.exports = {
   getOPD, createOPD, deleteOPD, updateOPD,
   getJenis, createJenis, deleteJenis, updateJenis,
-  getSumberDana, createSumberDana, deleteSumberDana, updateSumberDana
+  getSumberDana, createSumberDana, deleteSumberDana, updateSumberDana,
+  getJenisPotongan, createJenisPotongan, updateJenisPotongan, deleteJenisPotongan
 };

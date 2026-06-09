@@ -2,21 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  AlertTriangle, 
-  SearchX, 
-  HelpCircle, 
-  ArrowLeft, 
-  FileText, 
-  TrendingUp, 
-  TrendingDown, 
+import {
+  AlertTriangle,
+  SearchX,
+  HelpCircle,
+  ArrowLeft,
+  FileText,
+  TrendingUp,
+  TrendingDown,
   Loader2,
   RefreshCw,
   CheckCircle2,
   XCircle,
   ExternalLink,
   ChevronRight,
-  ShieldAlert
+  ShieldAlert,
+  Banknote
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -43,8 +44,13 @@ export default function AnomalyPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [activeTab, setActiveTab] = useState('sp2d');
-  const [selectedMonth, setSelectedMonth] = useState<string>('0'); // 0 = Semua Bulan
+  const [selectedMonth, setSelectedMonth] = useState<string>('0');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // SP2D Bruto state
+  const [brutoData, setBrutoData] = useState<any>(null);
+  const [brutoLoading, setBrutoLoading] = useState(false);
+  const [brutoPagination, setBrutoPagination] = useState({ page: 1, totalPages: 1, total: 0 });
 
   const months = [
     { value: '0', label: 'SEMUA BULAN' },
@@ -115,7 +121,9 @@ export default function AnomalyPage() {
         'NO. SP2D / BUKTI': p.nomor_bukti,
         'TANGGAL': format(new Date(p.tanggal), 'dd/MM/yyyy'),
         'TIPE': p.tipe,
-        'URAIAN': p.uraian,
+        'NAMA OPD': p.opd || '-',
+        'URAIAN PEMBAYARAN': p.uraian_sp2d || '-',
+        'URAIAN POTONGAN': p.uraian,
         'NILAI': p.nilai
       }));
 
@@ -127,11 +135,27 @@ export default function AnomalyPage() {
         'SALDO AKHIR': b.saldo_akhir
       }));
 
+      const brutoRes = await api.get('/reports/sp2d-bruto', {
+        params: { limit: 9999, ...(selectedMonth !== '0' ? { bulan: selectedMonth } : {}) }
+      });
+      const brutoExportData = (brutoRes.data?.data || []).map((b: any) => ({
+        'NOMOR SP2D': b.nomor,
+        'TANGGAL': format(new Date(b.tanggal), 'dd/MM/yyyy'),
+        'TGL CAIR': b.tanggal_pencairan ? format(new Date(b.tanggal_pencairan), 'dd/MM/yyyy') : '-',
+        'OPD': b.opd,
+        'URAIAN': b.uraian || '-',
+        'JENIS': b.jenis,
+        'NILAI BRUTO': b.nilai_bruto,
+        'POTONGAN PIHAK KETIGA': b.nilai_potongan,
+        'NILAI NETO': b.nilai_neto
+      }));
+
       exportToExcelMultiSheet([
         { data: sp2dData, sheetName: 'Anomali SP2D' },
         { data: pData, sheetName: 'Anomali Penerimaan' },
         { data: potonganData, sheetName: 'Selisih Potongan & Pajak' },
-        { data: bankData, sheetName: 'Mutasi Bank Unidentified' }
+        { data: bankData, sheetName: 'Mutasi Bank Unidentified' },
+        { data: brutoExportData, sheetName: 'SP2D Pencairan Bruto' }
       ], 'Laporan_Integritas_Data_BPKAD');
 
     } catch (err) {
@@ -141,9 +165,33 @@ export default function AnomalyPage() {
     }
   };
 
+  const fetchBruto = async (page = 1) => {
+    setBrutoLoading(true);
+    try {
+      const params: any = { page, limit: 50 };
+      if (selectedMonth !== '0') params.bulan = selectedMonth;
+      if (searchQuery) params.search = searchQuery;
+      const res = await api.get('/reports/sp2d-bruto', { params });
+      setBrutoData(res.data);
+      setBrutoPagination({
+        page: res.data.pagination?.page || 1,
+        totalPages: res.data.pagination?.totalPages || 1,
+        total: res.data.pagination?.total || 0
+      });
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal memuat data SP2D Bruto');
+    } finally {
+      setBrutoLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchAnomalies();
   }, [selectedMonth]);
+
+  useEffect(() => {
+    if (activeTab === 'bruto') fetchBruto(1);
+  }, [activeTab, selectedMonth]);
 
   if (loading && !data) {
     return (
@@ -204,7 +252,7 @@ export default function AnomalyPage() {
 
       {/* QUICK STATS SUMMARY */}
       <TooltipProvider>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
           {[
             {
               label: 'Unmatched SP2D',
@@ -241,6 +289,15 @@ export default function AnomalyPage() {
               iconColor: 'text-amber-200',
               icon: HelpCircle,
               tooltip: 'Transaksi pada rekening koran bank yang sama sekali belum terhubung dengan data SP2D maupun Pendapatan di aplikasi.'
+            },
+            {
+              label: 'SP2D Bruto',
+              count: brutoData?.summary?.count || 0,
+              luxClass: 'lux-stat-navy',
+              textColor: 'text-blue-200/70',
+              iconColor: 'text-blue-200',
+              icon: Banknote,
+              tooltip: 'SP2D yang dicairkan dengan nilai bruto — pajak/potongannya dibayar langsung oleh pihak ketiga, tidak muncul di rekening koran pemerintah.'
             }
           ].map((stat, i) => (
             <Tooltip key={i}>
@@ -279,6 +336,9 @@ export default function AnomalyPage() {
               </TabsTrigger>
               <TabsTrigger value="bank" className="px-4 py-2 rounded-t-lg rounded-b-none border-b-2 border-transparent text-xs font-semibold data-[state=active]:border-ds-focus-ring data-[state=active]:text-fin-info-text data-[state=active]:bg-fin-surface transition-all">
                 Bank Unidentified
+              </TabsTrigger>
+              <TabsTrigger value="bruto" className="px-4 py-2 rounded-t-lg rounded-b-none border-b-2 border-transparent text-xs font-semibold data-[state=active]:border-ds-focus-ring data-[state=active]:text-fin-info-text data-[state=active]:bg-fin-surface transition-all flex items-center gap-1.5">
+                <Banknote size={12} /> SP2D Pencairan Bruto
               </TabsTrigger>
             </TabsList>
             
@@ -453,7 +513,9 @@ export default function AnomalyPage() {
                         <TableHeader className="bg-fin-page">
                           <TableRow>
                             <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">No. SP2D</TableHead>
-                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Uraian</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Nama OPD</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Uraian Pembayaran</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Uraian Potongan</TableHead>
                             <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-right">Nilai</TableHead>
                             <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Tgl Cair</TableHead>
                             <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-center">Tipe</TableHead>
@@ -462,7 +524,7 @@ export default function AnomalyPage() {
                         <TableBody className="divide-y divide-fin-border">
                           {(data?.unmatchedPotongan ?? []).length === 0 ? (
                             <TableRow>
-                              <TableCell colSpan={5} className="p-12 text-center">
+                              <TableCell colSpan={7} className="p-12 text-center">
                                 <div className="flex flex-col items-center opacity-40">
                                   <CheckCircle2 size={40} className="text-[#12B76A] mb-2" />
                                   <p className="text-xs font-semibold text-fin-text-secondary">Seluruh potongan telah disetorkan!</p>
@@ -472,7 +534,8 @@ export default function AnomalyPage() {
                           ) : (
                             (data?.unmatchedPotongan ?? []).filter((item: any) =>
                               item.nomor_bukti.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              item.uraian.toLowerCase().includes(searchQuery.toLowerCase())
+                              item.uraian.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              (item.opd || '').toLowerCase().includes(searchQuery.toLowerCase())
                             ).map((item: any) => (
                               <TableRow key={item.id} className="hover:bg-fin-page transition-colors group">
                                 <TableCell className="p-4">
@@ -480,7 +543,13 @@ export default function AnomalyPage() {
                                   <div className="text-[9px] font-bold text-fin-info mt-0.5">{item.id_sumber_dana}</div>
                                 </TableCell>
                                 <TableCell className="p-4">
-                                  <div className="text-[10px] font-bold text-fin-text-muted line-clamp-1 max-w-[300px]">{item.uraian}</div>
+                                  <div className="text-[10px] font-bold text-fin-text-secondary truncate max-w-[180px]">{item.opd || '-'}</div>
+                                </TableCell>
+                                <TableCell className="p-4">
+                                  <div className="text-[10px] font-bold text-fin-text-muted line-clamp-2 max-w-[220px] italic">{item.uraian_sp2d || '-'}</div>
+                                </TableCell>
+                                <TableCell className="p-4">
+                                  <div className="text-[10px] font-bold text-fin-text-muted line-clamp-1 max-w-[160px]">{item.uraian}</div>
                                 </TableCell>
                                 <TableCell className="p-4 text-right">
                                   <div className="font-black text-xs text-fin-info tabular-nums">{formatCurrency(item.nilai)}</div>
@@ -565,6 +634,115 @@ export default function AnomalyPage() {
                         </TableBody>
                       </Table>
                     </div>
+                  </div>
+                </TabsContent>
+
+                {/* SP2D BRUTO TABLE */}
+                <TabsContent value="bruto" className="m-0">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">Daftar Belanja SP2D Pencairan Nilai Bruto</h4>
+                        <p className="text-[10px] font-bold text-slate-400 mt-0.5">Pajak/potongan dibayar pihak ketiga — tidak tercatat di rekening koran pemerintah</p>
+                      </div>
+                      {brutoData?.summary && (
+                        <div className="flex items-center gap-4 text-right">
+                          <div>
+                            <p className="text-[9px] font-bold text-fin-text-muted uppercase">Total Nilai Bruto</p>
+                            <p className="text-sm font-black text-fin-expense tabular-nums">{formatCurrency(brutoData.summary.totalNilaiBruto)}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] font-bold text-fin-text-muted uppercase">Total Potongan Pihak Ketiga</p>
+                            <p className="text-sm font-black text-fin-warning-text tabular-nums">{formatCurrency(brutoData.summary.totalNilaiPotongan)}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="overflow-x-auto rounded-xl border border-fin-border">
+                      <Table>
+                        <TableHeader className="bg-fin-page">
+                          <TableRow>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Nomor SP2D</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">OPD</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Uraian Belanja</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-right">Nilai Bruto</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-right">Potongan Pihak Ketiga</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest text-right">Nilai Neto</TableHead>
+                            <TableHead className="p-4 text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Tgl Cair</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody className="divide-y divide-fin-border">
+                          {brutoLoading ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="p-12 text-center">
+                                <Loader2 className="animate-spin mx-auto text-fin-info" size={28} />
+                              </TableCell>
+                            </TableRow>
+                          ) : (brutoData?.data ?? []).length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="p-12 text-center">
+                                <div className="flex flex-col items-center opacity-40">
+                                  <CheckCircle2 size={40} className="text-[#12B76A] mb-2" />
+                                  <p className="text-xs font-semibold text-fin-text-secondary">Tidak ada SP2D pencairan bruto pada periode ini.</p>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            (brutoData?.data ?? []).filter((item: any) =>
+                              (item.nomor || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              (item.opd || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                              (item.uraian || '').toLowerCase().includes(searchQuery.toLowerCase())
+                            ).map((item: any) => (
+                              <TableRow key={item.id} className="hover:bg-fin-page transition-colors group">
+                                <TableCell className="p-4">
+                                  <div className="font-black text-xs text-fin-text-primary truncate max-w-[200px]">{item.nomor}</div>
+                                  <div className="text-[9px] font-bold text-fin-text-muted mt-0.5">{item.jenis}</div>
+                                </TableCell>
+                                <TableCell className="p-4">
+                                  <div className="text-[10px] font-bold text-fin-text-secondary truncate max-w-[180px]">{item.opd}</div>
+                                </TableCell>
+                                <TableCell className="p-4">
+                                  <div className="text-[10px] font-bold text-fin-text-muted line-clamp-2 max-w-[220px] italic">{item.uraian || '-'}</div>
+                                </TableCell>
+                                <TableCell className="p-4 text-right">
+                                  <div className="font-black text-xs text-fin-expense tabular-nums">{formatCurrency(item.nilai_bruto)}</div>
+                                </TableCell>
+                                <TableCell className="p-4 text-right">
+                                  <div className="font-black text-xs text-fin-warning-text tabular-nums">{formatCurrency(item.nilai_potongan)}</div>
+                                  <div className="text-[9px] text-fin-text-muted mt-0.5 text-right">via pihak ketiga</div>
+                                </TableCell>
+                                <TableCell className="p-4 text-right">
+                                  <div className="font-black text-xs text-fin-text-primary tabular-nums">{formatCurrency(item.nilai_neto)}</div>
+                                </TableCell>
+                                <TableCell className="p-4">
+                                  <div className="text-[10px] font-black text-fin-text-muted">
+                                    {item.tanggal_pencairan ? format(new Date(item.tanggal_pencairan), 'dd/MM/yy') : format(new Date(item.tanggal), 'dd/MM/yy')}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {/* Pagination */}
+                    {brutoPagination.totalPages > 1 && (
+                      <div className="flex items-center justify-between pt-2">
+                        <p className="text-[10px] text-fin-text-muted font-medium">
+                          Total {brutoPagination.total} record — Halaman {brutoPagination.page} dari {brutoPagination.totalPages}
+                        </p>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" disabled={brutoPagination.page <= 1} onClick={() => fetchBruto(brutoPagination.page - 1)} className="h-8 px-3 text-xs rounded-lg">
+                            &larr; Prev
+                          </Button>
+                          <Button size="sm" variant="outline" disabled={brutoPagination.page >= brutoPagination.totalPages} onClick={() => fetchBruto(brutoPagination.page + 1)} className="h-8 px-3 text-xs rounded-lg">
+                            Next &rarr;
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </TabsContent>
               </motion.div>

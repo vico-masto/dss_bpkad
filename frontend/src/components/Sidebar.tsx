@@ -28,6 +28,7 @@ import {
   CalendarCheck,
   FileSpreadsheet,
   Search,
+  BookOpenCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -54,7 +55,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
     const menuStructureLocal = [
       { title: 'Dashboard', items: [] as { href: string }[] },
       { title: 'Analisa', items: [
-        { href: '/dashboard/simulator' }, { href: '/dashboard/analisa/belanja-opd' }
+        { href: '/dashboard/simulator' }, { href: '/dashboard/analisa/belanja-opd' }, { href: '/dashboard/lra' }
       ]},
       { title: 'Transaksi Kas Masuk', items: [
         { href: '/pendapatan?tab=rekam' }, { href: '/pendapatan?tab=arsip' }
@@ -127,6 +128,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
       dotColor: 'bg-[#6941C6]',
       items: [
         { name: 'Simulator Kas Cerdas', href: '/dashboard/simulator', icon: Activity },
+        { name: 'Data LRA Historis', href: '/dashboard/lra', icon: FileSpreadsheet },
         { name: 'Analisis Belanja OPD', href: '/dashboard/analisa/belanja-opd', icon: BarChart3 },
       ]
     },
@@ -167,6 +169,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
         { name: 'Rekening Bank', href: '/dashboard/rekon/bank', icon: Database },
         { name: 'Rekonsiliasi Cerdas', href: '/dashboard/rekon', icon: RefreshCw },
         { name: 'Laporan Selisih', href: '/dashboard/rekon/discrepancy', icon: BarChart3 },
+        { name: 'Ringkasan B & C', href: '/dashboard/rekon/ringkasan', icon: BookOpenCheck },
         { name: 'Potongan Mengendap', href: '/dashboard/rekon/potongan-mengendap', icon: FileText },
         { name: 'Integritas Data', href: '/dashboard/rekon/anomalies', icon: ShieldAlert },
       ]

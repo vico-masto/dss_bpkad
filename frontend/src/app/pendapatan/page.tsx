@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import useSWR from 'swr';
 import { RefreshCw } from 'lucide-react';
 import {
@@ -74,7 +74,7 @@ import { FormField } from '@/components/patterns/form-field';
 const fetcher = (url: string, params: any) =>
   api.get(url, { params }).then((res) => res.data);
 
-export default function PendapatanPage() {
+function PendapatanPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
@@ -1837,5 +1837,13 @@ export default function PendapatanPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function PendapatanPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-96"><Loader2 className="animate-spin size-8 text-fin-text-muted" /></div>}>
+      <PendapatanPageContent />
+    </Suspense>
   );
 }

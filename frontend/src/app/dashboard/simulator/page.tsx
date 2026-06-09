@@ -81,6 +81,7 @@ type SimItem = {
   label: string;
   sourceName?: string;
   priority: 'mandatory' | 'discretionary';
+  bulan?: number;
 };
 
 type TimelineMonth = {
@@ -228,6 +229,38 @@ export default function CashSimulatorPage() {
       setProjections(merged);
     } catch {
       toast.error('Gagal menghasilkan proyeksi otomatis');
+    }
+  };
+
+  const handleAutoProjectOutflow = async () => {
+    try {
+      const currentYear = new Date().getFullYear();
+      const currentMonth = new Date().getMonth() + 1;
+      const res = await api.get('/dss/simulator/auto-project-outflow', { 
+        params: { 
+          tahun: currentYear,
+          bulan_berjalan: currentMonth
+        } 
+      });
+      toast.success(`${res.data.length} proyeksi pengeluaran otomatis berhasil dimuat`);
+      const newScenarios = [...scenarios];
+      const activeScenarioItems = [...(newScenarios[activeScenarioIdx].items || [])];
+
+      // Merge items based on their label and bulan, or just append non-existing ones
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      res.data.forEach((ap: any) => {
+        const exists = activeScenarioItems.some(item => item.label === ap.label && item.bulan === ap.bulan);
+        if (!exists) {
+          activeScenarioItems.push(ap);
+        }
+      });
+
+      newScenarios[activeScenarioIdx].items = activeScenarioItems;
+      setScenarios(newScenarios);
+      setSimResult(null);
+    } catch (e: any) {
+      const errMsg = e.response?.data?.message || 'Gagal menghasilkan proyeksi pengeluaran';
+      toast.error(errMsg);
     }
   };
 
@@ -1099,7 +1132,18 @@ export default function CashSimulatorPage() {
             <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12 scale-150">
               <Activity size={100} />
             </div>
-            <h3 className="text-[11px] font-bold text-fin-text-muted uppercase tracking-widest mb-4 relative z-10">Daftar Pengeluaran Skenario</h3>
+            <div className="flex justify-between items-center mb-4 relative z-10">
+              <h3 className="text-[11px] font-bold text-fin-text-muted uppercase tracking-widest">Daftar Pengeluaran Skenario</h3>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAutoProjectOutflow}
+                className="h-7 px-2 text-[10px] font-bold border-rose-900/30 text-rose-300 hover:bg-rose-950/20 gap-1 bg-transparent"
+              >
+                <Cpu size={12} />
+                Auto-Proyeksi (LRA)
+              </Button>
+            </div>
             <div className="space-y-2.5 relative z-10 max-h-[320px] overflow-y-auto scrollbar-hide">
               <AnimatePresence>
                 {items.length === 0 ? (
@@ -1128,7 +1172,10 @@ export default function CashSimulatorPage() {
                               {item.priority === 'mandatory' ? 'WAJIB' : 'PILIHAN'}
                             </Badge>
                           </div>
-                          <p className="text-[10px] font-medium text-fin-text-muted">{item.sourceName}</p>
+                          <p className="text-[10px] font-medium text-fin-text-muted">
+                            {item.sourceName}
+                            {item.bulan && ` — ${BULAN_LABELS[item.bulan - 1]}`}
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">

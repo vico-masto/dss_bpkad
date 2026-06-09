@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { 
   Plus, 
@@ -63,7 +63,7 @@ type FormValues = {
   }[];
 };
 
-export default function CreateSp2dPage() {
+function CreateSp2dPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
@@ -594,5 +594,13 @@ export default function CreateSp2dPage() {
         </Dialog>
       )}
     </div>
+  );
+}
+
+export default function CreateSp2dPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-96"><Loader2 className="animate-spin size-8 text-fin-text-muted" /></div>}>
+      <CreateSp2dPageContent />
+    </Suspense>
   );
 }

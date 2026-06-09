@@ -39,6 +39,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { NumericInput } from '@/components/NumericInput';
+import { Combobox } from '@/components/ui/combobox';
 
 
 type FormValues = {
@@ -346,18 +347,14 @@ export default function Sp2dForm({ onSuccess, editId }: { onSuccess: () => void;
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2 md:col-span-2">
                     <label className="text-xs font-medium text-fin-text-muted ml-2">OPD / Instansi Terkait (*)</label>
-                    <div className="relative">
-                      <select 
-                        {...register("opd", { required: true })} 
-                        className="w-full h-14 px-8 bg-fin-page border border-fin-border rounded-xl outline-none focus:border-ds-focus-ring font-medium text-fin-text-primary text-sm appearance-none cursor-pointer transition-all"
-                      >
-                        <option value="">-- Pilih OPD --</option>
-                        {opdList.map(o => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                      <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                        <ChevronDown size={14} />
-                      </div>
-                    </div>
+                    <Combobox
+                      options={opdList.map(o => ({ value: o, label: o }))}
+                      value={watch("opd")}
+                      onValueChange={(v) => setValue("opd", v, { shouldValidate: true })}
+                      placeholder="-- Pilih OPD --"
+                      searchPlaceholder="Cari OPD..."
+                      className="h-14 rounded-xl font-medium"
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-medium text-fin-text-muted ml-2">Nomor SP2D Digital (*)</label>

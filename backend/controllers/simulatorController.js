@@ -170,10 +170,21 @@ const runSimulation = async (req, res) => {
       projByMonth[b] = (projByMonth[b] || 0) + Number(p.nilai || 0);
     });
 
-    // 5. Simulated outflows (from scenario items) — applied to current month
+    // 5. Simulated outflows (from scenario items) — grouped by month or defaulted to current month
+    const getSimulatedOutflowForMonth = (m) => {
+      const monthItems = simulatedItems.filter(i => {
+        const itemMonth = parseInt(i.bulan);
+        if (!isNaN(itemMonth)) {
+          return itemMonth === m;
+        }
+        // Backward compatibility: items without 'bulan' apply to current month
+        return m === currentMonth;
+      });
+      return monthItems.reduce((s, i) => s + Number(i.amount || 0), 0);
+    };
+
     const simMandatory = simulatedItems.filter(i => i.priority === 'mandatory').reduce((s, i) => s + Number(i.amount || 0), 0);
     const simDiscretionary = simulatedItems.filter(i => i.priority !== 'mandatory').reduce((s, i) => s + Number(i.amount || 0), 0);
-    const simTotal = simMandatory + simDiscretionary;
 
     // 6. Build 12-month timeline
     const timeline = [];
@@ -188,8 +199,8 @@ const runSimulation = async (req, res) => {
       const inflow = isPast ? actualInflow : (isCurrent ? actualInflow + projectedInflow : projectedInflow);
 
       const actualOutflow = outflowByMonth[m] || 0;
-      const simulatedOutflow = isCurrent ? simTotal : 0;
-      const outflow = actualOutflow + simulatedOutflow;
+      const simulatedOutflow = getSimulatedOutflowForMonth(m);
+      const outflow = isPast ? actualOutflow : (isCurrent ? actualOutflow + simulatedOutflow : simulatedOutflow);
 
       const netFlow = inflow - outflow;
       runningBalance += netFlow;
@@ -291,6 +302,105 @@ const autoProjectInflow = async (req, res) => {
   }
 };
 
+/**
+ * Auto-generate outflow projections from historical LRA (consolidated 2025)
+ */
+const autoProjectOutflow = async (req, res) => {
+  const { tahun, bulan_berjalan } = req.query;
+  const targetYear = parseInt(tahun) || new Date().getFullYear();
+  const currentMonth = parseInt(bulan_berjalan) || (new Date().getMonth() + 1);
+
+  try {
+    // 1. Ambil data LRA Tahunan terakhir sebagai baseline
+    const lraBaseline = await prisma.data_lra.findMany({
+      where: { 
+        tahun: { lt: targetYear },
+        bulan: null 
+      },
+      orderBy: { tahun: 'desc' },
+      take: 50 // Mengambil satu set data tahun terbaru
+    });
+
+    if (lraBaseline.length === 0) {
+      return res.status(400).json({ message: 'Data LRA historis (Tahunan) tidak ditemukan di database.' });
+    }
+
+    // 2. Ambil data LRA Bulanan (untuk distribusi bobot musiman jika ada)
+    const lraMonthly = await prisma.data_lra.findMany({
+      where: { 
+        tahun: { lt: targetYear },
+        bulan: { not: null } 
+      }
+    });
+
+    // 3. Mapping data dari DB (pengganti file JSON sebelumnya)
+    const belanjaPegawai = lraBaseline.find(item => item.kode_rekening === '5.1.01')?.realisasi || 0;
+    const belanjaBarangJasa = lraBaseline.find(item => item.kode_rekening === '5.1.02')?.realisasi || 0;
+    const belanjaHibah = lraBaseline.find(item => item.kode_rekening === '5.1.05')?.realisasi || 0;
+    const belanjaBansos = lraBaseline.find(item => item.kode_rekening === '5.1.06')?.realisasi || 0;
+    const belanjaModalTanah = lraBaseline.find(item => item.kode_rekening === '5.2.01')?.realisasi || 0;
+    const belanjaModalPeralatan = lraBaseline.find(item => item.kode_rekening === '5.2.02')?.realisasi || 0;
+    const belanjaModalGedung = lraBaseline.find(item => item.kode_rekening === '5.2.03')?.realisasi || 0;
+    const belanjaModalJalan = lraBaseline.find(item => item.kode_rekening === '5.2.04')?.realisasi || 0;
+    const belanjaTidakTerduga = lraBaseline.find(item => item.kode_rekening === '5.3.01')?.realisasi || 0;
+    const belanjaTransfer = lraBaseline.find(item => item.kode_rekening === '5.4.02')?.realisasi || 0;
+
+    const sourceDanaList = await prisma.master_sumber_dana.findMany({ select: { id: true, nama: true } });
+    const sdMap = {};
+    sourceDanaList.forEach(s => { sdMap[s.id] = s.nama; });
+
+    const projectedItems = [];
+    const addItem = (bulanNum, sdId, amount, label, priority) => {
+      if (amount <= 0 || bulanNum < currentMonth) return; // Hanya untuk bulan berjalan dan masa depan
+      projectedItems.push({
+        timestamp: Date.now() + Math.floor(Math.random() * 1000000),
+        id: sdId,
+        amount: Math.round(amount),
+        label: `[LRA DB] ${label}`,
+        sourceName: sdMap[sdId] || sdId,
+        priority: priority,
+        bulan: bulanNum
+      });
+    };
+
+    // (Logika distribusi bobot musiman tetap sama namun difilter bulan >= currentMonth)
+    const pegawaiWeights = [1, 1, 1, 1.5, 1, 1.5, 1, 1, 1, 1, 1, 1];
+    const sumPegawaiWeights = pegawaiWeights.reduce((a, b) => a + b, 0);
+    const barangWeights = [0.04, 0.05, 0.06, 0.07, 0.08, 0.08, 0.09, 0.09, 0.10, 0.10, 0.11, 0.13];
+    const modalWeights = [0.02, 0.02, 0.03, 0.04, 0.04, 0.05, 0.07, 0.08, 0.10, 0.15, 0.18, 0.22];
+    const generalWeights = [0.05, 0.05, 0.08, 0.10, 0.08, 0.10, 0.08, 0.08, 0.10, 0.10, 0.08, 0.10];
+
+    for (let m = currentMonth; m <= 12; m++) {
+      const idx = m - 1;
+      addItem(m, 'SD-DAU', (belanjaPegawai * pegawaiWeights[idx]) / sumPegawaiWeights, 'Belanja Pegawai (Gaji)', 'mandatory');
+      const bjTotal = belanjaBarangJasa * barangWeights[idx];
+      addItem(m, 'SD-DAU', bjTotal * 0.85, 'Belanja Barang & Jasa (DAU)', 'mandatory');
+      addItem(m, 'SD-PAD', bjTotal * 0.15, 'Belanja Barang & Jasa (PAD)', 'discretionary');
+      addItem(m, 'SD-DAU', belanjaHibah * generalWeights[idx], 'Belanja Hibah', 'discretionary');
+      addItem(m, 'SD-DAU', belanjaBansos * generalWeights[idx], 'Belanja Bansos', 'discretionary');
+      const modPeralatanTotal = belanjaModalPeralatan * modalWeights[idx];
+      addItem(m, 'SD-DAU', modPeralatanTotal * 0.60, 'Modal Peralatan (DAU)', 'discretionary');
+      addItem(m, 'SD-PAD', modPeralatanTotal * 0.40, 'Modal Peralatan (PAD)', 'discretionary');
+      const modGedungTotal = belanjaModalGedung * modalWeights[idx];
+      addItem(m, 'SD-DAKF', modGedungTotal * 0.50, 'Modal Gedung (DAK Fisik)', 'mandatory');
+      addItem(m, 'SD-DAU', modGedungTotal * 0.50, 'Modal Gedung (DAU)', 'discretionary');
+      const modJalanTotal = belanjaModalJalan * modalWeights[idx];
+      addItem(m, 'SD-DAKF', modJalanTotal * 0.70, 'Modal Jalan (DAK Fisik)', 'mandatory');
+      addItem(m, 'SD-DAU', modJalanTotal * 0.30, 'Modal Jalan (DAU)', 'discretionary');
+      addItem(m, 'SD-DAU', belanjaModalTanah * modalWeights[idx], 'Modal Tanah', 'discretionary');
+      addItem(m, 'SD-DAU', belanjaTidakTerduga * generalWeights[idx], 'Belanja Tidak Terduga', 'discretionary');
+      const transferTotal = belanjaTransfer * generalWeights[idx];
+      addItem(m, 'SD-DAU', transferTotal * 0.70, 'Bantuan Keuangan (DAU)', 'mandatory');
+      addItem(m, 'SD-DBH', transferTotal * 0.30, 'Bantuan Keuangan (DBH)', 'mandatory');
+    }
+
+    res.json(projectedItems);
+  } catch (err) {
+    res.status(500).json({ message: 'Server Error', error: err.message });
+  }
+};
+
+
 module.exports = {
   getScenarios,
   saveScenario,
@@ -298,5 +408,6 @@ module.exports = {
   getProjections,
   upsertProjection,
   runSimulation,
-  autoProjectInflow
+  autoProjectInflow,
+  autoProjectOutflow
 };

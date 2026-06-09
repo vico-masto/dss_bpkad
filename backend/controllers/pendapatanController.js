@@ -146,19 +146,55 @@ const getPendapatanList = async (req, res) => {
     }
 
     if (search) {
-      const searchTerms = search.split(' ').map(t => t.trim()).filter(t => t.length > 0);
+      // Bersihkan awalan mata uang seperti Rp, Rp., IDR agar tidak mengacaukan pemisahan kata
+      const searchClean = search.replace(/rp\.?/gi, '').replace(/idr/gi, '').trim();
+      const searchTerms = searchClean.split(' ').map(t => t.trim()).filter(t => t.length > 0);
       if (searchTerms.length > 0) {
         where.AND = searchTerms.map(term => {
           const termClean = term.replace(/\./g, '').replace(/,/g, '.');
           const termNum = parseFloat(termClean);
           const orConds = [
             { nomor_bukti: { contains: term, mode: 'insensitive' } },
-            { uraian: { contains: term, mode: 'insensitive' } }
+            { uraian: { contains: term, mode: 'insensitive' } },
+            { id_sumber_dana: { contains: term, mode: 'insensitive' } },
+            { status_rekon: { contains: term, mode: 'insensitive' } },
+            { keterangan_rekon: { contains: term, mode: 'insensitive' } }
           ];
 
+          // Jika berupa angka, cari juga di nilai dan selisih
           if (!isNaN(termNum)) {
             orConds.push({ nilai: { equals: termNum } });
+            orConds.push({ selisih_rekon: { equals: termNum } });
+            
+            // Jika persis 4 digit, cari di kolom tahun
+            if (/^\d{4}$/.test(term)) {
+              orConds.push({ tahun: { equals: parseInt(term) } });
+            }
           }
+
+          // Cek format tanggal (e.g. DD/MM/YYYY, DD-MM-YYYY, atau YYYY-MM-DD)
+          if (term.includes('/') || term.includes('-')) {
+            const parts = term.split(/[-/]/);
+            if (parts.length === 3) {
+              let day, month, year;
+              if (parts[0].length === 4) { // YYYY-MM-DD
+                year = parseInt(parts[0]);
+                month = parseInt(parts[1]) - 1;
+                day = parseInt(parts[2]);
+              } else { // DD-MM-YYYY atau DD/MM/YYYY
+                day = parseInt(parts[0]);
+                month = parseInt(parts[1]) - 1;
+                year = parseInt(parts[2]);
+              }
+              if (!isNaN(day) && !isNaN(month) && !isNaN(year) && year > 1000) {
+                // Gunakan range 00:00:00 sampai 23:59:59 UTC
+                const startOfDay = new Date(Date.UTC(year, month, day, 0, 0, 0));
+                const endOfDay = new Date(Date.UTC(year, month, day, 23, 59, 59));
+                orConds.push({ tanggal: { gte: startOfDay, lte: endOfDay } });
+              }
+            }
+          }
+
           return { OR: orConds };
         });
       }

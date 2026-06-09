@@ -154,9 +154,28 @@ const deleteSetoranPajak = async (req, res) => {
   }
 };
 
+const bulkUpdateJenisPajak = async (req, res) => {
+  const { dari, ke } = req.body;
+  if (!ke) return res.status(400).json({ message: 'Parameter "ke" wajib diisi' });
+
+  try {
+    const where = dari ? { jenis_pajak: dari } : {};
+    const result = await prisma.setoran_pajak.updateMany({
+      where,
+      data: { jenis_pajak: ke }
+    });
+    await auditService.logActivity(req, 'BULK_UPDATE', 'SETORAN_PAJAK',
+      `Ganti jenis pajak: "${dari || 'SEMUA'}" → "${ke}" | ${result.count} record`);
+    res.json({ message: `${result.count} record setoran pajak berhasil diperbarui`, count: result.count });
+  } catch (err) {
+    res.status(500).json({ message: 'Server Error', error: err.message });
+  }
+};
+
 module.exports = {
   createSetoranPajak,
   getSetoranPajakList,
   updateSetoranPajak,
-  deleteSetoranPajak
+  deleteSetoranPajak,
+  bulkUpdateJenisPajak
 };

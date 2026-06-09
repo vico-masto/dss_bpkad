@@ -37,6 +37,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
+import { Combobox } from "@/components/ui/combobox";
 
 const fetcher = (url: string, params: any) => api.get(url, { params }).then(res => res.data);
 
@@ -219,16 +220,14 @@ export default function BankLedgerPage() {
                     <label className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest flex items-center gap-2">
                        <Wallet size={12} className="text-fin-info" /> Rekening Bank / Sumber Dana
                     </label>
-                    <select 
-                      className="w-full h-10 px-3 rounded-lg border border-fin-border bg-fin-surface text-sm focus:outline-none focus:ring-2 focus:ring-ds-focus-ring"
+                    <Combobox
+                      options={sumberDanaList.map((s: any) => ({ value: s.id.toString(), label: s.nama }))}
                       value={filters.sumberDana}
-                      onChange={(e) => setFilters({ ...filters, sumberDana: e.target.value })}
-                    >
-                      <option value="">-- Pilih Rekening --</option>
-                      {sumberDanaList.map((s: any) => (
-                        <option key={s.id} value={s.id}>{s.nama}</option>
-                      ))}
-                    </select>
+                      onValueChange={(v) => setFilters({ ...filters, sumberDana: v })}
+                      placeholder="-- Pilih Rekening --"
+                      searchPlaceholder="Cari rekening..."
+                      className="h-10"
+                    />
                   </div>
                   <Button 
                     onClick={handleDisplay}

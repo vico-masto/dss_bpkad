@@ -540,20 +540,22 @@ const getTaxMonitoring = async (req, res) => {
       ORDER BY tanggal ASC
     `;
     
-    const prevDateObj = new Date(startDate);
-    const prevCollectedRes = await prisma.$queryRaw`
-      SELECT SUM(nilai_potongan) as total FROM data_sp2d WHERE nilai_potongan > 0 AND tanggal < ${prevDateObj}
-    `;
-    const prevRemittedSp2dRes = await prisma.$queryRaw`
-      SELECT SUM(nilai) as total FROM data_sp2d_potongan WHERE tanggal_pencairan < ${prevDateObj}
-    `;
-    const prevRemittedSetoranRes = await prisma.$queryRaw`
-      SELECT SUM(nilai) as total FROM setoran_pajak WHERE tanggal < ${prevDateObj}
-    `;
-    
-    const saldoAwalTax = Number(prevCollectedRes[0]?.total || 0) - 
-                         Number(prevRemittedSp2dRes[0]?.total || 0) - 
-                         Number(prevRemittedSetoranRes[0]?.total || 0);
+    let saldoAwalTax = 0;
+    if (startDate) {
+      const prevDateObj = new Date(startDate);
+      const prevCollectedRes = await prisma.$queryRaw`
+        SELECT SUM(nilai_potongan) as total FROM data_sp2d WHERE nilai_potongan > 0 AND tanggal < ${prevDateObj}
+      `;
+      const prevRemittedSp2dRes = await prisma.$queryRaw`
+        SELECT SUM(nilai) as total FROM data_sp2d_potongan WHERE tanggal_pencairan < ${prevDateObj}
+      `;
+      const prevRemittedSetoranRes = await prisma.$queryRaw`
+        SELECT SUM(nilai) as total FROM setoran_pajak WHERE tanggal < ${prevDateObj}
+      `;
+      saldoAwalTax = Number(prevCollectedRes[0]?.total || 0) -
+                     Number(prevRemittedSp2dRes[0]?.total || 0) -
+                     Number(prevRemittedSetoranRes[0]?.total || 0);
+    }
 
     let totalCollected = 0;
     let totalRemitted = 0;
@@ -940,7 +942,50 @@ const getPotonganOpdRealisasi = async (req, res) => {
           COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE as tanggal,
           COALESCE(NULLIF(UPPER(TRIM(p.opd)), ''), NULLIF(UPPER(TRIM(s.opd)), ''), 'TANPA OPD')::VARCHAR as opd_name,
           COALESCE(p.nomor_sp2d, s.nomor, '')::VARCHAR as nomor_sp2d,
-          COALESCE(UPPER(TRIM(p.jenis_potongan)), 'LAINNYA')::VARCHAR as jenis,
+          CASE
+            -- Normalize exact jenis_potongan values first
+            WHEN UPPER(TRIM(p.jenis_potongan)) IN ('PPH 21','PPH21','PPh 21','PPh21','PAJAK PENGHASILAN 21') THEN 'PPH 21'
+            WHEN UPPER(TRIM(p.jenis_potongan)) IN ('PPH 22','PPH22','PPh 22','PPh22') THEN 'PPH 22'
+            WHEN UPPER(TRIM(p.jenis_potongan)) IN ('PPH 23','PPH23','PPh 23','PPh23','PAJAK PENGHASILAN 23') THEN 'PPH 23'
+            WHEN UPPER(TRIM(p.jenis_potongan)) IN ('PPH FINAL','PPH 4(2)','PPH 4 AYAT 2','PPH42') THEN 'PPH FINAL'
+            WHEN UPPER(TRIM(p.jenis_potongan)) IN ('PPN','PAJAK PERTAMBAHAN NILAI') THEN 'PPN'
+            WHEN UPPER(TRIM(p.jenis_potongan)) IN ('IWP','IURAN WAJIB PEGAWAI') THEN
+              CASE
+                WHEN UPPER(TRIM(p.uraian)) LIKE '%1%' THEN 'IWP 1%'
+                WHEN UPPER(TRIM(p.uraian)) LIKE '%8%' THEN 'IWP 8%'
+                ELSE 'IWP'
+              END
+            WHEN UPPER(TRIM(p.jenis_potongan)) IN ('JHT','JAMINAN HARI TUA') THEN 'JHT'
+            WHEN UPPER(TRIM(p.jenis_potongan)) IN ('TAPERUM','TAPERUM PERUM') THEN 'TAPERUM'
+            WHEN UPPER(TRIM(p.jenis_potongan)) IN ('BPJS','BPJS KESEHATAN','BPJS KETENAGAKERJAAN') THEN 'BPJS'
+            WHEN UPPER(TRIM(p.jenis_potongan)) IN ('JKK','JAMINAN KECELAKAAN KERJA') THEN 'BPJS'
+            WHEN UPPER(TRIM(p.jenis_potongan)) IN ('JKM','JAMINAN KEMATIAN') THEN 'BPJS'
+            WHEN UPPER(TRIM(p.jenis_potongan)) IN ('JKES','JKES 4%','JAMINAN KESEHATAN','JAMINAN KESEHATAN 4%') THEN 'BPJS'
+            -- If jenis_potongan is empty/generic/PAJAK, derive from uraian
+            WHEN COALESCE(UPPER(TRIM(p.jenis_potongan)), '') IN ('','PAJAK','PPh','PJK','LAINNYA') THEN
+              CASE
+                WHEN UPPER(TRIM(p.uraian)) = 'IURAN WAJIB PEGAWAI 1%' THEN 'IWP 1%'
+                WHEN UPPER(TRIM(p.uraian)) = 'IURAN WAJIB PEGAWAI 8%' THEN 'IWP 8%'
+                WHEN UPPER(TRIM(p.uraian)) = 'JAMINAN HARI TUA' THEN 'JHT'
+                WHEN UPPER(TRIM(p.uraian)) = 'PAJAK PERTAMBAHAN NILAI' THEN 'PPN'
+                WHEN UPPER(TRIM(p.uraian)) LIKE '%PPH 21%' OR UPPER(TRIM(p.uraian)) LIKE '%PPH21%' OR UPPER(TRIM(p.uraian)) LIKE '%PAJAK PENGHASILAN%PS 21%' THEN 'PPH 21'
+                WHEN UPPER(TRIM(p.uraian)) LIKE '%PPH 22%' OR UPPER(TRIM(p.uraian)) LIKE '%PPH22%' OR UPPER(TRIM(p.uraian)) LIKE '%PAJAK PENGHASILAN%PS 22%' THEN 'PPH 22'
+                WHEN UPPER(TRIM(p.uraian)) LIKE '%PPH 23%' OR UPPER(TRIM(p.uraian)) LIKE '%PPH23%' OR UPPER(TRIM(p.uraian)) LIKE '%PAJAK PENGHASILAN PS 23%' THEN 'PPH 23'
+                WHEN UPPER(TRIM(p.uraian)) LIKE '%PPH FINAL%' OR UPPER(TRIM(p.uraian)) LIKE '%PPH 4(%' OR UPPER(TRIM(p.uraian)) LIKE '%PAJAK PENGHASILAN PS 4 (%' OR UPPER(TRIM(p.uraian)) LIKE '%PAJAK PENGHASILAN PS 4(%' THEN 'PPH FINAL'
+                WHEN UPPER(TRIM(p.uraian)) LIKE '%PPN%' OR UPPER(TRIM(p.uraian)) LIKE '%PAJAK PERTAMBAHAN NILAI%' THEN 'PPN'
+                WHEN UPPER(TRIM(p.uraian)) LIKE '%TAPERUM%' THEN 'TAPERUM'
+                WHEN UPPER(TRIM(p.uraian)) LIKE '%BPJS%' OR UPPER(TRIM(p.uraian)) LIKE '%JAMINAN KESEHATAN%' OR UPPER(TRIM(p.uraian)) LIKE '%JAMINAN KECELAKAAN%' OR UPPER(TRIM(p.uraian)) LIKE '%JAMINAN KEMATIAN%' THEN 'BPJS'
+                WHEN UPPER(TRIM(p.uraian)) LIKE '%IURAN WAJIB PEGAWAI%' THEN
+                  CASE
+                    WHEN UPPER(TRIM(p.uraian)) LIKE '%1%' THEN 'IWP 1%'
+                    WHEN UPPER(TRIM(p.uraian)) LIKE '%8%' THEN 'IWP 8%'
+                    ELSE 'IWP'
+                  END
+                WHEN UPPER(TRIM(p.uraian)) LIKE '%JAMINAN HARI TUA%' THEN 'JHT'
+                ELSE 'LAINNYA'
+              END
+            ELSE UPPER(TRIM(p.jenis_potongan))
+          END::VARCHAR as jenis,
           COALESCE(p.uraian, '')::TEXT as uraian,
           COALESCE(p.id_billing, '')::VARCHAR as id_billing,
           p.nilai::NUMERIC as nilai,
@@ -958,7 +1003,48 @@ const getPotonganOpdRealisasi = async (req, res) => {
           sp.tanggal::DATE as tanggal,
           COALESCE(NULLIF(UPPER(TRIM(sp.opd)), ''), 'TANPA OPD')::VARCHAR as opd_name,
           sp.nomor_bukti::VARCHAR as nomor_sp2d,
-          COALESCE(UPPER(TRIM(sp.jenis_pajak)), 'LAINNYA')::VARCHAR as jenis,
+          CASE
+            WHEN UPPER(TRIM(sp.jenis_pajak)) IN ('PPH 21','PPH21','PPh 21','PPh21','PAJAK PENGHASILAN 21') THEN 'PPH 21'
+            WHEN UPPER(TRIM(sp.jenis_pajak)) IN ('PPH 22','PPH22','PPh 22','PPh22') THEN 'PPH 22'
+            WHEN UPPER(TRIM(sp.jenis_pajak)) IN ('PPH 23','PPH23','PPh 23','PPh23','PAJAK PENGHASILAN 23') THEN 'PPH 23'
+            WHEN UPPER(TRIM(sp.jenis_pajak)) IN ('PPH FINAL','PPH 4(2)','PPH 4 AYAT 2','PPH42') THEN 'PPH FINAL'
+            WHEN UPPER(TRIM(sp.jenis_pajak)) IN ('PPN','PAJAK PERTAMBAHAN NILAI') THEN 'PPN'
+            WHEN UPPER(TRIM(sp.jenis_pajak)) IN ('IWP','IURAN WAJIB PEGAWAI') THEN
+              CASE
+                WHEN UPPER(TRIM(sp.uraian)) LIKE '%1%' THEN 'IWP 1%'
+                WHEN UPPER(TRIM(sp.uraian)) LIKE '%8%' THEN 'IWP 8%'
+                ELSE 'IWP'
+              END
+            WHEN UPPER(TRIM(sp.jenis_pajak)) IN ('JHT','JAMINAN HARI TUA') THEN 'JHT'
+            WHEN UPPER(TRIM(sp.jenis_pajak)) IN ('TAPERUM','TAPERUM PERUM') THEN 'TAPERUM'
+            WHEN UPPER(TRIM(sp.jenis_pajak)) IN ('BPJS','BPJS KESEHATAN','BPJS KETENAGAKERJAAN') THEN 'BPJS'
+            WHEN UPPER(TRIM(sp.jenis_pajak)) IN ('JKK','JAMINAN KECELAKAAN KERJA') THEN 'BPJS'
+            WHEN UPPER(TRIM(sp.jenis_pajak)) IN ('JKM','JAMINAN KEMATIAN') THEN 'BPJS'
+            WHEN UPPER(TRIM(sp.jenis_pajak)) IN ('JKES','JKES 4%','JAMINAN KESEHATAN','JAMINAN KESEHATAN 4%') THEN 'BPJS'
+            WHEN COALESCE(UPPER(TRIM(sp.jenis_pajak)), '') IN ('','PAJAK','PPh','PJK','LAINNYA') THEN
+              CASE
+                WHEN UPPER(TRIM(sp.uraian)) = 'IURAN WAJIB PEGAWAI 1%' THEN 'IWP 1%'
+                WHEN UPPER(TRIM(sp.uraian)) = 'IURAN WAJIB PEGAWAI 8%' THEN 'IWP 8%'
+                WHEN UPPER(TRIM(sp.uraian)) = 'JAMINAN HARI TUA' THEN 'JHT'
+                WHEN UPPER(TRIM(sp.uraian)) = 'PAJAK PERTAMBAHAN NILAI' THEN 'PPN'
+                WHEN UPPER(TRIM(sp.uraian)) LIKE '%PPH 21%' OR UPPER(TRIM(sp.uraian)) LIKE '%PPH21%' OR UPPER(TRIM(sp.uraian)) LIKE '%PAJAK PENGHASILAN%PS 21%' THEN 'PPH 21'
+                WHEN UPPER(TRIM(sp.uraian)) LIKE '%PPH 22%' OR UPPER(TRIM(sp.uraian)) LIKE '%PPH22%' OR UPPER(TRIM(sp.uraian)) LIKE '%PAJAK PENGHASILAN%PS 22%' THEN 'PPH 22'
+                WHEN UPPER(TRIM(sp.uraian)) LIKE '%PPH 23%' OR UPPER(TRIM(sp.uraian)) LIKE '%PPH23%' OR UPPER(TRIM(sp.uraian)) LIKE '%PAJAK PENGHASILAN PS 23%' THEN 'PPH 23'
+                WHEN UPPER(TRIM(sp.uraian)) LIKE '%PPH FINAL%' OR UPPER(TRIM(sp.uraian)) LIKE '%PPH 4(%' OR UPPER(TRIM(sp.uraian)) LIKE '%PAJAK PENGHASILAN PS 4 (%' OR UPPER(TRIM(sp.uraian)) LIKE '%PAJAK PENGHASILAN PS 4(%' THEN 'PPH FINAL'
+                WHEN UPPER(TRIM(sp.uraian)) LIKE '%PPN%' OR UPPER(TRIM(sp.uraian)) LIKE '%PAJAK PERTAMBAHAN NILAI%' THEN 'PPN'
+                WHEN UPPER(TRIM(sp.uraian)) LIKE '%TAPERUM%' THEN 'TAPERUM'
+                WHEN UPPER(TRIM(sp.uraian)) LIKE '%BPJS%' OR UPPER(TRIM(sp.uraian)) LIKE '%JAMINAN KESEHATAN%' OR UPPER(TRIM(sp.uraian)) LIKE '%JAMINAN KECELAKAAN%' OR UPPER(TRIM(sp.uraian)) LIKE '%JAMINAN KEMATIAN%' THEN 'BPJS'
+                WHEN UPPER(TRIM(sp.uraian)) LIKE '%IURAN WAJIB PEGAWAI%' THEN
+                  CASE
+                    WHEN UPPER(TRIM(sp.uraian)) LIKE '%1%' THEN 'IWP 1%'
+                    WHEN UPPER(TRIM(sp.uraian)) LIKE '%8%' THEN 'IWP 8%'
+                    ELSE 'IWP'
+                  END
+                WHEN UPPER(TRIM(sp.uraian)) LIKE '%JAMINAN HARI TUA%' THEN 'JHT'
+                ELSE 'LAINNYA'
+              END
+            ELSE UPPER(TRIM(sp.jenis_pajak))
+          END::VARCHAR as jenis,
           COALESCE(sp.uraian, '')::TEXT as uraian,
           ''::VARCHAR as id_billing,
           sp.nilai::NUMERIC as nilai,
@@ -1078,8 +1164,9 @@ const getBelanjaOpdDetail = async (req, res) => {
     let query = `
       SELECT 
         h.opd,
-        TRIM(SPLIT_PART(REPLACE(h.jenis, '-', ' '), ' ', 1)) as jenis_belanja,
+        REPLACE(h.jenis, '-', ' ') as jenis_belanja,
         TRIM(SPLIT_PART(COALESCE(s.nama, 'TIDAK DIKETAHUI'), '-', 1)) as sumber_dana,
+        COUNT(DISTINCT h.id) as jumlah_sp2d,
         SUM(d.nilai_bruto) as total_bruto,
         SUM(d.nilai_neto) as total_neto,
         SUM(d.nilai_bruto - d.nilai_neto) as total_potongan
@@ -1091,21 +1178,33 @@ const getBelanjaOpdDetail = async (req, res) => {
 
     if (month) query += ` AND EXTRACT(MONTH FROM COALESCE(h.tanggal_pencairan, h.tanggal)) = ${parseInt(month)}`;
     if (opd) query += ` AND h.opd = '${opd.replace(/'/g, "''")}'`;
-    if (jenis) query += ` AND TRIM(SPLIT_PART(REPLACE(h.jenis, '-', ' '), ' ', 1)) = '${jenis.replace(/'/g, "''")}'`;
+    if (jenis) query += ` AND REPLACE(h.jenis, '-', ' ') = '${jenis.replace(/'/g, "''")}'`;
     if (sumber_dana) query += ` AND TRIM(SPLIT_PART(s.nama, '-', 1)) = '${sumber_dana.replace(/'/g, "''")}'`;
 
     query += `
-      GROUP BY h.opd, TRIM(SPLIT_PART(REPLACE(h.jenis, '-', ' '), ' ', 1)), TRIM(SPLIT_PART(COALESCE(s.nama, 'TIDAK DIKETAHUI'), '-', 1))
+      GROUP BY h.opd, REPLACE(h.jenis, '-', ' '), TRIM(SPLIT_PART(COALESCE(s.nama, 'TIDAK DIKETAHUI'), '-', 1))
       ORDER BY h.opd ASC, jenis_belanja ASC, total_bruto DESC
     `;
 
     const rawData = await prisma.$queryRawUnsafe(query);
 
     const opdTotals = {};
+    const jenisTotals = {}; // untuk ringkasan per jenis belanja
     rawData.forEach(row => {
       const val = parseFloat(row.total_bruto) || 0;
       if (!opdTotals[row.opd]) opdTotals[row.opd] = 0;
       opdTotals[row.opd] += val;
+
+      // Akumulasi per jenis belanja
+      const jb = row.jenis_belanja;
+      if (!jenisTotals[jb]) {
+        jenisTotals[jb] = { total_bruto: 0, total_neto: 0, total_potongan: 0, jumlah_sp2d: 0, opd_set: new Set() };
+      }
+      jenisTotals[jb].total_bruto += parseFloat(row.total_bruto) || 0;
+      jenisTotals[jb].total_neto += parseFloat(row.total_neto) || 0;
+      jenisTotals[jb].total_potongan += parseFloat(row.total_potongan) || 0;
+      jenisTotals[jb].jumlah_sp2d += parseInt(row.jumlah_sp2d) || 0;
+      jenisTotals[jb].opd_set.add(row.opd);
     });
 
     const serializedData = rawData.map(row => {
@@ -1114,6 +1213,7 @@ const getBelanjaOpdDetail = async (req, res) => {
         opd: row.opd,
         jenis_belanja: row.jenis_belanja,
         sumber_dana: row.sumber_dana,
+        jumlah_sp2d: parseInt(row.jumlah_sp2d) || 0,
         total_bruto: bruto,
         total_potongan: parseFloat(row.total_potongan) || 0,
         total_neto: parseFloat(row.total_neto) || 0,
@@ -1121,11 +1221,103 @@ const getBelanjaOpdDetail = async (req, res) => {
       };
     });
 
-    res.json(serializedData);
+    const grandTotal = serializedData.reduce((s, r) => s + r.total_bruto, 0);
+
+    // Ringkasan per jenis belanja — LS tetap per rincian (GAJI, BARJAS, KONTRAKTUAL, HIBAH, GAJI THR)
+    const summaryByJenis = Object.entries(jenisTotals)
+      .map(([jenis, agg]) => ({
+        jenis_belanja: jenis,
+        jumlah_sp2d: agg.jumlah_sp2d,
+        jumlah_opd: agg.opd_set.size,
+        total_bruto: agg.total_bruto,
+        total_neto: agg.total_neto,
+        total_potongan: agg.total_potongan,
+        persentase: grandTotal > 0 ? parseFloat(((agg.total_bruto / grandTotal) * 100).toFixed(2)) : 0
+      }))
+      .sort((a, b) => b.total_bruto - a.total_bruto);
+
+    res.json({ data: serializedData, summaryByJenis, grandTotal });
 
   } catch (error) {
     console.error('Error fetching belanja OPD detail:', error);
     res.status(500).json({ message: 'Error fetching belanja OPD detail', error: error.message });
+  }
+};
+
+/**
+ * Daftar SP2D yang dicairkan dengan nilai Bruto
+ * (pajak/potongannya dibayar pihak ketiga, tidak muncul di rekening koran)
+ */
+const getSp2dBruto = async (req, res) => {
+  const { tahun, bulan, search = '', page = 1, limit = 50 } = req.query;
+  const targetTahun = parseInt(tahun) || new Date().getFullYear();
+  const targetBulan = bulan && bulan !== '0' ? parseInt(bulan) : null;
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+  const take = parseInt(limit);
+
+  try {
+    const [rows, countResult] = await Promise.all([
+      prisma.$queryRaw`
+        SELECT
+          s.id, s.nomor, s.tanggal::date, s.tanggal_pencairan::date,
+          s.opd, s.uraian, s.jenis,
+          s.nilai_bruto::numeric, s.nilai_potongan::numeric, s.nilai_neto::numeric,
+          s.keterangan_rekon,
+          COALESCE(
+            (SELECT SUM(p.nilai)::numeric FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor OR p.id_sp2d = s.id),
+            0
+          ) as total_rincian_potongan
+        FROM data_sp2d s
+        WHERE s.status_rekon = 'SUDAH_BRUTO'
+          AND (
+            COALESCE(s.nilai_potongan, 0) > 0
+            OR EXISTS (SELECT 1 FROM data_sp2d_potongan p2 WHERE p2.id_sp2d = s.id OR p2.nomor_sp2d = s.nomor)
+          )
+          AND s.tahun = ${targetTahun}
+          ${targetBulan ? Prisma.sql`AND EXTRACT(MONTH FROM COALESCE(s.tanggal_pencairan, s.tanggal)) = ${targetBulan}` : Prisma.empty}
+          ${search ? Prisma.sql`AND (s.nomor ILIKE ${'%' + search + '%'} OR s.opd ILIKE ${'%' + search + '%'} OR s.uraian ILIKE ${'%' + search + '%'})` : Prisma.empty}
+        ORDER BY COALESCE(s.tanggal_pencairan, s.tanggal) DESC
+        LIMIT ${take} OFFSET ${offset}
+      `,
+      prisma.$queryRaw`
+        SELECT COUNT(*)::int as total
+        FROM data_sp2d s
+        WHERE s.status_rekon = 'SUDAH_BRUTO'
+          AND (
+            COALESCE(s.nilai_potongan, 0) > 0
+            OR EXISTS (SELECT 1 FROM data_sp2d_potongan p2 WHERE p2.id_sp2d = s.id OR p2.nomor_sp2d = s.nomor)
+          )
+          AND s.tahun = ${targetTahun}
+          ${targetBulan ? Prisma.sql`AND EXTRACT(MONTH FROM COALESCE(s.tanggal_pencairan, s.tanggal)) = ${targetBulan}` : Prisma.empty}
+          ${search ? Prisma.sql`AND (s.nomor ILIKE ${'%' + search + '%'} OR s.opd ILIKE ${'%' + search + '%'} OR s.uraian ILIKE ${'%' + search + '%'})` : Prisma.empty}
+      `
+    ]);
+
+    const serialize = (v) => {
+      if (typeof v === 'bigint') return Number(v);
+      if (v !== null && typeof v === 'object' && v.constructor?.name === 'Decimal') return Number(v.toString());
+      if (v instanceof Date) return v.toISOString();
+      return v;
+    };
+
+    const data = rows.map(row => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, serialize(v)])));
+
+    const totalNilaiPotongan = data.reduce((s, r) => s + Number(r.nilai_potongan || 0), 0);
+    const totalNilaiBruto    = data.reduce((s, r) => s + Number(r.nilai_bruto   || 0), 0);
+
+    res.json({
+      data,
+      pagination: {
+        total: countResult[0]?.total || 0,
+        page: parseInt(page),
+        limit: take,
+        totalPages: Math.ceil((countResult[0]?.total || 0) / take)
+      },
+      summary: { totalNilaiBruto, totalNilaiPotongan, count: countResult[0]?.total || 0 }
+    });
+  } catch (err) {
+    console.error('GET SP2D BRUTO ERROR:', err);
+    res.status(500).json({ message: 'Server Error', error: err.message });
   }
 };
 
@@ -1142,5 +1334,6 @@ module.exports = {
   getMonthlyTaxAnalytics,
   getBKURister,
   getPotonganOpdRealisasi,
-  getBelanjaOpdDetail
+  getBelanjaOpdDetail,
+  getSp2dBruto
 };

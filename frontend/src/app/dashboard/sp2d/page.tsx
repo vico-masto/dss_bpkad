@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import useSWR from 'swr';
 import {
   Search,
@@ -87,7 +87,7 @@ import { PageHeader } from '@/components/patterns/page-header';
 
 const fetcher = (url: string, params: any) => api.get(url, { params }).then(res => res.data);
 
-export default function Sp2dUnifiedPage() {
+function Sp2dUnifiedPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
@@ -1875,9 +1875,10 @@ export default function Sp2dUnifiedPage() {
                         </p>
                      </div>
                      <div className="h-3 w-full bg-[#EAECF0] rounded-full overflow-hidden border border-fin-border-strong/20 shadow-inner">
-                        <motion.div 
+                        <motion.div
                            initial={{ width: 0 }}
                            animate={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                           transition={{ duration: 0.2, ease: "easeOut" }}
                            className="h-full bg-ds-primary rounded-full"
                         />
                      </div>
@@ -1919,5 +1920,13 @@ export default function Sp2dUnifiedPage() {
         isLoading={confirmState.isLoading}
       />
     </div>
+  );
+}
+
+export default function Sp2dUnifiedPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-96"><Loader2 className="animate-spin size-8 text-fin-text-muted" /></div>}>
+      <Sp2dUnifiedPageContent />
+    </Suspense>
   );
 }

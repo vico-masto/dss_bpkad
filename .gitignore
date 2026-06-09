@@ -1,0 +1,44 @@
+# dependencies
+node_modules/
+/node_modules
+.pnp
+.pnp.*
+
+# local env files
+.env.local
+.env.*.local
+
+# vercel/next.js
+.next/
+out/
+
+# production/build
+build/
+dist/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+backend/logs/
+logs/
+
+# temporary and cache files
+*.tmp
+*.tmp*
+*.bak
+.claude/settings.local.json
+.vscode/
+.idea/
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+backend/src/generated/
+Data LRA/
+
+# Antigravity/Gemini specific
+brain/
+.gemini/
+scratch/
+backend/scratch/

@@ -35,7 +35,7 @@ const BULAN_NAMES = [
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ];
 
-const JENIS_OPTIONS = ['SEMUA', 'PPH 21', 'PPH 22', 'PPH 23', 'PPN', 'IWP', 'TAPERUM', 'BPJS', 'LAINNYA'];
+const JENIS_OPTIONS = ['SEMUA', 'PPH 21', 'PPH 22', 'PPH 23', 'PPH FINAL', 'PPN', 'IWP', 'IWP 1%', 'IWP 8%', 'JHT', 'TAPERUM', 'BPJS', 'LAINNYA'];
 
 const fetcher = (url: string, params: Record<string, string>) => api.get(url, { params }).then(r => r.data);
 
@@ -76,7 +76,6 @@ export default function RealisasiPotonganOpdPage() {
   const [showFilters, setShowFilters] = useState(true);
   const [expandedOpd, setExpandedOpd] = useState<Set<string>>(new Set());
   const [searchOpd, setSearchOpd] = useState('');
-
   const { data, error, isLoading, mutate } = useSWR(
     ['/reports/potongan-opd-realisasi', queryParams],
     ([url, params]) => fetcher(url, params)
@@ -86,9 +85,46 @@ export default function RealisasiPotonganOpdPage() {
   const rows: OpdRow[] = useMemo(() => data?.data ?? [], [data]);
 
   const filteredRows = useMemo(() => {
-    if (!searchOpd.trim()) return rows;
-    return rows.filter(r => r.opd.toLowerCase().includes(searchOpd.toLowerCase()));
+    const q = searchOpd.trim().toLowerCase();
+    if (!q) return rows.map(r => ({ ...r, rincian: r.rincian }));
+
+    return rows.reduce<OpdRow[]>((acc, r) => {
+      const opdMatch = r.opd.toLowerCase().includes(q);
+      const numQ = q.replace(/[^0-9]/g, ''); // strip non-numeric for nilai search
+      const filteredRincian = r.rincian.filter(item =>
+        (item.jenisPotongan && item.jenisPotongan.toLowerCase().includes(q)) ||
+        (item.uraian && item.uraian.toLowerCase().includes(q)) ||
+        (item.nomorSp2d && item.nomorSp2d.toLowerCase().includes(q)) ||
+        (item.idBilling && item.idBilling.toLowerCase().includes(q)) ||
+        (item.nilai != null && numQ.length > 0 && item.nilai.toString().includes(numQ)) ||
+        (item.tanggal && item.tanggal.toLowerCase().includes(q)) ||
+        (item.statusRekon && item.statusRekon.toLowerCase().includes(q))
+      );
+
+      if (opdMatch) {
+        acc.push({ ...r, rincian: r.rincian });
+      } else if (filteredRincian.length > 0) {
+        acc.push({ ...r, rincian: filteredRincian });
+      }
+      return acc;
+    }, []);
   }, [rows, searchOpd]);
+
+  // Auto-expand OPDs that match via rincian when searching
+  const searchActive = searchOpd.trim().length > 0;
+  const computeExpanded = useMemo(() => {
+    if (!searchActive) return expandedOpd;
+    const newExpanded = new Set(expandedOpd);
+    filteredRows.forEach(r => {
+      const q = searchOpd.trim().toLowerCase();
+      const opdMatch = r.opd.toLowerCase().includes(q);
+      // Only expand if the match is from rincian, not from OPD name
+      if (!opdMatch && r.rincian.length > 0) {
+        newExpanded.add(r.opd);
+      }
+    });
+    return newExpanded;
+  }, [filteredRows, searchOpd, expandedOpd, searchActive]);
 
   const handleDisplay = () => {
     setQueryParams({ ...filters });
@@ -354,7 +390,7 @@ export default function RealisasiPotonganOpdPage() {
           </p>
           <div className="flex items-center gap-2">
             <Input
-              placeholder="Cari OPD..."
+              placeholder="Cari semua..."
               value={searchOpd}
               onChange={e => setSearchOpd(e.target.value)}
               className="h-8 w-48 border-fin-border text-sm"
@@ -402,7 +438,7 @@ export default function RealisasiPotonganOpdPage() {
                 )}
 
                 {filteredRows.map((row, idx) => {
-                  const isExpanded = expandedOpd.has(row.opd);
+                  const isExpanded = computeExpanded.has(row.opd);
                   return (
                     <React.Fragment key={row.opd}>
                       {/* OPD Summary Row */}

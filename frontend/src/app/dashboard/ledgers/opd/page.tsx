@@ -51,7 +51,7 @@ export default function OpdLedgerPage() {
 
   const fetchOpdList = async () => {
     try {
-      const res = await api.get('/reference/opd-list');
+      const res = await api.get('/sp2d/opd');
       setOpdList(res.data);
       if (res.data.length > 0 && !filters.opd) {
         setFilters(prev => ({ ...prev, opd: res.data[0] }));

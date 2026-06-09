@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import useSWR from 'swr';
-import { 
-  Layers, Plus, Pencil, Trash2, Save, X, Loader2, Database, FolderTree, Building2, ChevronDown
+import {
+  Layers, Plus, Pencil, Trash2, Save, X, Loader2, Database, FolderTree, Building2, ChevronDown, Scissors
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api';
@@ -23,11 +23,12 @@ import { PageHeader } from '@/components/patterns/page-header';
 const fetcher = (url: string) => api.get(url).then(res => res.data);
 
 export default function MasterDataPage() {
-  const [activeTab, setActiveTab] = useState<'opd' | 'jenis' | 'sumber'>('opd');
-  
+  const [activeTab, setActiveTab] = useState<'opd' | 'jenis' | 'sumber' | 'potongan'>('opd');
+
   const { data: opdData, mutate: mutateOpd, isLoading: loadOpd } = useSWR('/admin/opd', fetcher);
   const { data: jenisData, mutate: mutateJenis, isLoading: loadJenis } = useSWR('/admin/jenis', fetcher);
   const { data: sumberData, mutate: mutateSumber, isLoading: loadSumber } = useSWR('/admin/sumber-dana', fetcher);
+  const { data: potonganData, mutate: mutatePotongan, isLoading: loadPotongan } = useSWR('/admin/jenis-potongan', fetcher);
 
   const [modalState, setModalState] = useState<{ isOpen: boolean, mode: 'add' | 'edit', data: any }>({ isOpen: false, mode: 'add', data: null });
   const [formData, setFormData] = useState({ id: '', nama: '', kategori: 'BEBAS' });
@@ -69,6 +70,7 @@ export default function MasterDataPage() {
     if (activeTab === 'opd') { endpoint = '/admin/opd'; mutateFunc = mutateOpd; }
     if (activeTab === 'jenis') { endpoint = '/admin/jenis'; mutateFunc = mutateJenis; }
     if (activeTab === 'sumber') { endpoint = '/admin/sumber-dana'; mutateFunc = mutateSumber; }
+    if (activeTab === 'potongan') { endpoint = '/admin/jenis-potongan'; mutateFunc = mutatePotongan; }
 
     try {
       if (modalState.mode === 'add') {
@@ -101,6 +103,7 @@ export default function MasterDataPage() {
         if (activeTab === 'opd') { endpoint = '/admin/opd'; mutateFunc = mutateOpd; }
         if (activeTab === 'jenis') { endpoint = '/admin/jenis'; mutateFunc = mutateJenis; }
         if (activeTab === 'sumber') { endpoint = '/admin/sumber-dana'; mutateFunc = mutateSumber; }
+        if (activeTab === 'potongan') { endpoint = '/admin/jenis-potongan'; mutateFunc = mutatePotongan; }
 
         try {
           await api.delete(`${endpoint}/${encodeURIComponent(id)}`);
@@ -208,6 +211,9 @@ export default function MasterDataPage() {
               <TabsTrigger value="sumber" className="px-6 py-1.5 rounded-lg text-xs font-semibold data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
                 <Layers size={14} /> Sumber Dana
               </TabsTrigger>
+              <TabsTrigger value="potongan" className="px-6 py-1.5 rounded-lg text-xs font-semibold data-[state=active]:bg-fin-surface data-[state=active]:text-fin-text-primary data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+                <Scissors size={14} /> Jenis Potongan
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -215,6 +221,7 @@ export default function MasterDataPage() {
             {activeTab === 'opd' && renderTable(opdData, loadOpd)}
             {activeTab === 'jenis' && renderTable(jenisData, loadJenis)}
             {activeTab === 'sumber' && renderTable(sumberData, loadSumber)}
+            {activeTab === 'potongan' && renderTable(potonganData, loadPotongan)}
           </div>
         </Tabs>
       </Card>

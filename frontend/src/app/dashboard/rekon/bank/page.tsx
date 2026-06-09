@@ -75,6 +75,14 @@ export default function BankManagementPage() {
   const [resetModal, setResetModal] = useState({ isOpen: false, value: '' });
   const [resetPreview, setResetPreview] = useState<{ total_bank: number; sudah_match: number } | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  
+  // State baru untuk hapus per rentang tanggal
+  const [showDeleteRangeModal, setShowDeleteRangeModal] = useState(false);
+  const [deleteRange, setDeleteRange] = useState({
+    startDate: format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd'),
+    endDate: format(new Date(), 'yyyy-MM-dd')
+  });
+  const [isDeletingRange, setIsDeletingRange] = useState(false);
 
   // Handle File Upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -126,13 +134,33 @@ export default function BankManagementPage() {
 
   const handleConfirmUpload = async () => {
     setIsUploading(true);
+    setUploadProgress(5);
+    let trickle: ReturnType<typeof setInterval> | null = null;
     try {
-      const res = await api.post('/reports/reconciliation/import', { data: previewData });
+      const res = await api.post('/reports/reconciliation/import', { data: previewData }, {
+        onUploadProgress: (event) => {
+          if (event.total && event.total > 0) {
+            const pct = Math.round((event.loaded / event.total) * 70) + 5;
+            setUploadProgress(Math.min(pct, 75));
+            if (event.loaded >= event.total && !trickle) {
+              trickle = setInterval(() => {
+                setUploadProgress(p => {
+                  if (p >= 96) { clearInterval(trickle!); return 96; }
+                  return p + 0.3;
+                });
+              }, 100);
+            }
+          }
+        }
+      });
+      if (trickle) clearInterval(trickle);
+      setUploadProgress(100);
       toast.success(`Berhasil mengimpor ${res.data.importedCount} mutasi bank baru.`);
       setShowUploadModal(false);
       setPreviewData([]);
       mutate();
     } catch (err: any) {
+      if (trickle) clearInterval(trickle);
       toast.error('Gagal mengimpor ke database', { description: err.message });
     } finally {
       setIsUploading(false);
@@ -216,6 +244,34 @@ export default function BankManagementPage() {
     }
   };
 
+  const handleDeleteRange = async () => {
+    if (!deleteRange.startDate || !deleteRange.endDate) {
+      toast.error('Tanggal awal dan akhir harus diisi');
+      return;
+    }
+
+    if (new Date(deleteRange.startDate) > new Date(deleteRange.endDate)) {
+      toast.error('Tanggal awal tidak boleh melebihi tanggal akhir');
+      return;
+    }
+
+    if (!confirm(`Apakah Anda yakin ingin menghapus data rekening koran dari tanggal ${format(new Date(deleteRange.startDate), 'dd/MM/yyyy')} sampai ${format(new Date(deleteRange.endDate), 'dd/MM/yyyy')}? Tindakan ini akan membatalkan rekonsiliasi yang sudah cocok pada rentang tersebut.`)) {
+      return;
+    }
+
+    setIsDeletingRange(true);
+    try {
+      const res = await api.post('/reports/reconciliation/bank/delete-range', deleteRange);
+      toast.success(res.data.message || 'Data berhasil dihapus');
+      setShowDeleteRangeModal(false);
+      mutate();
+    } catch (err: any) {
+      toast.error('Gagal menghapus data', { description: err.response?.data?.message || err.message });
+    } finally {
+      setIsDeletingRange(false);
+    }
+  };
+
   return (
     <div className="max-w-[1440px] mx-auto space-y-6 animate-in fade-in duration-700 p-6">
       
@@ -237,6 +293,15 @@ export default function BankManagementPage() {
         </div>
         
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <Button 
+            onClick={() => setShowDeleteRangeModal(true)}
+            variant="outline"
+            size="md"
+            className="text-fin-text-muted hover:text-rose-500 hover:bg-rose-500/10 font-bold text-xs rounded-lg"
+          >
+            <Trash2 size={14} className="mr-1.5" /> Hapus per Rentang
+          </Button>
+
           <Button 
             onClick={openResetModal}
             variant="ghost"
@@ -528,19 +593,28 @@ export default function BankManagementPage() {
                   </div>
                   
                   {isUploading && (
-                      <div className="space-y-2 animate-in fade-in zoom-in duration-200">
-                        <div className="flex justify-between items-center px-1">
-                          <span className="text-xs font-semibold text-indigo-500 animate-pulse">Memproses Data...</span>
-                          <span className="text-xs font-bold text-fin-text-primary">{uploadProgress}%</span>
+                    <div className="w-full space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <div className="flex justify-between items-end">
+                        <div className="space-y-0.5">
+                          <p className="text-[10px] font-black text-fin-text-primary uppercase tracking-widest">Status Pengunggahan</p>
+                          <p className="text-xs font-medium text-[#667085]">
+                            {uploadProgress < 50 ? 'Membaca & memvalidasi file Excel...' : uploadProgress < 100 ? 'Memetakan kolom data...' : 'Data siap dikonfirmasi!'}
+                          </p>
                         </div>
-                        <div className="h-2 w-full bg-fin-page rounded-full overflow-hidden border border-fin-border">
-                          <motion.div 
-                              initial={{ width: 0 }}
-                              animate={{ width: `${uploadProgress}%` }}
-                              className="h-full bg-emerald-500"
-                          />
-                        </div>
+                        <p className="text-xl font-black text-fin-text-primary tabular-nums">{Math.round(uploadProgress)}%</p>
                       </div>
+                      <div className="h-3 w-full bg-[#EAECF0] rounded-full overflow-hidden border border-fin-border-strong/20 shadow-inner">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${uploadProgress}%` }}
+                          transition={{ duration: 0.2, ease: "easeOut" }}
+                          className="h-full bg-ds-primary rounded-full"
+                        />
+                      </div>
+                      <p className="text-[10px] text-center font-bold text-fin-text-muted uppercase tracking-widest">
+                        {uploadProgress < 50 ? 'MEMPROSES DATA LOKAL...' : uploadProgress < 100 ? 'MEMVALIDASI BARIS DATA...' : 'DATA SIAP DIKONFIRMASI'}
+                      </p>
+                    </div>
                   )}
                 </div>
 
@@ -586,28 +660,51 @@ export default function BankManagementPage() {
 
           <DialogFooter>
             {previewData.length > 0 ? (
-              <>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setPreviewData([])}
-                  className="rounded-lg text-xs font-bold font-sans"
-                >
-                  Batal
-                </Button>
-                <Button 
-                  onClick={handleConfirmUpload}
-                  disabled={isUploading}
-                  variant="primary"
-                  className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5"
-                  loading={isUploading}
-                >
-                  <CheckCircle2 size={14} />
-                  Simpan ke Database
-                </Button>
-              </>
+              isUploading ? (
+                <div className="w-full space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="flex justify-between items-end">
+                    <div className="space-y-0.5">
+                      <p className="text-[10px] font-black text-fin-text-primary uppercase tracking-widest">Menyimpan ke Database</p>
+                      <p className="text-xs font-medium text-[#667085]">
+                        {uploadProgress < 75 ? `Mengunggah ${previewData.length} mutasi bank...` : uploadProgress < 96 ? 'Memproses di server...' : 'Selesai!'}
+                      </p>
+                    </div>
+                    <p className="text-xl font-black text-fin-text-primary tabular-nums">{Math.round(uploadProgress)}%</p>
+                  </div>
+                  <div className="h-3 w-full bg-[#EAECF0] rounded-full overflow-hidden border border-fin-border-strong/20 shadow-inner">
+                    <motion.div
+                      animate={{ width: `${uploadProgress}%` }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className="h-full bg-ds-primary rounded-full"
+                    />
+                  </div>
+                  <p className="text-[10px] text-center font-bold text-fin-text-muted uppercase tracking-widest">
+                    {uploadProgress < 75 ? 'MENGIRIM DATA KE SERVER...' : uploadProgress < 96 ? 'SERVER MEMPROSES DATA...' : 'SELESAI — MEMUAT ULANG...'}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setPreviewData([])}
+                    className="rounded-lg text-xs font-bold font-sans"
+                  >
+                    Batal
+                  </Button>
+                  <Button
+                    onClick={handleConfirmUpload}
+                    disabled={isUploading}
+                    variant="primary"
+                    className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 size={14} />
+                    Simpan ke Database
+                  </Button>
+                </>
+              )
             ) : (
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setShowUploadModal(false)}
                 className="rounded-lg text-xs font-bold font-sans"
               >
@@ -680,6 +777,76 @@ export default function BankManagementPage() {
             >
               <Trash2 size={14} />
               Bersihkan Data
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DELETE RANGE DIALOG */}
+      <Dialog open={showDeleteRangeModal} onOpenChange={setShowDeleteRangeModal}>
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle className="text-rose-600 flex items-center gap-2">
+              <Trash2 size={20} />
+              Hapus Rekening Koran per Rentang Tanggal
+            </DialogTitle>
+            <DialogDescription>
+              Menghapus data mutasi bank pada rentang tanggal tertentu secara permanen dan otomatis membatalkan rekonsiliasi terkait.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogBody className="space-y-4">
+            <div className="bg-fin-warning-bg border border-fin-warning/20 rounded-lg p-4 flex gap-3">
+              <AlertTriangle className="size-5 text-fin-warning-text shrink-0" />
+              <div className="text-xs text-fin-warning-text leading-relaxed font-semibold">
+                PERINGATAN:
+                <ul className="list-disc pl-4 mt-1 font-medium space-y-1">
+                  <li>Data mutasi bank pada rentang tanggal yang dipilih akan dihapus permanen.</li>
+                  <li>Setiap transaksi yang sudah ter-rekon (MATCHED) pada rentang ini akan otomatis di-reset kembali menjadi BELUM REKON.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-micro font-bold uppercase tracking-wide text-fin-text-muted">Tanggal Awal</label>
+                <Input 
+                  type="date"
+                  className="font-bold text-xs"
+                  value={deleteRange.startDate}
+                  onChange={(e) => setDeleteRange(prev => ({ ...prev, startDate: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-micro font-bold uppercase tracking-wide text-fin-text-muted">Tanggal Akhir</label>
+                <Input 
+                  type="date"
+                  className="font-bold text-xs"
+                  value={deleteRange.endDate}
+                  onChange={(e) => setDeleteRange(prev => ({ ...prev, endDate: e.target.value }))}
+                />
+              </div>
+            </div>
+          </DialogBody>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowDeleteRangeModal(false)}
+              className="rounded-lg text-xs font-bold font-sans"
+              disabled={isDeletingRange}
+            >
+              Batal
+            </Button>
+            <Button 
+              onClick={handleDeleteRange}
+              variant="destructive"
+              className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5 shadow-sm"
+              loading={isDeletingRange}
+              disabled={isDeletingRange}
+            >
+              <Trash2 size={14} />
+              Hapus Data Rentang
             </Button>
           </DialogFooter>
         </DialogContent>

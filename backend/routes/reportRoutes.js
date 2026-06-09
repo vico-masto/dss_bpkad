@@ -31,6 +31,7 @@ router.get('/rister-bku', authMiddleware, reportController.getBKURister);
 router.get('/opd-tax-summary', authMiddleware, reportController.getOpdTaxSummary);
 router.get('/potongan-opd-realisasi', authMiddleware, reportController.getPotonganOpdRealisasi);
 router.get('/tax-monthly-analytics', authMiddleware, reportController.getMonthlyTaxAnalytics);
+router.get('/sp2d-bruto', authMiddleware, reportController.getSp2dBruto);
 router.get('/reconciliation/potongan-mengendap', authMiddleware, reconciliationController.getPotonganMengendap);
 router.get('/reconciliation/potongan-integrity', authMiddleware, reconciliationController.getPotonganIntegrity);
 router.get('/reconciliation/data', authMiddleware, reconciliationController.getReconciliationData);
@@ -39,6 +40,7 @@ router.post('/reconciliation/import', authMiddleware, reconciliationController.i
 router.get('/reconciliation/suggestions/:bankId', authMiddleware, reconciliationController.getSuggestions);
 router.get('/reconciliation/bank-list', authMiddleware, reconciliationController.getBankStatements);
 router.delete('/reconciliation/bank/:id', authMiddleware, reconciliationController.deleteBankItem);
+router.post('/reconciliation/bank/delete-range', authMiddleware, reconciliationController.deleteBankByDateRange);
 router.post('/reconciliation/match-individual', authMiddleware, reconciliationController.matchIndividual);
 router.post('/reconciliation/match-multiple', authMiddleware, reconciliationController.matchMultiple);
 router.post('/reconciliation/unmatch/:id', authMiddleware, reconciliationController.undoMatch);
@@ -50,6 +52,7 @@ router.post('/reconciliation/match-smart', authMiddleware, reconciliationControl
 router.post('/reconciliation/unmatch-batch', authMiddleware, reconciliationController.undoMatchBatch);
 router.get('/reconciliation/reset-preview', authMiddleware, reconciliationController.getResetPreview);
 router.post('/reconciliation/reset-all', authMiddleware, reconciliationController.resetAllReconciliation);
+router.post('/reconciliation/reset-range', authMiddleware, reconciliationController.resetReconciliationByDateRange);
 router.post('/reconciliation/save-resolution', authMiddleware, reconciliationController.saveResolution);
 router.get('/reconciliation/export-audit', authMiddleware, reconciliationController.exportReconciliationAudit);
 router.post('/reconciliation/cluster-match', authMiddleware, reconciliationController.clusterMatch);

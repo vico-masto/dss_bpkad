@@ -1,7 +1,7 @@
 'use client';
 // Rebuild trigger
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import useSWR from 'swr';
 import { AlertTriangle, BarChart3, Building2, Calendar, CheckCircle2, ChevronDown, ChevronRight, Download, RefreshCw, XCircle, FileText, ShieldCheck, Lock, Edit3, Sparkles, FileSignature, Save, User, Printer } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
@@ -96,44 +96,64 @@ export default function DiscrepancyReportPage() {
   const [selectedAnomaly, setSelectedAnomaly] = useState<any>(null);
   const [showBarModal, setShowBarModal] = useState(false);
   const [barConfig, setBarConfig] = useState({
-    noBar: '000/ /BAR/BPKAD/2026',
+    noBar: '',
     dasarHukum: 'Peraturan Daerah tentang Pengelolaan Keuangan Daerah dan Standar Akuntansi Pemerintahan (SAP).',
     tanggalRekon: format(new Date(), 'yyyy-MM-dd'),
     bulanRekon: String(new Date().getMonth() + 1),
     pejabat1: 'Nama Pejabat BPKAD',
     jabatan1: 'Kepala Bidang Perbendaharaan',
     nip1: '19XXXXXXXXXXXXX',
+    pangkat1: '',
     pejabat2: 'Nama Pimpinan Bank',
     jabatan2: 'Pimpinan Cabang Bank Maluku Malut',
     nip2: '-',
     pejabat3: 'NAMA KEPALA BADAN',
     jabatan3: 'Kepala BPKAD',
-    nip3: '19XXXXXXXXXXXXX'
+    nip3: '19XXXXXXXXXXXXX',
+    pangkat3: '',
+    showPangkat: true
   });
 
   const [instansiConfig, setInstansiConfig] = useState<any>(null);
+  // skipFirstSave = true → [barConfig] effect abaikan run pertama (state default),
+  // baru simpan setelah state berubah dari hasil load atau input user.
+  const skipFirstSave = useRef(true);
 
+  // ── Muat konfigurasi BAR dari localStorage saat pertama kali mount ──
   useEffect(() => {
-    // Muat konfigurasi BAR yang pernah disimpan user
     const savedBar = localStorage.getItem('bar_config_discrepancy');
     if (savedBar) {
-      try { setBarConfig(JSON.parse(savedBar)); } catch {}
+      try { setBarConfig(prev => ({ ...prev, ...JSON.parse(savedBar) })); } catch {}
     }
-    // Timpa pejabat3 dengan data pimpinan dari app_config (selalu ikut master)
+    // LOCKED: app_config override pejabat3/jabatan3/nip3 HANYA jika !savedBar
+    // Jika bar_config_discrepancy sudah ada, data Mengetahui yang disimpan user dipertahankan.
+    // JANGAN hapus guard !savedBar ini — tanpanya data Mengetahui reset setiap ganti bulan.
     const savedApp = localStorage.getItem('app_config');
     if (savedApp) {
       try {
         const parsed = JSON.parse(savedApp);
         setInstansiConfig(parsed);
-        setBarConfig(prev => ({
-          ...prev,
-          pejabat3: parsed.pimpinan_nama || prev.pejabat3,
-          jabatan3: parsed.pimpinan_jabatan || prev.jabatan3,
-          nip3: parsed.pimpinan_nip || prev.nip3
-        }));
+        if (!savedBar) {
+          setBarConfig(prev => ({
+            ...prev,
+            pejabat3: parsed.pimpinan_nama || prev.pejabat3,
+            jabatan3: parsed.pimpinan_jabatan || prev.jabatan3,
+            nip3: parsed.pimpinan_nip || prev.nip3
+          }));
+        }
       } catch {}
     }
   }, []);
+
+  // ── Auto-save: simpan ke localStorage setiap barConfig berubah ──
+  // Run pertama (state default) dilewati agar tidak menimpa data tersimpan.
+  useEffect(() => {
+    if (skipFirstSave.current) {
+      skipFirstSave.current = false;
+      return;
+    }
+    localStorage.setItem('bar_config_discrepancy', JSON.stringify(barConfig));
+  }, [barConfig]);
 
   const [auditNote, setAuditNote] = useState('');
   const [auditStatus, setAuditStatus] = useState('OPEN');
@@ -168,15 +188,32 @@ export default function DiscrepancyReportPage() {
       const targetBulanInt = parseInt(barConfig.bulanRekon) || 1;
       const selectedBlnName = MONTHS[targetBulanInt - 1] || 'Januari';
       const saldoAwalSilpa = toN(data.saldoAwalSilpa);
-      const saldoAwalKas = targetBulanInt === 1 ? saldoAwalSilpa : 0;
 
-      const monthsUpToTarget = (data.monthlyBalance || []).filter((m: any) => m.bulan <= targetBulanInt);
-      const rawPenerimaan = monthsUpToTarget.reduce((acc: number, m: any) => acc + toN(m.penerimaan), 0);
-      const displayPenerimaan = targetBulanInt === 1 ? rawPenerimaan - saldoAwalSilpa : rawPenerimaan;
-      const totalPengeluaran = monthsUpToTarget.reduce((acc: number, m: any) => acc + toN(m.pengeluaran), 0);
+      // ── Saldo awal: Jan = SILPA, Feb–Des = saldo akhir bulan sebelumnya ──
+      let saldoAwalKas: number;
+      if (targetBulanInt === 1) {
+        saldoAwalKas = saldoAwalSilpa;
+      } else {
+        const mPrev    = (data.monthlyBalance || []).filter((m: any) => m.bulan <= targetBulanInt - 1);
+        const penPrev  = mPrev.reduce((acc: number, m: any) => acc + toN(m.penerimaan), 0);
+        const pengPrev = mPrev.reduce((acc: number, m: any) => acc + toN(m.pengeluaran), 0);
+        const potPrev  = (data.potonganUnmatched || [])
+          .filter((p: any) => p.bulan <= targetBulanInt - 1)
+          .reduce((acc: number, p: any) => acc + toN(p.total_nilai), 0);
+        saldoAwalKas = penPrev - pengPrev + potPrev;
+      }
 
-      const potonganUnmatchedToTarget = (data.potonganUnmatched || []).filter((p: any) => p.bulan <= targetBulanInt);
-      const totalPotonganMengendap = potonganUnmatchedToTarget.reduce((acc: number, p: any) => acc + toN(p.total_nilai), 0);
+      // ── Penerimaan & pengeluaran: hanya bulan terpilih ──
+      const currentMonthData = (data.monthlyBalance || []).find((m: any) => m.bulan === targetBulanInt);
+      const displayPenerimaan = targetBulanInt === 1
+        ? toN(currentMonthData?.penerimaan) - saldoAwalSilpa
+        : toN(currentMonthData?.penerimaan);
+      const totalPengeluaran = toN(currentMonthData?.pengeluaran);
+
+      // Potongan mengendap hanya bulan terpilih
+      const totalPotonganMengendap = (data.potonganUnmatched || [])
+        .filter((p: any) => p.bulan === targetBulanInt)
+        .reduce((acc: number, p: any) => acc + toN(p.total_nilai), 0);
 
       const saldoAkhirBKU = saldoAwalKas + displayPenerimaan - totalPengeluaran + totalPotonganMengendap;
       const saldoBank = toN(data.monthlyBalance?.find((m: any) => m.bulan === targetBulanInt)?.saldo_bank || 0);
@@ -567,6 +604,22 @@ export default function DiscrepancyReportPage() {
               </div>
 
               <div className="space-y-4 pr-2 pb-6">
+
+                {/* Toggle Pangkat */}
+                <div className="flex items-center justify-between px-4 py-2.5 bg-fin-page rounded-lg border border-fin-border">
+                  <span className="text-[10px] font-black uppercase text-fin-text-secondary tracking-wider">Tampilkan Pangkat pada BAR</span>
+                  <button
+                    type="button"
+                    onClick={() => setBarConfig(prev => ({ ...prev, showPangkat: !prev.showPangkat }))}
+                    className={cn(
+                      'relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none',
+                      barConfig.showPangkat ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-600'
+                    )}
+                  >
+                    <span className={cn('inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform', barConfig.showPangkat ? 'translate-x-4' : 'translate-x-0.5')} />
+                  </button>
+                </div>
+
                 <div className="space-y-3 p-5 bg-indigo-500/[0.03] dark:bg-indigo-500/[0.05] rounded-xl border border-indigo-500/20 hover:border-indigo-500/40 transition-colors">
                   <label className="text-[11px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1.5 border-b border-indigo-500/10 pb-2 mb-1">Pihak Pertama (BPKAD)</label>
                   <div className="space-y-3 mt-2">
@@ -577,6 +630,10 @@ export default function DiscrepancyReportPage() {
                     <div className="space-y-1">
                       <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Nama Lengkap</span>
                       <Input value={barConfig.pejabat1} onChange={e => setBarConfig({ ...barConfig, pejabat1: e.target.value })} placeholder="Nama Lengkap" className="text-sm font-black h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-indigo-500" />
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Pangkat / Gol</span>
+                      <Input value={barConfig.pangkat1} onChange={e => setBarConfig({ ...barConfig, pangkat1: e.target.value })} placeholder="Pangkat / Golongan (opsional)" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-indigo-500" />
                     </div>
                     <div className="space-y-1">
                       <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">NIP</span>
@@ -615,6 +672,10 @@ export default function DiscrepancyReportPage() {
                       <Input value={barConfig.pejabat3} onChange={e => setBarConfig({ ...barConfig, pejabat3: e.target.value })} placeholder="Nama Lengkap" className="text-sm font-black h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-amber-500" />
                     </div>
                     <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Pangkat / Gol</span>
+                      <Input value={barConfig.pangkat3} onChange={e => setBarConfig({ ...barConfig, pangkat3: e.target.value })} placeholder="Pangkat / Golongan (opsional)" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-amber-500" />
+                    </div>
+                    <div className="space-y-1">
                       <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">NIP</span>
                       <Input value={barConfig.nip3} onChange={e => setBarConfig({ ...barConfig, nip3: e.target.value })} placeholder="NIP" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-amber-500" />
                     </div>
@@ -644,7 +705,7 @@ export default function DiscrepancyReportPage() {
                 {/* Judul BAR */}
                 <div className="text-center mb-4 shrink-0">
                   <p className="font-black text-[12pt] underline uppercase tracking-widest leading-tight">Berita Acara Rekonsiliasi Kas</p>
-                  <p className="font-semibold text-[9.5pt] mt-0.5">Nomor : {barConfig.noBar || '...../BAR/BPKAD/...../20...'}</p>
+                  <p className="font-semibold text-[9.5pt] mt-0.5">Nomor : {barConfig.noBar}</p>
                 </div>
 
                 {/* Content Generation */}
@@ -660,19 +721,36 @@ export default function DiscrepancyReportPage() {
                   const previewLastDay = new Date(parseInt(year), parseInt(barConfig.bulanRekon), 0);
                   const previewFmtLastDay = `${previewLastDay.getDate()}/${previewLastDay.getMonth() + 1}/${previewLastDay.getFullYear()}`;
 
-                  // Calculate preview values
+                  // Calculate preview values (rekonsiliasi bulanan)
                   const pSaldoAwalSilpa = toN(data?.saldoAwalSilpa);
-                  const pSaldoAwalKas = targetB === 1 ? pSaldoAwalSilpa : 0;
 
-                  const mUpToT = (data?.monthlyBalance || []).filter((m: any) => m.bulan <= targetB);
-                  const pTotalPen = mUpToT.reduce((acc: number, m: any) => acc + toN(m.penerimaan), 0);
-                  const pDisplayPenerimaan = targetB === 1 ? (pTotalPen - pSaldoAwalSilpa) : pTotalPen;
-                  const pTotalPeng = mUpToT.reduce((acc: number, m: any) => acc + toN(m.pengeluaran), 0);
-                  
-                  const pPotonganUnmatchedToTarget = (data?.potonganUnmatched || []).filter((p: any) => p.bulan <= targetB);
-                  const pTotalPotonganMengendap = pPotonganUnmatchedToTarget.reduce((acc: number, p: any) => acc + toN(p.total_nilai), 0);
+                  // ── Saldo awal: Jan = SILPA, Feb–Des = saldo akhir bulan sebelumnya ──
+                  let pSaldoAwalKas: number;
+                  if (targetB === 1) {
+                    pSaldoAwalKas = pSaldoAwalSilpa;
+                  } else {
+                    const mPrev    = (data?.monthlyBalance || []).filter((m: any) => m.bulan <= targetB - 1);
+                    const penPrev  = mPrev.reduce((acc: number, m: any) => acc + toN(m.penerimaan), 0);
+                    const pengPrev = mPrev.reduce((acc: number, m: any) => acc + toN(m.pengeluaran), 0);
+                    const potPrev  = (data?.potonganUnmatched || [])
+                      .filter((p: any) => p.bulan <= targetB - 1)
+                      .reduce((acc: number, p: any) => acc + toN(p.total_nilai), 0);
+                    pSaldoAwalKas = penPrev - pengPrev + potPrev;
+                  }
 
-                  const pSaldoAkhirBKU = pTotalPen - pTotalPeng + pTotalPotonganMengendap;
+                  // ── Penerimaan & pengeluaran: hanya bulan terpilih ──
+                  const pCurMonthData = (data?.monthlyBalance || []).find((m: any) => m.bulan === targetB);
+                  const pDisplayPenerimaan = targetB === 1
+                    ? toN(pCurMonthData?.penerimaan) - pSaldoAwalSilpa
+                    : toN(pCurMonthData?.penerimaan);
+                  const pTotalPeng = toN(pCurMonthData?.pengeluaran);
+
+                  // Potongan mengendap hanya bulan terpilih
+                  const pTotalPotonganMengendap = (data?.potonganUnmatched || [])
+                    .filter((p: any) => p.bulan === targetB)
+                    .reduce((acc: number, p: any) => acc + toN(p.total_nilai), 0);
+
+                  const pSaldoAkhirBKU = pSaldoAwalKas + pDisplayPenerimaan - pTotalPeng + pTotalPotonganMengendap;
                   const pSaldoBank = toN(data?.monthlyBalance?.find((m: any) => m.bulan === targetB)?.saldo_bank || 0);
                   const pSelisih = Math.abs(pSaldoBank - pSaldoAkhirBKU);
                   const pIsSesuai = pSelisih < 1;
@@ -696,22 +774,67 @@ export default function DiscrepancyReportPage() {
                       </p>
 
                       <div className="my-2 ml-6 space-y-1.5 text-[9.5pt] font-sans">
-                        <p className="m-0 leading-snug">
-                          <span className="font-black text-slate-700 block mb-1">1. PIHAK KESATU:</span>
-                          <span className="inline-block w-[70px]">Nama</span>: <span className="font-bold uppercase">{barConfig.pejabat1 || '—'}</span><br />
-                          <span className="inline-block w-[70px]">Jabatan</span>: <span className="italic capitalize">{barConfig.jabatan1 || '—'}</span><br />
-                          <span className="inline-block w-[70px]">NIP</span>: {barConfig.nip1 || '—'}
-                        </p>
-                        <p className="m-0 leading-snug">
-                          <span className="font-black text-slate-700 block mb-1">2. PIHAK KEDUA:</span>
-                          <span className="inline-block w-[70px]">Nama</span>: <span className="font-bold uppercase">{barConfig.pejabat2 || '—'}</span><br />
-                          <span className="inline-block w-[70px]">Jabatan</span>: <span className="italic capitalize">{barConfig.jabatan2 || '—'}</span><br />
-                          <span className="inline-block w-[70px]">ID/NIP</span>: {barConfig.nip2 || '—'}
-                        </p>
+                        <div className="leading-snug">
+                          <span className="font-black text-slate-700 block mb-1">1.</span>
+                          <table style={{ borderCollapse: 'collapse', marginTop: 2, width: 'auto' }}>
+                            <tbody>
+                              <tr>
+                                <td style={{ whiteSpace: 'nowrap', paddingRight: 4, verticalAlign: 'top', minWidth: 56 }}>Nama</td>
+                                <td style={{ padding: '0 3px 0 0', verticalAlign: 'top' }}>:</td>
+                                <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{barConfig.pejabat1 || '—'}</td>
+                              </tr>
+                              {barConfig.showPangkat && barConfig.pangkat1 && (
+                                <tr>
+                                  <td style={{ whiteSpace: 'nowrap', paddingRight: 4, verticalAlign: 'top' }}>Pangkat</td>
+                                  <td style={{ padding: '0 3px 0 0', verticalAlign: 'top' }}>:</td>
+                                  <td style={{ verticalAlign: 'top' }}>{barConfig.pangkat1}</td>
+                                </tr>
+                              )}
+                              <tr>
+                                <td style={{ whiteSpace: 'nowrap', paddingRight: 4, verticalAlign: 'top' }}>Jabatan</td>
+                                <td style={{ padding: '0 3px 0 0', verticalAlign: 'top' }}>:</td>
+                                <td style={{ verticalAlign: 'top', fontStyle: 'italic' }}>{barConfig.jabatan1 || '—'}</td>
+                              </tr>
+                              <tr>
+                                <td style={{ whiteSpace: 'nowrap', paddingRight: 4, verticalAlign: 'top' }}>NIP</td>
+                                <td style={{ padding: '0 3px 0 0', verticalAlign: 'top' }}>:</td>
+                                <td style={{ verticalAlign: 'top' }}>{barConfig.nip1 || '—'}</td>
+                              </tr>
+                              <tr>
+                                <td colSpan={3} style={{ paddingTop: 2, fontStyle: 'italic' }}>Selanjutnya disebut sebagai <strong>PIHAK KESATU</strong></td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="leading-snug">
+                          <span className="font-black text-slate-700 block mb-1">2.</span>
+                          <table style={{ borderCollapse: 'collapse', marginTop: 2, width: 'auto' }}>
+                            <tbody>
+                              <tr>
+                                <td style={{ whiteSpace: 'nowrap', paddingRight: 4, verticalAlign: 'top', minWidth: 56 }}>Nama</td>
+                                <td style={{ padding: '0 3px 0 0', verticalAlign: 'top' }}>:</td>
+                                <td style={{ verticalAlign: 'top', fontWeight: 'bold' }}>{barConfig.pejabat2 || '—'}</td>
+                              </tr>
+                              <tr>
+                                <td style={{ whiteSpace: 'nowrap', paddingRight: 4, verticalAlign: 'top' }}>Jabatan</td>
+                                <td style={{ padding: '0 3px 0 0', verticalAlign: 'top' }}>:</td>
+                                <td style={{ verticalAlign: 'top', fontStyle: 'italic' }}>{barConfig.jabatan2 || '—'}</td>
+                              </tr>
+                              <tr>
+                                <td style={{ whiteSpace: 'nowrap', paddingRight: 4, verticalAlign: 'top' }}>ID/NIP</td>
+                                <td style={{ padding: '0 3px 0 0', verticalAlign: 'top' }}>:</td>
+                                <td style={{ verticalAlign: 'top' }}>{barConfig.nip2 || '—'}</td>
+                              </tr>
+                              <tr>
+                                <td colSpan={3} style={{ paddingTop: 2, fontStyle: 'italic' }}>Selanjutnya disebut sebagai <strong>PIHAK KEDUA</strong></td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
 
                       <p className="leading-snug mt-1.5">
-                        PIHAK KESATU dan PIHAK KEDUA secara bersama-sama telah melakukan rekonsiliasi atas data Kas pada Pemerintah Kabupaten Kepulauan Aru untuk periode bulan <span className="font-bold italic underline">{selectedBlnName}</span> Tahun Anggaran <span className="font-bold">{year}</span>.
+                        Telah melakukan rekonsiliasi kas pada RKUD Nomor 080 103 6465 antara <span className="font-bold">Pihak Kesatu</span> Kuasa Bendahara Umum Daerah (KBUD) Kabupaten Kepulauan Aru dengan <span className="font-bold">Pihak Kedua</span> PT. Bank Maluku-Maluku Utara Cabang Dobo untuk Periode <span className="font-bold italic underline">{selectedBlnName}</span> Tahun Anggaran <span className="font-bold">{year}</span>, dengan hasil sebagai berikut:
                       </p>
 
                       {/* A. DASAR HUKUM */}
@@ -723,44 +846,44 @@ export default function DiscrepancyReportPage() {
                       {/* B. HASIL REKONSILIASI KAS */}
                       <div className="mt-3">
                         <p className="font-bold uppercase text-[9.5pt] tracking-wide mb-1.5">B. HASIL REKONSILIASI KAS</p>
-                        <table className="w-full border-collapse border border-black font-sans text-[8.5pt]">
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt', fontFamily: 'sans-serif' }}>
                           <thead>
-                            <tr className="bg-slate-100">
-                              <th className="border border-black p-1 text-center w-8">NO</th>
-                              <th className="border border-black p-1 text-left">URAIAN</th>
-                              <th className="border border-black p-1 text-right w-44">JUMLAH (RP)</th>
+                            <tr>
+                              <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'center', width: 32 }}>NO</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'left' }}>URAIAN</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'right', width: 176 }}>JUMLAH (RP)</th>
                             </tr>
                           </thead>
                           <tbody>
                             <tr>
-                              <td className="border border-black p-1 text-center">1</td>
-                              <td className="border border-black p-1">SALDO AWAL KAS BKU (KAS DAERAH)</td>
-                              <td className="border border-black p-1 text-right font-mono">{formatCurrency(pSaldoAwalKas)}</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>1</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px' }}>Saldo Awal Kas BKU (Kas Daerah)</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(pSaldoAwalKas)}</td>
                             </tr>
                             <tr>
-                              <td className="border border-black p-1 text-center">2</td>
-                              <td className="border border-black p-1">TOTAL PENERIMAAN KAS S.D. BULAN {selectedBlnName.toUpperCase()}</td>
-                              <td className="border border-black p-1 text-right font-mono">{formatCurrency(pDisplayPenerimaan)}</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>2</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px' }}>Total Penerimaan Kas Bulan {selectedBlnName}</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(pDisplayPenerimaan)}</td>
                             </tr>
                             <tr>
-                              <td className="border border-black p-1 text-center">3</td>
-                              <td className="border border-black p-1">TOTAL PENGELUARAN KAS S.D. BULAN {selectedBlnName.toUpperCase()}</td>
-                              <td className="border border-black p-1 text-right font-mono">{formatCurrency(pTotalPeng)}</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>3</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px' }}>Total Pengeluaran Kas Bulan {selectedBlnName}</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(pTotalPeng)}</td>
                             </tr>
-                            <tr className="font-bold bg-indigo-50/20">
-                              <td className="border border-black p-1 text-center">4</td>
-                              <td className="border border-black p-1">SALDO AKHIR BKU RKUD PER TANGGAL {previewFmtLastDay}</td>
-                              <td className="border border-black p-1 text-right font-mono">{formatCurrency(pSaldoAkhirBKU)}</td>
+                            <tr style={{ fontWeight: 'bold', backgroundColor: '#eef2ff' }}>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>4</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px' }}>Saldo Akhir BKU RKUD per Tanggal {previewFmtLastDay}</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(pSaldoAkhirBKU)}</td>
                             </tr>
-                            <tr className="font-bold bg-emerald-50/20">
-                              <td className="border border-black p-1 text-center">5</td>
-                              <td className="border border-black p-1">SALDO REKENING KORAN BANK PER TANGGAL {previewFmtLastDay}</td>
-                              <td className="border border-black p-1 text-right font-mono">{formatCurrency(pSaldoBank)}</td>
+                            <tr style={{ fontWeight: 'bold', backgroundColor: '#f0fdf4' }}>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>5</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px' }}>Saldo Rekening Koran Bank per Tanggal {previewFmtLastDay}</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(pSaldoBank)}</td>
                             </tr>
-                            <tr className={`font-bold ${!pIsSesuai ? 'bg-rose-50/40' : 'bg-slate-50'}`}>
-                              <td className="border border-black p-1 text-center">6</td>
-                              <td className="border border-black p-1">SELISIH (NO. 4 - NO. 5)</td>
-                              <td className="border border-black p-1 text-right font-mono">{pIsSesuai ? 'NOL' : formatCurrency(pSelisih)}</td>
+                            <tr style={{ fontWeight: 'bold', backgroundColor: pIsSesuai ? '#f8fafc' : '#fff1f2' }}>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>6</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px' }}>Selisih (No. 4 - No. 5)</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{pIsSesuai ? 'NOL' : formatCurrency(pSelisih)}</td>
                             </tr>
                           </tbody>
                         </table>
@@ -769,34 +892,37 @@ export default function DiscrepancyReportPage() {
                       {/* C. RINCIAN SELISIH */}
                       <div className="mt-3">
                         <p className="font-bold uppercase text-[9.5pt] tracking-wide mb-1.5">C. RINCIAN SELISIH (OUTSTANDING ITEMS)</p>
-                        <table className="w-full border-collapse border border-black font-sans text-[8pt]">
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8pt', fontFamily: 'sans-serif' }}>
                           <thead>
-                            <tr className="bg-slate-100">
-                              <th className="border border-black p-1 text-center w-8">NO</th>
-                              <th className="border border-black p-1 text-left w-32">REFERENSI / TIPE</th>
-                              <th className="border border-black p-1 text-left">KETERANGAN TRANSAKSI</th>
-                              <th className="border border-black p-1 text-right w-36">NILAI (RP)</th>
+                            <tr>
+                              <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'center', width: 32 }}>NO</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'left', width: 128 }}>REFERENSI / TIPE</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'left' }}>KETERANGAN TRANSAKSI</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'right', width: 144 }}>NILAI (RP)</th>
                             </tr>
                           </thead>
                           <tbody>
                             {pAnomalyRows.length > 0 ? (
                               pAnomalyRows.map((r: any, i: number) => (
                                 <tr key={r.id}>
-                                  <td className="border border-black p-1 text-center">{i + 1}</td>
-                                  <td className="border border-black p-1 uppercase align-top">
-                                    <span className="font-bold">{r.tipe}</span>
-                                    <div className="flex flex-col gap-0 mt-0.5 normal-case">
-                                      <span className="text-[7.5pt] font-mono text-slate-700 tracking-tight">{r.bukti || '-'}</span>
-                                      <span className="text-[7pt] text-slate-600 italic font-medium">Tgl Pencairan: {r.tanggal ? format(new Date(r.tanggal), 'dd/MM/yyyy') : '-'}</span>
+                                  <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>{i + 1}</td>
+                                  <td style={{ border: '1px solid #000', padding: '4px 6px', textTransform: 'uppercase', verticalAlign: 'top' }}>
+                                    <span style={{ fontWeight: 'bold' }}>{r.tipe}</span>
+                                    <div style={{ marginTop: 2 }}>
+                                      <span style={{ fontSize: '7.5pt', fontFamily: 'monospace', color: '#555' }}>{r.bukti || '-'}</span>
                                     </div>
+                                    <div style={{ fontSize: '7pt', color: '#666', fontStyle: 'italic' }}>Tgl: {r.tanggal ? format(new Date(r.tanggal), 'dd/MM/yyyy') : '-'}</div>
                                   </td>
-                                  <td className="border border-black p-1 leading-tight">{r.keterangan_rekon || r.uraian || 'Belum ada penjelasan'} <br /><span className="text-[7pt] text-slate-400 italic">{r.opd}</span></td>
-                                  <td className="border border-black p-1 text-right font-mono">{formatCurrency(toN(r.selisih || r.nilai))}</td>
+                                  <td style={{ border: '1px solid #000', padding: '4px 6px', verticalAlign: 'top' }}>
+                                    {r.keterangan_rekon || r.uraian || 'Belum ada penjelasan'}
+                                    {r.opd && <div style={{ fontSize: '7pt', color: '#888', fontStyle: 'italic' }}>{r.opd}</div>}
+                                  </td>
+                                  <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace', verticalAlign: 'top' }}>{formatCurrency(toN(r.selisih || r.nilai))}</td>
                                 </tr>
                               ))
                             ) : (
                               <tr>
-                                <td colSpan={4} className="border border-black p-2 text-center italic text-slate-500">Kas Terverifikasi Sinkron. Tidak terdapat selisih pembukuan.</td>
+                                <td colSpan={4} style={{ border: '1px solid #000', padding: '8px 6px', textAlign: 'center', fontStyle: 'italic', color: '#64748b' }}>Kas Terverifikasi Sinkron. Tidak terdapat selisih pembukuan.</td>
                               </tr>
                             )}
                           </tbody>
@@ -806,8 +932,9 @@ export default function DiscrepancyReportPage() {
                       {/* D. KESIMPULAN */}
                       <div className="mt-3 shrink-0">
                         <p className="font-bold uppercase text-[9.5pt] tracking-wide mb-1">D. KESIMPULAN</p>
+                        {/* LOCKED: Redaksi kalimat kesimpulan sudah dikunci — jangan ubah frasa "Rekening Koran RKUD pada PT. Bank Maluku-Maluku Utara Cabang Dobo" */}
                         <p className="leading-snug">
-                          Berdasarkan hasil rekonsiliasi tersebut di atas, saldo Kas Rekening Kas Umum Daerah (RKUD) Kabupaten Kepulauan Aru per tanggal {previewLastDay.getDate()} {selectedBlnName} {year} dinyatakan <span className="font-bold italic underline">{pIsSesuai ? 'SESUAI' : 'TERDAPAT SELISIH'}</span> antara Buku Kas Umum (BKU) dengan Rekening Koran {barConfig.jabatan2}.
+                          Berdasarkan hasil rekonsiliasi tersebut di atas, saldo Kas Rekening Kas Umum Daerah (RKUD) Kabupaten Kepulauan Aru per tanggal {previewLastDay.getDate()} {selectedBlnName} {year} dinyatakan <span className="font-bold italic underline">{pIsSesuai ? 'SESUAI' : 'TERDAPAT SELISIH'}</span> antara Buku Kas Umum (BKU) dengan Rekening Koran RKUD pada PT. Bank Maluku-Maluku Utara Cabang Dobo.
                         </p>
                         <p className="leading-snug mt-1.5">
                           Demikian Berita Acara Rekonsiliasi Kas ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.
@@ -817,19 +944,25 @@ export default function DiscrepancyReportPage() {
                       {/* Tanda Tangan */}
                       <div className="mt-5 shrink-0 font-sans text-[8.5pt]">
                         <p className="text-right font-bold mb-3">Dobo, {previewTgl} {previewBln} {previewThn}</p>
-                        <div className="grid grid-cols-2 gap-8 text-center">
-                          <div>
+                        <div className="grid grid-cols-2 gap-8 text-center items-stretch">
+                          <div className="flex flex-col">
                             <p className="font-bold uppercase">PIHAK KESATU,</p>
                             <p className="italic font-bold capitalize">{barConfig.jabatan1 || '—'}</p>
-                            <div className="h-16"></div>
+                            <div className="flex-1 min-h-[4rem]"></div>
                             <p className="font-bold uppercase underline leading-tight">{barConfig.pejabat1 || '—'}</p>
+                            {barConfig.showPangkat && barConfig.pangkat1 && (
+                              <p className="leading-tight">{barConfig.pangkat1}</p>
+                            )}
                             <p className="leading-tight">NIP. {barConfig.nip1 || '—'}</p>
                           </div>
-                          <div>
+                          <div className="flex flex-col">
                             <p className="font-bold uppercase">PIHAK KEDUA,</p>
                             <p className="italic font-bold capitalize">{barConfig.jabatan2 || '—'}</p>
-                            <div className="h-16"></div>
+                            <div className="flex-1 min-h-[4rem]"></div>
                             <p className="font-bold uppercase underline leading-tight">{barConfig.pejabat2 || '—'}</p>
+                            {barConfig.showPangkat && barConfig.pangkat1 && (
+                              <p className="leading-tight invisible">_</p>
+                            )}
                             <p className="leading-tight">NIP / ID. {barConfig.nip2 || '—'}</p>
                           </div>
                         </div>
@@ -837,8 +970,11 @@ export default function DiscrepancyReportPage() {
                           <p className="font-bold uppercase">MENGETAHUI,</p>
                           <p className="italic font-bold capitalize">{barConfig.jabatan3 || '—'}</p>
                           <div className="h-16"></div>
-                          <p className="font-bold uppercase underline leading-tight">{barConfig.pejabat3 || '—'}</p>
-                          <p className="leading-tight">NIP. {barConfig.nip3 || '—'}</p>
+                          <p className="font-bold uppercase underline leading-tight mb-0">{barConfig.pejabat3 || '—'}</p>
+                          {barConfig.showPangkat && barConfig.pangkat3 && (
+                            <p className="leading-tight mb-0">{barConfig.pangkat3}</p>
+                          )}
+                          <p className="leading-tight mt-0">NIP. {barConfig.nip3 || '—'}</p>
                         </div>
                       </div>
                     </div>

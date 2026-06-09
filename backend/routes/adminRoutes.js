@@ -29,6 +29,12 @@ router.post('/sumber-dana', authMiddleware, adminOnly, referenceController.creat
 router.put('/sumber-dana/:id', authMiddleware, adminOnly, referenceController.updateSumberDana);
 router.delete('/sumber-dana/:id', authMiddleware, adminOnly, referenceController.deleteSumberDana);
 
+// Referensi Jenis Potongan
+router.get('/jenis-potongan', authMiddleware, adminOnly, referenceController.getJenisPotongan);
+router.post('/jenis-potongan', authMiddleware, adminOnly, referenceController.createJenisPotongan);
+router.put('/jenis-potongan/:id', authMiddleware, adminOnly, referenceController.updateJenisPotongan);
+router.delete('/jenis-potongan/:id', authMiddleware, adminOnly, referenceController.deleteJenisPotongan);
+
 // Manajemen User
 router.post('/users/register', authMiddleware, adminOnly, authController.register);
 
@@ -37,5 +43,16 @@ router.post('/purge-all-data', authMiddleware, adminOnly, systemController.purge
 
 // Terapkan trigger proteksi field kritis ke database
 router.post('/apply-db-triggers', authMiddleware, adminOnly, systemController.applyDatabaseTriggers);
+
+// Pembersihan data sampah manual (admin only)
+router.post('/cleanup', authMiddleware, adminOnly, async (req, res) => {
+  try {
+    const { runCleanup } = require('../services/cleanupService');
+    const result = await runCleanup();
+    res.json({ message: 'Cleanup selesai', result });
+  } catch (err) {
+    res.status(500).json({ message: 'Cleanup gagal', error: err.message });
+  }
+});
 
 module.exports = router;

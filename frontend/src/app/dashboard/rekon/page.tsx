@@ -47,9 +47,17 @@ import api from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { Card, CardContent } from "@/components/ui/card";
+import { ProgressCard } from '@/components/ProgressCard';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { 
   Dialog, 
@@ -219,6 +227,28 @@ export default function ReconciliationPage() {
     return filteredBank?.filter((b: any) => (Number(b.debet) || Number(b.kredit)) === smartGroupValue);
   }, [filteredBank, smartGroupValue]);
 
+  // Auto-populate manualPairingMap with suggestions when in smartGroupValue mode (Solusi 3 - Draf Rekomendasi)
+  useEffect(() => {
+    if (smartGroupValue !== null && suggestionsData?.data?.length > 0 && smartGroupBankItems?.length > 0) {
+      const newMap: Record<number, number> = {};
+      const activeSelectedBankIds = smartGroupBankItems
+        .filter((b: any) => selectedBankIds.includes(b.id));
+
+      activeSelectedBankIds.forEach((bank: any, idx: number) => {
+        const groupIndex = smartGroupBankItems.findIndex((b: any) => b.id === bank.id) + 1;
+        if (groupIndex > 0 && suggestionsData.data.length > idx) {
+          newMap[groupIndex] = suggestionsData.data[idx].id;
+        }
+      });
+
+      if (Object.keys(manualPairingMap).length === 0 && Object.keys(newMap).length > 0) {
+        setManualPairingMap(newMap);
+        const bkuIds = Object.values(newMap);
+        setSelectedBkuIds(bkuIds);
+      }
+    }
+  }, [suggestionsData, smartGroupValue, selectedBankIds, smartGroupBankItems]);
+
   // ── SMART CLUSTER MATCH AI ───────────────────────────────────────────────────
   // Deteksi cluster: mutasi bank yang belum dicocokkan dengan nilai sama, anggota > 5
   const bankClusters = useMemo(() => {
@@ -326,7 +356,7 @@ export default function ReconciliationPage() {
             bankId,
             bkuId,
             matchType: 'SMART_GROUP_MANUAL_LABEL',
-            keterangan_admin: manualRef || 'Rekon Massal (Manual Labeling)'
+            keterangan_admin: manualRef || 'Bulk Match: Smart Group Manual Labeling'
           });
           return true;
         } catch { return false; }
@@ -426,6 +456,8 @@ export default function ReconciliationPage() {
     isOpen: boolean;
     value: string;
   }>({ isOpen: false, value: '' });
+  
+  const [resetRangeModal, setResetRangeModal] = useState({ isOpen: false, startDate: '', endDate: '' });
   const [resetPreview, setResetPreview] = useState<{ sp2d_sudah_rekon: number; pendapatan_sudah_rekon: number; bank_sudah_match: number } | null>(null);
   const [loadingResetPreview, setLoadingResetPreview] = useState(false);
 
@@ -445,8 +477,10 @@ export default function ReconciliationPage() {
     const allSelected = identicalIds.every((id: number) => selectedBankIds.includes(id));
     if (allSelected) {
        setSelectedBankIds(selectedBankIds.filter((id: number) => !identicalIds.includes(id)));
+       setSmartGroupValue(null);
     } else {
        setSelectedBankIds([...new Set([...selectedBankIds, ...identicalIds])]);
+       setSmartGroupValue(value);
     }
   };
 
@@ -467,7 +501,7 @@ export default function ReconciliationPage() {
       setRefMatchModal({ isOpen: false, value: '' });
       mutate();
     } catch (err: any) {
-      toast.error('Gagal mencocokkan referensi', { description: err.response?.data?.message });
+      toast.error('Gagal mencocokkan referensi', { description: err.response?.data?.message || err.message || 'Terjadi kesalahan sistem.' });
     } finally {
       setIsMatching(false);
     }
@@ -518,7 +552,7 @@ export default function ReconciliationPage() {
       await mutate();
       mutateSuggestions();
     } catch (err: any) {
-      toast.error('Gagal mencocokkan masal', { description: err.response?.data?.message });
+      toast.error('Gagal mencocokkan masal', { description: err.response?.data?.message || err.message || 'Terjadi kesalahan sistem.' });
     } finally {
       setIsMatching(false);
     }
@@ -532,7 +566,7 @@ export default function ReconciliationPage() {
       toast.success('Berhasil membatalkan pencocokan masal');
       mutate();
     } catch (err: any) {
-      toast.error('Gagal membatalkan pencocokan', { description: err.response?.data?.message });
+      toast.error('Gagal membatalkan pencocokan', { description: err.response?.data?.message || err.message || 'Terjadi kesalahan sistem.' });
     }
   };
 
@@ -561,8 +595,30 @@ export default function ReconciliationPage() {
       mutate();
       return true;
     } catch (err: any) {
-      toast.error('Gagal mereset data', { description: err.response?.data?.message });
+      toast.error('Gagal mereset data', { description: err.response?.data?.message || err.message || 'Terjadi kesalahan sistem.' });
       return false;
+    } finally {
+      setIsMatching(false);
+    }
+  };
+
+  const handleResetRange = async () => {
+    if (!resetRangeModal.startDate || !resetRangeModal.endDate) {
+      toast.error('Tanggal awal dan akhir harus diisi');
+      return;
+    }
+    
+    setIsMatching(true);
+    try {
+      await api.post('/reports/reconciliation/reset-range', {
+        startDate: resetRangeModal.startDate,
+        endDate: resetRangeModal.endDate
+      });
+      toast.success(`Data rekonsiliasi dari ${resetRangeModal.startDate} s/d ${resetRangeModal.endDate} berhasil direset.`);
+      setResetRangeModal({ isOpen: false, startDate: '', endDate: '' });
+      mutate();
+    } catch (err: any) {
+      toast.error('Gagal mereset data', { description: err.response?.data?.message || err.message || 'Terjadi kesalahan sistem.' });
     } finally {
       setIsMatching(false);
     }
@@ -607,7 +663,7 @@ export default function ReconciliationPage() {
       await mutate();
       mutateSuggestions();
     } catch (err: any) {
-      toast.error('Gagal menyimpan audit', { description: err.response?.data?.message });
+      toast.error('Gagal menyimpan audit', { description: err.response?.data?.message || err.message || 'Terjadi kesalahan sistem.' });
     } finally {
       setSavingRekon(false);
     }
@@ -665,8 +721,8 @@ export default function ReconciliationPage() {
       setSelectedBkuIds([]);
       setSelectedBankIds([]);
       mutate();
-    } catch (err) {
-      toast.error('Gagal mencocokkan data');
+    } catch (err: any) {
+      toast.error('Gagal mencocokkan data', { description: err.response?.data?.message || err.message });
     } finally {
       setIsMatching(false);
     }
@@ -699,6 +755,16 @@ export default function ReconciliationPage() {
         icon={<Activity className="size-5" />}
         actions={
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+
+            {/* RESET RANGE — destruktif, subtle */}
+            <Button
+              onClick={() => setResetRangeModal({ isOpen: true, startDate: '', endDate: '' })}
+              variant="ghost"
+              size="md"
+              className="text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 border border-transparent hover:border-amber-200 dark:hover:border-amber-800/40 font-bold text-xs uppercase rounded-lg flex items-center gap-1.5 transition-all duration-150"
+            >
+              <Calendar size={13} /> Reset Period
+            </Button>
 
             {/* RESET ALL — destruktif, subtle */}
             <Button
@@ -1326,7 +1392,7 @@ export default function ReconciliationPage() {
 selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg-fin-page",
                                bank.is_matched && filters.status === 'BELUM' && "opacity-40 grayscale",
                                isHidden && "hidden",
-                               isBankPaired && "bg-emerald-600/10 border-l-4 border-l-emerald-500 shadow-[inset_0_0_20px_rgba(16,185,129,0.05)]",
+                               isBankPaired && "bg-violet-500/10 border-l-4 border-l-violet-500 shadow-[inset_0_0_20px_rgba(139,92,246,0.05)]",
 !isBankPaired && !isHidden && smartGroupValue !== null && hasExactMatch && "bg-emerald-500/10 border-l-2 border-l-emerald-200"
                             )}
                           >
@@ -1543,9 +1609,10 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                            id={`suggestion-${sug.id}`}
                                            className={cn(
                                               "p-3 border-fin-border hover:border-indigo-500/50 transition-all cursor-pointer group shadow-sm hover:shadow-md relative overflow-hidden",
-                                              pairedWith ? "border-emerald-500 bg-emerald-600/10 shadow-[0_0_15px_rgba(16,185,129,0.1)]" : "bg-fin-surface",
+                                              pairedWith ? "border-violet-500 bg-violet-500/10 shadow-[0_0_15px_rgba(139,92,246,0.1)]" : "bg-fin-surface",
                                               selectedBkuIds.includes(sug.id) && !pairedWith && "border-ds-focus-ring bg-fin-info-bg/30",
-                                              sug.suggestion_type === 'EXACT' && !pairedWith && "border-emerald-500/30 bg-emerald-500/10"
+                                              sug.suggestion_type === 'EXACT' && !pairedWith && "border-emerald-500/30 bg-emerald-500/10",
+                                              sug.tipe === 'GRUP_POTONGAN' && !pairedWith && "border-amber-500/30 bg-amber-500/10"
                                            )}
                                            onClick={() => {
                                               if (selectedBkuIds.includes(sug.id)) {
@@ -1557,14 +1624,14 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                         >
                                            {/* Status Badge (Locked Slot) */}
                                            {pairedWith && (
-                                              <div className="absolute top-0 left-0 bg-red-600 text-black text-[8px] font-black px-2 py-1 rounded-br-lg shadow-sm flex items-center gap-1 z-20">
-                                                 <Lock size={10} className="fill-black" />
-                                                 SLOT #{pairedWith}
+                                              <div className="absolute top-0 left-0 bg-violet-600 text-white text-[8px] font-black px-2 py-1 rounded-br-lg shadow-sm flex items-center gap-1 z-20">
+                                                 <Brain size={10} className="fill-white animate-pulse" />
+                                                 REKOMENDASI DRAF #{pairedWith}
                                               </div>
                                            )}
                                            {/* Pairing Toolbar (Manual Labeling) */}
                                            <div className="absolute top-2 right-2 z-30 opacity-0 group-hover:opacity-100 transition-opacity">
-                                               <Combobox
+                                               <Select
                                                   value={pairedWith || "none"}
                                                   onValueChange={(val) => {
                                                      if (val === "none") {
@@ -1587,56 +1654,24 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                                         return next;
                                                      });
                                                   }}
-                                                  placeholder="Pair with..."
-                                                  className="h-7 w-28"
-                                                  size="sm"
-                                                  options={[
-                                                     { value: 'none', label: 'Lepas Pairing' },
-                                                     ...selectedBankIds.map((_, idx) => {
+                                               >
+                                                  <SelectTrigger className="h-7 w-28 text-xs bg-fin-surface border-fin-border">
+                                                     <SelectValue placeholder="Pair with..." />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                     <SelectItem value="none">Lepas Pairing</SelectItem>
+                                                     {selectedBankIds.map((_, idx) => {
                                                         const s = (idx + 1).toString();
                                                         const isPairedToOther = Object.keys(manualPairingMap).includes(s) && manualPairingMap[Number(s)] !== sug.id;
-                                                        return { value: s, label: `Slot Bank #${s}${isPairedToOther ? ' (Used)' : ''}`, disabled: isPairedToOther };
-                                                     }),
-                                                  ]}
-                                               />
-                                              {/* OLD BUTTONS REMOVED */}
-                                               {false && selectedBankIds.map((_, idx) => {
-                                                 const seq = idx + 1;
-                                                 const isThisSeq = pairedWith === seq.toString();
-                                                 const isOtherPaired = Object.keys(manualPairingMap).includes(seq.toString()) && !isThisSeq;
-                                                 
-                                                 return (
-                                                    <button
-                                                       key={idx}
-                                                       onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          setManualPairingMap(prev => {
-                                                             const next = { ...prev };
-                                                             if (isThisSeq) {
-                                                                delete next[seq];
-                                                                setSelectedBkuIds(prevIds => prevIds.filter((id: number) => id !== sug.id));
-                                                             } else {
-                                                                Object.keys(next).forEach(k => { if(next[Number(k)] === sug.id) delete next[Number(k)]; });
-                                                                next[seq] = sug.id;
-                                                                setSelectedBkuIds(prevIds => [...new Set([...prevIds, sug.id])]);
-                                                             }
-                                                             return next;
-                                                          });
-                                                       }}
-                                                       className={cn(
-                                                          "w-5 h-5 rounded flex items-center justify-center text-[8px] font-black transition-all",
-                                                          isOtherPaired && "opacity-20 cursor-not-allowed"
-                                                       )}
-                                                    >
-                                                       #{seq}
-                                                    </button>
-                                                 );
-                                              })}
+                                                        return (
+                                                           <SelectItem key={s} value={s} disabled={isPairedToOther}>
+                                                              Slot Bank #{s}{isPairedToOther ? ' (Used)' : ''}
+                                                           </SelectItem>
+                                                        );
+                                                     })}
+                                                  </SelectContent>
+                                               </Select>
                                            </div>
-
-
-
-                                           {/* Progress bar matching background */}
                                            <div className="absolute bottom-0 left-0 h-1 bg-ds-primary/10 w-full">
                                               <div className="h-full bg-ds-primary" style={{ width: `${matchPercent}%` }}></div>
                                            </div>
@@ -1646,8 +1681,9 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                                  <div className="flex items-center gap-1.5 min-w-0">
                                                     <Badge className={cn(
                                                        "text-[7px] h-3.5 px-1 font-black border-none shrink-0",
+                                                       sug.tipe === 'GRUP_POTONGAN' ? "bg-amber-500" :
                                                        sug.suggestion_type === 'EXACT' ? "bg-emerald-500" : "bg-ds-primary"
-                                                    )}>{sug.suggestion_type === 'EXACT' ? 'MATCH' : sug.source}</Badge>
+                                                    )}>{sug.tipe === 'GRUP_POTONGAN' ? 'GRUP' : sug.suggestion_type === 'EXACT' ? 'MATCH' : sug.source}</Badge>
                                                     <span className="text-[9px] font-black text-fin-text-muted uppercase tracking-tighter truncate max-w-[100px]">{sug.bukti}</span>
                                                      {sug.integrity_mismatch && (
                                                         <TooltipProvider>
@@ -1689,6 +1725,11 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                                        <span className="text-[8px] font-bold text-fin-text-muted">{sug.tanggal ? format(new Date(sug.tanggal), 'dd/MM/yy') : '-'}</span>
                                                     </div>
                                                  </div>
+                                                 {sug.tipe === 'GRUP_POTONGAN' && (
+                                                    <p className="text-[9px] font-black text-amber-600 leading-tight truncate uppercase">
+                                                       Grup potongan SP2D — {sug.jumlah_item} rincian
+                                                    </p>
+                                                 )}
                                                  <p className="text-[9px] font-bold text-fin-text-primary leading-tight line-clamp-1 uppercase italic">{sug.uraian}</p>
                                               </div>
 
@@ -1744,13 +1785,13 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                                                          : '/reports/reconciliation/match-individual';
                                                                       
                                                                       const customNote = aiNotes[sug.id] || manualRef || 'Konfirmasi Instan AI';
-                                                                      const payload = isMultiple 
+                                                                      const payload = isMultiple
                                                                          ? { bkuId: sug.id, bankIds: selectedBankIds, keterangan_admin: customNote }
-                                                                         : { 
-                                                                            bkuId: sug.id, 
-                                                                            bankId: selectedBankIds[0], 
-                                                                            match_type: sug.match_mode, // Gunakan match_mode dari AI
-                                                                            keterangan_admin: customNote 
+                                                                         : {
+                                                                            bkuId: sug.id,
+                                                                            bankId: selectedBankIds[0],
+                                                                            match_type: sug.tipe === 'GRUP_POTONGAN' ? 'GRUP_POTONGAN' : sug.match_mode,
+                                                                            keterangan_admin: customNote
                                                                          };
 
                                                                       await api.post(endpoint, payload);
@@ -1971,7 +2012,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                 {isMatching || batchProgress.isOpen ? <Loader2 className="animate-spin mr-2" size={12} /> : (
                   smartGroupValue !== null ? <Brain className="mr-2 text-amber-400" size={12} /> : (isBalancedForDisplay ? <Zap className="mr-2 fill-current" size={12} /> : <Lock size={12} className="mr-2" />)
                 )}
-                {smartGroupValue !== null ? `Rekon Massal (${selectedBankIds.length})` : (isBalancedForDisplay ? "Eksekusi Rekon" : "Kunci Balance")}
+                {smartGroupValue !== null ? `Setujui Rekomendasi (${selectedBankIds.length})` : (isBalancedForDisplay ? "Eksekusi Rekon" : "Kunci Balance")}
               </Button>
 
               <Button 
@@ -2249,6 +2290,69 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
         </DialogContent>
       </Dialog>
 
+      {/* RESET RANGE DIALOG */}
+      <Dialog open={resetRangeModal.isOpen} onOpenChange={(open) => setResetRangeModal(prev => ({ ...prev, isOpen: open }))}>
+        <DialogContent className="max-w-md bg-fin-surface rounded-xl p-0 overflow-hidden border border-fin-border shadow-2xl">
+          <div className="bg-amber-600 p-8 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+            <div className="relative z-10 flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center mb-4 backdrop-blur-md border border-white/30">
+                <Calendar size={32} className="text-white" />
+              </div>
+              <h2 className="text-xl font-black uppercase tracking-widest text-white">Reset Periode</h2>
+              <p className="text-amber-100 text-[10px] font-bold mt-2 uppercase tracking-tight">Batalkan pencocokan berdasarkan tanggal</p>
+            </div>
+          </div>
+          
+          <div className="p-8 space-y-6">
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-center">
+              <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase leading-relaxed">
+                Fitur ini akan mereset (Unmatch) semua transaksi bank dan BKU yang berada di dalam rentang tanggal pencairan yang dipilih.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-fin-text-muted uppercase">Tanggal Awal</label>
+                <Input 
+                  type="date"
+                  className="h-14 bg-fin-page border-fin-border rounded-xl font-black text-fin-text-primary focus:ring-amber-500/20 focus:border-amber-500/50 transition-all"
+                  value={resetRangeModal.startDate}
+                  onChange={(e) => setResetRangeModal(prev => ({ ...prev, startDate: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-fin-text-muted uppercase">Tanggal Akhir</label>
+                <Input 
+                  type="date"
+                  className="h-14 bg-fin-page border-fin-border rounded-xl font-black text-fin-text-primary focus:ring-amber-500/20 focus:border-amber-500/50 transition-all"
+                  value={resetRangeModal.endDate}
+                  onChange={(e) => setResetRangeModal(prev => ({ ...prev, endDate: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button 
+                onClick={handleResetRange}
+                disabled={!resetRangeModal.startDate || !resetRangeModal.endDate || isMatching}
+                className="flex-1 h-14 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-amber-900/20 transition-all active:scale-95"
+              >
+                {isMatching ? <Loader2 className="animate-spin mr-2" /> : <RefreshCw className="mr-2" size={14} />}
+                Eksekusi Reset
+              </Button>
+              <Button 
+                variant="ghost" 
+                onClick={() => setResetRangeModal({ isOpen: false, startDate: '', endDate: '' })}
+                className="h-14 px-6 rounded-xl font-black text-[10px] uppercase text-fin-text-muted hover:bg-fin-page"
+              >
+                Batal
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* FOOTER PAGER */}
       <div className="flex flex-col md:flex-row justify-between items-center py-6 border-t border-fin-border mt-10">
          <p className="text-[11px] font-bold text-fin-text-muted uppercase tracking-widest">
@@ -2264,41 +2368,27 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
       {/* BATCH PROGRESS OVERLAY */}
       <AnimatePresence>
         {batchProgress.isOpen && (
-          <motion.div 
-             initial={{ opacity: 0, y: 50 }}
-             animate={{ opacity: 1, y: 0 }}
-             exit={{ opacity: 0, y: 50 }}
-             className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] w-96"
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] w-[22rem]"
           >
-             <Card className="bg-fin-surface border-fin-border text-fin-text-primary p-6 shadow-2xl rounded-xl">
-                <div className="flex flex-col items-center text-center space-y-4">
-                   <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center border border-white/20">
-                      <RefreshCw size={24} className="text-emerald-400 animate-spin" />
-                   </div>
-                    <div className="space-y-1">
-                       <h3 className="text-sm font-black uppercase tracking-widest text-emerald-400">Verifikasi Integritas</h3>
-                       <p className="text-[9px] font-bold text-fin-text-muted uppercase tracking-tight">Memproses Pasangan Data Autentik...</p>
-                    </div>
-                    <div className="w-full space-y-3">
-                       <div className="flex justify-between items-center px-1">
-                          <div className="flex flex-col items-start">
-                             <span className="text-[8px] font-black text-fin-text-muted uppercase">Processing Pair</span>
-                             <span className="text-[10px] font-black text-white">Bank ID: #{selectedBankIds[batchProgress.current]?.toString().substring(0,8) || '-'}</span>
-                          </div>
-                          <div className="flex flex-col items-end">
-                             <span className="text-[8px] font-black text-fin-text-muted uppercase">Progress</span>
-                             <span className="text-[10px] font-black text-emerald-400">{batchProgress.current} / {batchProgress.total}</span>
-                          </div>
-                       </div>
-                       <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/10 p-0.5">
-                          <div 
-                             className="h-full bg-gradient-to-r from-emerald-600 to-teal-400 rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" 
-                             style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
-                          />
-                       </div>
-                    </div>
+            <ProgressCard
+              current={batchProgress.current}
+              total={batchProgress.total}
+              title="Verifikasi Integritas"
+              leftLabel="Pair diproses"
+              rightContent={
+                <div className="text-right">
+                  <p className="text-[8px] text-white/30 uppercase tracking-widest">Bank ID</p>
+                  <p className="text-[11px] font-mono font-black text-white/60 tabular-nums truncate max-w-[7rem]">
+                    #{selectedBankIds[batchProgress.current]?.toString().substring(0, 10) || '—'}
+                  </p>
                 </div>
-             </Card>
+              }
+            />
           </motion.div>
         )}
       </AnimatePresence>

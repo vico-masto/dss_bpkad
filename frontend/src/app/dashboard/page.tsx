@@ -111,6 +111,7 @@ export default function DashboardPage() {
   const [searchOpd, setSearchOpd] = useState('');
   const [showAnomalyModal, setShowAnomalyModal] = useState(false);
   const [selectedOpd, setSelectedOpd] = useState<string | null>(null);
+  const [valuesHidden, setValuesHidden] = useState(true);
   
   // Pagu Modal States
   const [formPagu, setFormPagu] = useState({ opd: '', nilai: 0, jenis: 'MURNI' });
@@ -237,6 +238,9 @@ export default function DashboardPage() {
   const trendData = [...intelligence.trends].reverse();
 
 
+  const mv = (n: number) => valuesHidden ? '••••••' : formatCurrency(n);
+  const mp = (n: number, d = 1) => valuesHidden ? '—' : n.toFixed(d);
+
   return (
     <TooltipProvider>
       <AnimatePresence mode="wait">
@@ -294,6 +298,20 @@ export default function DashboardPage() {
                 </select>
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setValuesHidden(v => !v)}
+                  title={valuesHidden ? 'Tampilkan Nilai' : 'Sembunyikan Nilai'}
+                  className={cn(
+                    "h-9 w-9 rounded-xl border-fin-border transition-all shadow-sm",
+                    valuesHidden
+                      ? "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                      : "bg-fin-surface text-fin-info-text hover:border-indigo-100"
+                  )}
+                >
+                  {valuesHidden ? <EyeOff size={15} /> : <Eye size={15} />}
+                </Button>
                 <Button variant="outline" size="icon" onClick={fetchAllData} className="h-9 w-9 bg-fin-surface border-fin-border rounded-xl text-fin-text-muted hover:text-fin-info-text hover:border-indigo-100 transition-all shadow-sm">
                   <RefreshCw size={16} className={cn(loading && "animate-spin")} />
                 </Button>
@@ -322,18 +340,18 @@ export default function DashboardPage() {
                     <Building2 className="w-3.5 h-3.5 text-blue-200" />
                   </div>
                 </div>
-                <p className="text-lg font-bold text-white truncate tabular-nums" title={formatCurrency(summary.totalPagu)}>
-                   {formatCurrency(summary.totalPagu)}
+                <p className="text-lg font-bold text-white truncate tabular-nums" title={valuesHidden ? '••••••' : formatCurrency(summary.totalPagu)}>
+                   {mv(summary.totalPagu)}
                 </p>
               </div>
               <div className="mt-3 space-y-2">
                 <div className="flex justify-between items-end gap-2">
                    <div className="flex flex-col min-w-0">
                       <span className="text-[8px] font-bold text-blue-200/60 uppercase tracking-wider">Tersedia</span>
-                      <span className="text-xs font-black text-white truncate">{formatCurrency(summary.totalKetersediaan || 0)}</span>
+                      <span className="text-xs font-black text-white truncate">{mv(summary.totalKetersediaan || 0)}</span>
                    </div>
                    <span className="text-[9px] font-black text-emerald-300 bg-white/10 px-1.5 py-0.5 rounded-lg shrink-0">
-                     {(summary.ketersediaanPersen || 0).toFixed(1)}%
+                     {mp(summary.ketersediaanPersen || 0)}%
                    </span>
                 </div>
 
@@ -353,11 +371,11 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between gap-1 mt-1 text-[7.5px] font-black uppercase tracking-tighter">
                    <div className="flex items-center gap-1 min-w-0">
                       <div className="w-1.5 h-1.5 rounded-full bg-blue-300 shrink-0" />
-                      <span className="text-blue-200/60 truncate">SiLPA: {(summary.silpaPersen || 0).toFixed(1)}%</span>
+                      <span className="text-blue-200/60 truncate">SiLPA: {mp(summary.silpaPersen || 0)}%</span>
                    </div>
                    <div className="flex items-center gap-1 min-w-0">
                       <div className="w-1.5 h-1.5 rounded-full bg-emerald-300 shrink-0" />
-                      <span className="text-blue-200/60 truncate">Masuk: {(summary.realisasiPersen || 0).toFixed(1)}%</span>
+                      <span className="text-blue-200/60 truncate">Masuk: {mp(summary.realisasiPersen || 0)}%</span>
                    </div>
                 </div>
               </div>
@@ -383,15 +401,15 @@ export default function DashboardPage() {
                     <ArrowDownCircle className="w-3.5 h-3.5 text-red-200" />
                   </div>
                 </div>
-                <p className="text-lg font-bold text-white truncate tabular-nums" title={formatCurrency(summary.totalPengeluaran || 0)}>
-                   {formatCurrency(summary.totalPengeluaran || 0)}
+                <p className="text-lg font-bold text-white truncate tabular-nums" title={valuesHidden ? '••••••' : formatCurrency(summary.totalPengeluaran || 0)}>
+                   {mv(summary.totalPengeluaran || 0)}
                 </p>
               </div>
               <div className="mt-3 space-y-2">
                 <div className="flex justify-between items-center">
                    <span className="text-[8px] font-bold text-red-200/60 uppercase tracking-wider">Penyerapan</span>
                    <span className="text-[9px] font-black text-red-200 bg-white/10 px-1.5 py-0.5 rounded-lg">
-                     {(summary.belanjaPersen || 0).toFixed(1)}%
+                     {mp(summary.belanjaPersen || 0)}%
                    </span>
                 </div>
                 <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
@@ -424,8 +442,8 @@ export default function DashboardPage() {
                     <Wallet size={14} className="text-emerald-200" />
                   </div>
                 </div>
-                <p className={cn("text-lg font-bold tabular-nums truncate", summary.kasEfektif < 0 ? "text-red-300" : "text-white")} title={formatCurrency(summary.kasEfektif)}>
-                  {formatCurrency(summary.kasEfektif)}
+                <p className={cn("text-lg font-bold tabular-nums truncate", summary.kasEfektif < 0 ? "text-red-300" : "text-white")} title={valuesHidden ? '••••••' : formatCurrency(summary.kasEfektif)}>
+                  {mv(summary.kasEfektif)}
                 </p>
               </div>
               <div className="mt-3">
@@ -457,8 +475,8 @@ export default function DashboardPage() {
                     <Building2 className="w-3.5 h-3.5 text-violet-200" />
                   </div>
                 </div>
-                <p className="text-lg font-bold text-white truncate tabular-nums" title={formatCurrency(summary.totalKasFisik)}>
-                   {formatCurrency(summary.totalKasFisik)}
+                <p className="text-lg font-bold text-white truncate tabular-nums" title={valuesHidden ? '••••••' : formatCurrency(summary.totalKasFisik)}>
+                   {mv(summary.totalKasFisik)}
                 </p>
               </div>
               <div className="mt-3 flex items-center gap-2">
@@ -582,7 +600,7 @@ export default function DashboardPage() {
                         "text-xs font-black tabular-nums",
                         (trendData[trendData.length-1]?.pendapatan - trendData[trendData.length-1]?.pengeluaran) >= 0 ? "text-[#12B76A]" : "text-[#F04438]"
                      )}>
-                        {formatCurrency(trendData[trendData.length-1]?.pendapatan - trendData[trendData.length-1]?.pengeluaran)}
+                        {mv(trendData[trendData.length-1]?.pendapatan - trendData[trendData.length-1]?.pengeluaran)}
                      </p>
                   </div>
                   
@@ -593,9 +611,9 @@ export default function DashboardPage() {
                      </div>
                      <div className="flex items-center gap-1">
                         <p className="text-xs font-black text-fin-text-primary">
-                           {trendData.length > 1 
+                           {valuesHidden ? '—' : (trendData.length > 1
                               ? (((trendData[trendData.length-1]?.pendapatan - trendData[trendData.length-2]?.pendapatan) / (trendData[trendData.length-2]?.pendapatan || 1)) * 100).toFixed(1)
-                              : '0.0'}%
+                              : '0.0')}%
                         </p>
                         {trendData.length > 1 && (trendData[trendData.length-1]?.pendapatan > trendData[trendData.length-2]?.pendapatan) 
                            ? <ChevronUp size={12} className="text-[#12B76A]" /> 
@@ -609,7 +627,7 @@ export default function DashboardPage() {
                         <span className="text-[10px] font-bold tracking-wider">Budget Efficiency</span>
                      </div>
                      <p className="text-xs font-black text-fin-text-primary">
-                        {((trendData[trendData.length-1]?.pengeluaran / (trendData[trendData.length-1]?.pendapatan || 1)) * 100).toFixed(1)}%
+                        {valuesHidden ? '—' : ((trendData[trendData.length-1]?.pengeluaran / (trendData[trendData.length-1]?.pendapatan || 1)) * 100).toFixed(1)}%
                      </p>
                   </div>
                </div>
@@ -624,7 +642,7 @@ export default function DashboardPage() {
                   <div className="min-w-0">
                      <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest truncate">Avg. Inflow</p>
                      <p className="text-base font-black text-fin-text-primary tabular-nums truncate">
-                        {formatCurrency(trendData[trendData.length-1]?.pendapatan || 0)}
+                        {mv(trendData[trendData.length-1]?.pendapatan || 0)}
                      </p>
                   </div>
                </motion.div>
@@ -635,7 +653,7 @@ export default function DashboardPage() {
                   <div className="min-w-0">
                      <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest truncate">Avg. Outflow</p>
                      <p className="text-base font-black text-fin-text-primary tabular-nums truncate">
-                        {formatCurrency(trendData[trendData.length-1]?.pengeluaran || 0)}
+                        {mv(trendData[trendData.length-1]?.pengeluaran || 0)}
                      </p>
                   </div>
                </motion.div>
@@ -680,16 +698,16 @@ export default function DashboardPage() {
                         <div className="max-w-[85%] flex flex-col items-center justify-center">
                            <p className="text-[9px] font-bold text-fin-text-muted uppercase tracking-tighter mb-0.5">Kas Bersih</p>
                            <p className="text-[10px] font-black text-fin-text-primary tabular-nums leading-tight break-all">
-                              {formatCurrency(kasBebas + kasEarmark)}
+                              {mv(kasBebas + kasEarmark)}
                            </p>
                         </div>
                      </div>
                   </div>
  
                   <div className="mt-4 space-y-2">
-                     <AiSmallRow icon={<div className="w-2 h-2 rounded bg-[#12B76A]" />} label="Kas Bebas" value={formatCurrency(kasBebas)} color="text-[#12B76A]" />
-                     <AiSmallRow icon={<div className="w-2 h-2 rounded bg-[#F79009]" />} label="Kas Earmark" value={formatCurrency(kasEarmark)} color="text-[#F79009]" />
-                     <AiSmallRow icon={<div className="w-2 h-2 rounded bg-[#F04438]" />} label="Talangan" value={formatCurrency(totalTalangan)} color="text-[#F04438]" />
+                     <AiSmallRow icon={<div className="w-2 h-2 rounded bg-[#12B76A]" />} label="Kas Bebas" value={mv(kasBebas)} color="text-[#12B76A]" />
+                     <AiSmallRow icon={<div className="w-2 h-2 rounded bg-[#F79009]" />} label="Kas Earmark" value={mv(kasEarmark)} color="text-[#F79009]" />
+                     <AiSmallRow icon={<div className="w-2 h-2 rounded bg-[#F04438]" />} label="Talangan" value={mv(totalTalangan)} color="text-[#F04438]" />
                   </div>
                 </div>
              </Card>
@@ -706,7 +724,7 @@ export default function DashboardPage() {
                <div className="min-w-0">
                   <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest truncate">Talangan Aktif</p>
                   <p className="text-base font-black text-fin-text-primary tabular-nums truncate">
-                     {formatCurrency(totalTalangan)}
+                     {mv(totalTalangan)}
                   </p>
                </div>
              </motion.div>
@@ -763,7 +781,7 @@ export default function DashboardPage() {
                                             "text-base font-black tabular-nums leading-none",
                                             item.kas_efektif > 0 ? "text-[#12B76A]" : "text-[#F04438]"
                                          )}>
-                                            {formatCurrency(item.kas_efektif)}
+                                            {mv(item.kas_efektif)}
                                          </p>
                                       </div>
                                    </div>
@@ -771,18 +789,18 @@ export default function DashboardPage() {
                                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-fin-border mt-auto">
                                       <div className="space-y-0.5">
                                          <p className="text-[8px] font-bold text-fin-text-muted tracking-widest">Total Inflow</p>
-                                         <p className="text-[10px] font-bold text-fin-text-primary tabular-nums">{formatCurrency(item.total_masuk)}</p>
+                                         <p className="text-[10px] font-bold text-fin-text-primary tabular-nums">{mv(item.total_masuk)}</p>
                                       </div>
                                       <div className="space-y-0.5">
                                          <p className="text-[8px] font-bold text-fin-text-muted tracking-widest">Total Outflow</p>
-                                         <p className="text-[10px] font-bold text-[#D92D20] tabular-nums">{formatCurrency(item.total_keluar)}</p>
+                                         <p className="text-[10px] font-bold text-[#D92D20] tabular-nums">{mv(item.total_keluar)}</p>
                                       </div>
                                    </div>
-                                   
+
                                    {item.talangan_diberikan > 0 && (
                                       <div className="mt-3 flex items-center gap-1.5 text-[#B42318] bg-[#FEF3F2] px-2 py-1 rounded-lg">
                                          <AlertCircle size={10} />
-                                         <span className="text-[9px] font-black">Terikat Talangan: {formatCurrency(item.talangan_diberikan)}</span>
+                                         <span className="text-[9px] font-black">Terikat Talangan: {mv(item.talangan_diberikan)}</span>
                                       </div>
                                    )}
                                 </Card>
@@ -812,7 +830,7 @@ export default function DashboardPage() {
                                             "text-base font-black tabular-nums leading-none",
                                             item.kas_efektif > 0 ? "text-[#12B76A]" : "text-[#F04438]"
                                          )}>
-                                            {formatCurrency(item.kas_efektif)}
+                                            {mv(item.kas_efektif)}
                                          </p>
                                       </div>
                                    </div>
@@ -820,11 +838,11 @@ export default function DashboardPage() {
                                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-fin-border mt-auto">
                                       <div className="space-y-0.5">
                                          <p className="text-[8px] font-bold text-fin-text-muted tracking-widest">Total Inflow</p>
-                                         <p className="text-[10px] font-bold text-fin-text-primary tabular-nums">{formatCurrency(item.total_masuk)}</p>
+                                         <p className="text-[10px] font-bold text-fin-text-primary tabular-nums">{mv(item.total_masuk)}</p>
                                       </div>
                                       <div className="space-y-0.5">
                                          <p className="text-[8px] font-bold text-fin-text-muted tracking-widest">Total Outflow</p>
-                                         <p className="text-[10px] font-bold text-[#D92D20] tabular-nums">{formatCurrency(item.total_keluar)}</p>
+                                         <p className="text-[10px] font-bold text-[#D92D20] tabular-nums">{mv(item.total_keluar)}</p>
                                       </div>
                                    </div>
                                 </Card>
@@ -885,7 +903,7 @@ export default function DashboardPage() {
                          <Card className="p-4 bg-fin-page border-none shadow-none flex flex-col justify-between">
                             <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest">Realisasi Bruto</p>
                             <div className="flex items-end justify-between mt-1">
-                               <h4 className="text-xl font-black text-rose-600 truncate">{formatCurrency(analytics.summary.total_bruto)}</h4>
+                               <h4 className="text-xl font-black text-rose-600 truncate">{mv(analytics.summary.total_bruto)}</h4>
                                <div className="p-1.5 bg-rose-50 text-rose-600 rounded-lg"><ArrowDownCircle size={14} /></div>
                             </div>
                          </Card>
@@ -933,7 +951,7 @@ export default function DashboardPage() {
                                      </div>
                                      <div className="flex-1 min-w-0">
                                         <p className={cn("text-xs font-bold truncate group-hover:text-fin-info-text transition-colors", selectedOpd === opd.opd ? "text-fin-info-text" : "text-fin-text-primary")}>{opd.opd}</p>
-                                        <p className="text-[10px] font-medium text-fin-text-muted tabular-nums">{formatCurrency(opd.total_nilai)}</p>
+                                        <p className="text-[10px] font-medium text-fin-text-muted tabular-nums">{mv(opd.total_nilai)}</p>
                                      </div>
                                      <div className="text-right">
                                         <p className="text-[10px] font-black text-fin-text-primary">{((opd.total_nilai / (summary.totalPengeluaran || 1)) * 100).toFixed(1)}%</p>
@@ -958,7 +976,7 @@ export default function DashboardPage() {
                                      <div className="grid grid-cols-2 gap-8 mt-6">
                                         <div className="space-y-1">
                                            <p className="text-[9px] font-bold text-indigo-300 uppercase tracking-[0.2em]">Total Realisasi</p>
-                                            <p className="text-2xl font-black tabular-nums">{formatCurrency(analytics.opdStats.find((o: any) => o.opd === selectedOpd)?.total_nilai || 0)}</p>
+                                            <p className="text-2xl font-black tabular-nums">{mv(analytics.opdStats.find((o: any) => o.opd === selectedOpd)?.total_nilai || 0)}</p>
                                         </div>
                                         <div className="space-y-1">
                                            <p className="text-[9px] font-bold text-indigo-300 uppercase tracking-[0.2em]">Volume Transaksi</p>
@@ -996,7 +1014,7 @@ export default function DashboardPage() {
                                                     <div key={jenisName} className="space-y-1.5">
                                                        <div className="flex justify-between items-center text-[10px] font-bold">
                                                           <span className="text-fin-text-muted uppercase tracking-tight">{jenisName}</span>
-                                                          <span className="text-fin-text-primary">{formatCurrency(detail.total_nilai)}</span>
+                                                          <span className="text-fin-text-primary">{mv(detail.total_nilai)}</span>
                                                        </div>
                                                        <div className="h-2 w-full bg-fin-page rounded-full overflow-hidden">
                                                           <motion.div 
@@ -1027,7 +1045,7 @@ export default function DashboardPage() {
                                                     <span className="text-[9px] font-bold text-fin-text-muted">{format(new Date(tx.tanggal), 'dd/MM/yy')}</span>
                                                  </div>
                                                  <p className="text-[10px] font-medium text-fin-text-primary line-clamp-2 leading-relaxed italic">"{tx.uraian}"</p>
-                                                 <p className="text-xs font-black text-fin-text-primary mt-1 text-right">{formatCurrency(tx.nilai_bruto)}</p>
+                                                 <p className="text-xs font-black text-fin-text-primary mt-1 text-right">{mv(tx.nilai_bruto)}</p>
                                               </div>
                                            ))}
                                            {analytics.recentTransactions.filter((t: any) => 

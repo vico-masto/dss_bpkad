@@ -79,16 +79,19 @@ export async function POST(req: NextRequest) {
   }
   thead { display: table-header-group; }
   tr    { page-break-inside: avoid; }
-  th, td { border: 1px solid #000; padding: 7px 8px; }
+  th, td { border: 1px solid #000; padding: 7px 8px; word-break: break-word; overflow-wrap: break-word; }
   th { background-color: #f0f4f8; text-align: center; }
   
   .total-row  { font-weight: bold; background-color: #f0f4f8; }
   .ok-row     { font-weight: bold; background-color: #e8f5e9; }
   .warn-row   { font-weight: bold; background-color: #fff3e0; }
 
-  .signature-row { display: flex; width: 100%; margin-top: 30px; }
-  .sig-col { width: 50%; text-align: center; }
-  .sig-space { height: 45px; }
+  /* LOCKED: sig-col flex-direction:column + sig-space flex:1 adalah kunci alignment nama
+     Pihak Kesatu dan Pihak Kedua — align-items:stretch memastikan kedua kolom sama tinggi,
+     sig-space flex:1 mendorong nama ke bawah sehingga selalu sejajar. JANGAN UBAH. */
+  .signature-row { display: flex; width: 100%; margin-top: 30px; align-items: stretch; }
+  .sig-col { width: 50%; text-align: center; display: flex; flex-direction: column; }
+  .sig-space { flex: 1; min-height: 45px; }
 </style>
 </head>
 <body>
@@ -106,7 +109,7 @@ export async function POST(req: NextRequest) {
   <!-- JUDUL -->
   <div class="title">
     <h3>BERITA ACARA REKONSILIASI KAS</h3>
-    <p>NOMOR: ${barConfig.noBar || '—'}</p>
+    <p>NOMOR: ${barConfig.noBar || ''}</p>
   </div>
 
   <!-- PARAGRAF PEMBUKA -->
@@ -118,37 +121,47 @@ export async function POST(req: NextRequest) {
       tahun <span class="font-bold italic">${terbilangThn}</span>, kami yang bertanda tangan di bawah ini:
     </p>
     <div style="margin-left: 28px; margin-top: 14px; margin-bottom: 14px;">
-      <table style="border:none; border-collapse:collapse; font-size:inherit; margin:0 0 10px 0;">
+      <table style="border:none; border-collapse:collapse; font-size:inherit; margin:0 0 10px 0; width:auto;">
         <tr><td style="border:none;padding:0;white-space:nowrap;vertical-align:top;width:14px;">1.</td>
             <td style="border:none;padding:0 0 0 4px;white-space:nowrap;vertical-align:top;width:52px;">Nama</td>
-            <td style="border:none;padding:0 3px;vertical-align:top;">:</td>
-            <td style="border:none;padding:0;vertical-align:top;"><span class="font-bold uppercase">${barConfig.pejabat1 || '—'}</span></td></tr>
+            <td style="border:none;padding:0 3px 0 0;vertical-align:top;">:</td>
+            <td style="border:none;padding:0;vertical-align:top;"><span class="font-bold">${barConfig.pejabat1 || '—'}</span></td></tr>
+        ${barConfig.showPangkat && barConfig.pangkat1 ? `<tr><td style="border:none;padding:0;"></td>
+            <td style="border:none;padding:0 0 0 4px;white-space:nowrap;vertical-align:top;">Pangkat</td>
+            <td style="border:none;padding:0 3px 0 0;vertical-align:top;">:</td>
+            <td style="border:none;padding:0;vertical-align:top;">${barConfig.pangkat1}</td></tr>` : ''}
         <tr><td style="border:none;padding:0;"></td>
             <td style="border:none;padding:0 0 0 4px;white-space:nowrap;vertical-align:top;">Jabatan</td>
-            <td style="border:none;padding:0 3px;vertical-align:top;">:</td>
+            <td style="border:none;padding:0 3px 0 0;vertical-align:top;">:</td>
             <td style="border:none;padding:0;vertical-align:top;">${barConfig.jabatan1 || '—'}</td></tr>
         <tr><td style="border:none;padding:0;"></td>
             <td style="border:none;padding:0 0 0 4px;white-space:nowrap;vertical-align:top;">NIP</td>
-            <td style="border:none;padding:0 3px;vertical-align:top;">:</td>
+            <td style="border:none;padding:0 3px 0 0;vertical-align:top;">:</td>
             <td style="border:none;padding:0;vertical-align:top;">${barConfig.nip1 || '—'}</td></tr>
+        <!-- LOCKED: kalimat "Selanjutnya disebut sebagai PIHAK KESATU" wajib ada di bawah NIP -->
+        <tr><td style="border:none;padding:0;"></td>
+            <td colspan="3" style="border:none;padding:2px 0 0 4px;font-style:italic;">Selanjutnya disebut sebagai <strong>PIHAK KESATU</strong></td></tr>
       </table>
-      <table style="border:none; border-collapse:collapse; font-size:inherit; margin:0;">
+      <table style="border:none; border-collapse:collapse; font-size:inherit; margin:0; width:auto;">
         <tr><td style="border:none;padding:0;white-space:nowrap;vertical-align:top;width:14px;">2.</td>
             <td style="border:none;padding:0 0 0 4px;white-space:nowrap;vertical-align:top;width:52px;">Nama</td>
-            <td style="border:none;padding:0 3px;vertical-align:top;">:</td>
-            <td style="border:none;padding:0;vertical-align:top;"><span class="font-bold uppercase">${barConfig.pejabat2 || '—'}</span></td></tr>
+            <td style="border:none;padding:0 3px 0 0;vertical-align:top;">:</td>
+            <td style="border:none;padding:0;vertical-align:top;"><span class="font-bold">${barConfig.pejabat2 || '—'}</span></td></tr>
         <tr><td style="border:none;padding:0;"></td>
             <td style="border:none;padding:0 0 0 4px;white-space:nowrap;vertical-align:top;">Jabatan</td>
-            <td style="border:none;padding:0 3px;vertical-align:top;">:</td>
+            <td style="border:none;padding:0 3px 0 0;vertical-align:top;">:</td>
             <td style="border:none;padding:0;vertical-align:top;">${barConfig.jabatan2 || '—'}</td></tr>
         <tr><td style="border:none;padding:0;"></td>
             <td style="border:none;padding:0 0 0 4px;white-space:nowrap;vertical-align:top;">ID/NIP</td>
-            <td style="border:none;padding:0 3px;vertical-align:top;">:</td>
+            <td style="border:none;padding:0 3px 0 0;vertical-align:top;">:</td>
             <td style="border:none;padding:0;vertical-align:top;">${barConfig.nip2 || '—'}</td></tr>
+        <!-- LOCKED: kalimat "Selanjutnya disebut sebagai PIHAK KEDUA" wajib ada di bawah ID/NIP -->
+        <tr><td style="border:none;padding:0;"></td>
+            <td colspan="3" style="border:none;padding:2px 0 0 4px;font-style:italic;">Selanjutnya disebut sebagai <strong>PIHAK KEDUA</strong></td></tr>
       </table>
     </div>
     <p>
-      PIHAK KESATU dan PIHAK KEDUA secara bersama-sama telah melakukan rekonsiliasi atas data Kas pada Pemerintah Kabupaten Kepulauan Aru untuk periode bulan <span class="font-bold italic underline">${previewBlnRekonName}</span> Tahun Anggaran <span class="font-bold">${year}</span>.
+      Telah melakukan rekonsiliasi kas pada RKUD Nomor 080 103 6465 antara <span class="font-bold">Pihak Kesatu</span> Kuasa Bendahara Umum Daerah (KBUD) Kabupaten Kepulauan Aru dengan <span class="font-bold">Pihak Kedua</span> PT. Bank Maluku-Maluku Utara Cabang Dobo untuk Periode <span class="font-bold italic underline">${previewBlnRekonName}</span> Tahun Anggaran <span class="font-bold">${year}</span>, dengan hasil sebagai berikut:
     </p>
   </div>
 
@@ -160,43 +173,43 @@ export async function POST(req: NextRequest) {
 
   <!-- B. HASIL REKONSILIASI KAS -->
   <div class="section-title">B. HASIL REKONSILIASI KAS</div>
-  <table>
+  <table style="table-layout: fixed; width: 100%;">
     <thead>
       <tr>
-        <th style="width: 36px;">NO</th>
-        <th style="text-align: left;">URAIAN</th>
-        <th style="width: 190px; text-align: right;">JUMLAH (RP)</th>
+        <th style="width: 5%;">NO</th>
+        <th style="text-align: left; width: 65%;">URAIAN</th>
+        <th style="width: 30%; text-align: right;">JUMLAH (RP)</th>
       </tr>
     </thead>
     <tbody>
       <tr>
         <td class="text-center">1</td>
-        <td>SALDO AWAL KAS BKU (KAS DAERAH)</td>
+        <td>Saldo Awal Kas BKU (Kas Daerah)</td>
         <td class="text-right mono">${formatNum(saldoAwalKas)}</td>
       </tr>
       <tr>
         <td class="text-center">2</td>
-        <td>TOTAL PENERIMAAN KAS S.D. BULAN ${previewBlnRekonName.toUpperCase()}</td>
+        <td>Total Penerimaan Kas Bulan ${previewBlnRekonName}</td>
         <td class="text-right mono">${formatNum(displayPenerimaan)}</td>
       </tr>
       <tr>
         <td class="text-center">3</td>
-        <td>TOTAL PENGELUARAN KAS S.D. BULAN ${previewBlnRekonName.toUpperCase()}</td>
+        <td>Total Pengeluaran Kas Bulan ${previewBlnRekonName}</td>
         <td class="text-right mono">${formatNum(totalPengeluaran)}</td>
       </tr>
       <tr class="total-row">
         <td class="text-center">4</td>
-        <td>SALDO AKHIR BKU RKUD PER TANGGAL ${formattedLastDay}</td>
+        <td>Saldo Akhir BKU RKUD per Tanggal ${formattedLastDay}</td>
         <td class="text-right mono">${formatNum(saldoAkhirBKU)}</td>
       </tr>
       <tr class="total-row">
         <td class="text-center">5</td>
-        <td>SALDO REKENING KORAN BANK PER TANGGAL ${formattedLastDay}</td>
+        <td>Saldo Rekening Koran Bank per Tanggal ${formattedLastDay}</td>
         <td class="text-right mono">${formatNum(saldoBank)}</td>
       </tr>
       <tr class="${isSesuai ? 'ok-row' : 'warn-row'}">
         <td class="text-center">6</td>
-        <td>SELISIH (NO. 4 - NO. 5)</td>
+        <td>Selisih (No. 4 - No. 5)</td>
         <td class="text-right mono">${isSesuai ? 'NOL' : formatNum(selisihNilai)}</td>
       </tr>
     </tbody>
@@ -204,13 +217,13 @@ export async function POST(req: NextRequest) {
 
   <!-- C. RINCIAN SELISIH -->
   <div class="section-title">C. RINCIAN SELISIH (OUTSTANDING ITEMS)</div>
-  <table>
+  <table style="table-layout: fixed; width: 100%;">
     <thead>
       <tr>
-        <th style="width: 36px;">NO</th>
-        <th style="text-align: left; width: 140px;">REFERENSI / TIPE</th>
-        <th style="text-align: left;">KETERANGAN TRANSAKSI</th>
-        <th style="width: 160px; text-align: right;">NILAI (RP)</th>
+        <th style="width: 5%;">NO</th>
+        <th style="text-align: left; width: 22%;">REFERENSI / TIPE</th>
+        <th style="text-align: left; width: 48%;">KETERANGAN TRANSAKSI</th>
+        <th style="width: 25%; text-align: right;">NILAI (RP)</th>
       </tr>
     </thead>
     <tbody>
@@ -235,8 +248,9 @@ export async function POST(req: NextRequest) {
   <!-- D. KESIMPULAN -->
   <div class="text-justify" style="margin-bottom: 24px; page-break-inside: avoid;">
     <div class="section-title">D. KESIMPULAN</div>
+    <!-- LOCKED: Redaksi kalimat kesimpulan sudah dikunci — jangan ubah frasa "Rekening Koran RKUD pada PT. Bank Maluku-Maluku Utara Cabang Dobo" -->
     <p>
-      Berdasarkan hasil rekonsiliasi tersebut di atas, saldo Kas Rekening Kas Umum Daerah (RKUD) Kabupaten Kepulauan Aru per tanggal ${formattedLastDay} dinyatakan <span class="font-bold italic underline">${isSesuai ? 'SESUAI' : 'TERDAPAT SELISIH'}</span> antara Buku Kas Umum (BKU) dengan Rekening Koran ${barConfig.jabatan2 || '—'}.
+      Berdasarkan hasil rekonsiliasi tersebut di atas, saldo Kas Rekening Kas Umum Daerah (RKUD) Kabupaten Kepulauan Aru per tanggal ${formattedLastDay} dinyatakan <span class="font-bold italic underline">${isSesuai ? 'SESUAI' : 'TERDAPAT SELISIH'}</span> antara Buku Kas Umum (BKU) dengan Rekening Koran RKUD pada PT. Bank Maluku-Maluku Utara Cabang Dobo.
     </p>
     <p style="margin-top: 12px;">
       Demikian Berita Acara Rekonsiliasi Kas ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.
@@ -250,21 +264,24 @@ export async function POST(req: NextRequest) {
       <div class="sig-col">
         <p class="font-bold uppercase">PIHAK KESATU,<br>${barConfig.jabatan1 || '—'}</p>
         <div class="sig-space"></div>
-        <p class="font-bold uppercase underline" style="margin-bottom: 0;">${barConfig.pejabat1 || '—'}</p>
-        <p style="margin-top: 0;">NIP. ${barConfig.nip1 || '—'}</p>
+        <p class="font-bold uppercase underline" style="margin-bottom: 0; margin-top: 0;">${barConfig.pejabat1 || '—'}</p>
+        ${barConfig.showPangkat && barConfig.pangkat1 ? `<p style="margin-top: 2px; margin-bottom: 0;">${barConfig.pangkat1}</p>` : ''}
+        <p style="margin-top: 2px;">NIP. ${barConfig.nip1 || '—'}</p>
       </div>
       <div class="sig-col">
         <p class="font-bold uppercase">PIHAK KEDUA,<br>${barConfig.jabatan2 || '—'}</p>
         <div class="sig-space"></div>
-        <p class="font-bold uppercase underline" style="margin-bottom: 0;">${barConfig.pejabat2 || '—'}</p>
-        <p style="margin-top: 0;">NIP / ID. ${barConfig.nip2 || '—'}</p>
+        <p class="font-bold uppercase underline" style="margin-bottom: 0; margin-top: 0;">${barConfig.pejabat2 || '—'}</p>
+        ${barConfig.showPangkat && barConfig.pangkat1 ? `<p style="margin-top: 2px; margin-bottom: 0; visibility: hidden;">_</p>` : ''}
+        <p style="margin-top: 2px;">NIP / ID. ${barConfig.nip2 || '—'}</p>
       </div>
     </div>
     <div style="width: 100%; text-align: center; margin-top: 40px;">
       <p class="font-bold uppercase">Mengetahui,<br>${barConfig.jabatan3 || '—'}</p>
       <div class="sig-space"></div>
-      <p class="font-bold uppercase underline" style="margin-bottom: 0;">${barConfig.pejabat3 || '—'}</p>
-      <p style="margin-top: 0;">NIP. ${barConfig.nip3 || '—'}</p>
+      <p class="font-bold uppercase underline" style="margin-bottom: 0; margin-top: 0;">${barConfig.pejabat3 || '—'}</p>
+      ${barConfig.showPangkat && barConfig.pangkat3 ? `<p style="margin-top: 2px; margin-bottom: 0;">${barConfig.pangkat3}</p>` : ''}
+      <p style="margin-top: 2px;">NIP. ${barConfig.nip3 || '—'}</p>
     </div>
   </div>
 

@@ -7,7 +7,9 @@ import {
   Eye as EyeIcon,
   EyeOff as EyeOffIcon,
   ShieldAlert as AlertIcon,
-  CheckCircle2
+  CheckCircle2,
+  Lightbulb,
+  Info
 } from 'lucide-react';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -33,6 +35,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [error, setError] = useState('');
+  const [errorCode, setErrorCode] = useState('');
+  const [attemptCount, setAttemptCount] = useState(0);
   const router = useRouter();
 
   useEffect(() => {
@@ -45,10 +49,20 @@ export default function LoginPage() {
     }
   }, []);
 
+  // Helper untuk pesan error berbasis kode
+  const getErrorHint = (code: string) => {
+    const hints: Record<string, string> = {
+      'USER_NOT_FOUND': 'Periksa kembali username Anda. Pastikan sudah terdaftar di sistem BPKAD.',
+      'WRONG_PASSWORD': 'Periksa huruf kapital (Caps Lock) dan angka pada kata sandi Anda.',
+    };
+    return hints[code] || '';
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setErrorCode('');
     
     try {
       const response = await api.post('/auth/login', { username, password, role });
@@ -69,7 +83,12 @@ export default function LoginPage() {
       }, 1000);
 
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Kredensial tidak valid');
+      const msg = err.response?.data?.message || 'Koneksi ke server terputus. Silakan coba lagi.';
+      const code = err.response?.data?.code || '';
+      setError(msg);
+      setErrorCode(code);
+      setAttemptCount(prev => prev + 1);
+      setPassword('');
       setLoading(false);
     }
   };
@@ -265,15 +284,34 @@ export default function LoginPage() {
                   <p className="mt-2 text-xs text-fin-text-secondary leading-relaxed">Silakan masuk dengan kredensial terdaftar untuk mengelola audit kas daerah.</p>
                 </motion.div>
 
-                {/* Error Banner */}
+                {/* Error Banner — shake animation */}
                 {error && (
                   <motion.div
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-6 rounded-lg border border-fin-expense/20 bg-fin-expense-bg p-3.5 text-xs font-semibold text-fin-expense-text flex items-center gap-2.5"
+                    key={error}
+                    initial={{ opacity: 0, y: -8, x: 0 }}
+                    animate={{ 
+                      opacity: 1, y: 0, x: [0, -4, 4, -4, 4, -2, 2, 0],
+                    }}
+                    transition={{ duration: 0.5, ease: 'easeInOut' }}
+                    className="mb-6 rounded-lg border border-fin-expense/20 bg-fin-expense-bg p-4 text-xs text-fin-expense-text"
                   >
-                    <AlertIcon className="size-4 shrink-0" />
-                    <span>{error}</span>
+                    <div className="flex items-start gap-2.5">
+                      <AlertIcon className="size-4 shrink-0 mt-0.5" />
+                      <div className="space-y-1.5">
+                        <p className="font-semibold">{error}</p>
+                        {errorCode && (
+                          <p className="text-[11px] text-fin-expense-text/70 flex items-center gap-1.5 pt-0.5">
+                            <Lightbulb className="size-3 shrink-0" />
+                            {getErrorHint(errorCode)}
+                          </p>
+                        )}
+                        {attemptCount >= 2 && (
+                          <p className="text-[11px] text-fin-expense-text/50 pt-0.5">
+                            Percobaan ke-{attemptCount}. Jika lupa kredensial, hubungi administrator.
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </motion.div>
                 )}
 

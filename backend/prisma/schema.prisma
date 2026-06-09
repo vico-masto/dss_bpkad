@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -75,6 +76,7 @@ model data_sp2d {
   jenis_potongan    String?              @db.VarChar(100)
   status_dana       String?              @db.VarChar(50)
   status_rekon      String?              @default("BELUM") @db.VarChar(50)
+  sumber            String?              @default("MANUAL") @db.VarChar(20)
   file_url          String?
   created_at        DateTime?            @default(now()) @db.Timestamp(6)
   selisih_rekon     Decimal?             @default(0) @db.Decimal(15, 2)
@@ -202,6 +204,13 @@ model master_jenis_belanja {
   @@map("master_jenis_belanja")
 }
 
+model master_jenis_potongan {
+  id   String @id @db.VarChar(100)
+  nama String @unique @db.VarChar(255)
+
+  @@map("master_jenis_potongan")
+}
+
 model master_opd {
   id   String @id @db.VarChar(100)
   nama String @unique @db.VarChar(255)
@@ -273,3 +282,20 @@ model simulator_scenarios {
   created_at DateTime? @default(now()) @db.Timestamp(6)
   updated_at DateTime? @default(now()) @db.Timestamp(6)
 }
+
+model data_lra {
+  id            Int       @id @default(autoincrement())
+  tahun         Int
+  bulan         Int?
+  kode_rekening String    @db.VarChar(50)
+  uraian        String
+  anggaran      Decimal   @default(0) @db.Decimal(20, 2)
+  realisasi     Decimal   @default(0) @db.Decimal(20, 2)
+  keterangan    String?
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  updated_at    DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([tahun, bulan])
+  @@map("data_lra")
+}
+

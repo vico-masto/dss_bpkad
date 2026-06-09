@@ -98,9 +98,68 @@ class AIService {
   }
 
   /**
+   * Chat with Local Hermes Agent via 9Router Port 20128
+   */
+  async chatWithLocalHermes(message, history = [], systemPrompt = '') {
+    try {
+      const messages = [];
+      if (systemPrompt) {
+        messages.push({ role: 'system', content: systemPrompt });
+      }
+      
+      history.forEach(msg => {
+        messages.push({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content
+        });
+      });
+      
+      messages.push({ role: 'user', content: message });
+
+      // Send request to 9Router Local gateway running at port 20128
+      const response = await fetch('http://127.0.0.1:20128/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'ag/gemini-flash-2.0', // Fast, low-latency execution model
+          messages: messages,
+          stream: false
+        })
+      });
+
+      const data = await response.json();
+      if (data.choices && data.choices[0] && data.choices[0].message) {
+        return data.choices[0].message.content;
+      }
+      
+      throw new Error(data.error?.message || 'Error communicating with 9Router local');
+    } catch (err) {
+      console.error('[LOCAL HERMES GATEWAY ERROR]', err);
+      throw err;
+    }
+  }
+
+  /**
    * Smart routing (OpenRouter-First)
    */
   async getResponse(message, history = [], systemPrompt = '') {
+    // 1. Detect if caller uses Hermes Directives (@hermes or @antigravity)
+    const isHermesCommand = message.trim().toLowerCase().startsWith('@hermes') || 
+                            message.trim().toLowerCase().startsWith('@antigravity') ||
+                            message.trim().toLowerCase().startsWith('@bot');
+
+    if (isHermesCommand) {
+      const cleanMessage = message.replace(/^@(hermes|antigravity|bot)\s*/i, '');
+      const hermesSystemPrompt = `Anda adalah Antigravity (Hermes Agent Lokal), asisten cerdas Papi ViGit yang memiliki kendali otonom penuh atas PC ini. Papi memanggil Anda dari antarmuka Web DSS Kantor. Selesaikan tugasnya secara langsung, singkat, dan tepat sasaran. Gunakan Bahasa Indonesia dan sapa dengan "Papi ViGit".`;
+      try {
+        return await this.chatWithLocalHermes(cleanMessage, history, hermesSystemPrompt);
+      } catch (err) {
+        return `⚠️ **[Hermes Gateway Error]** Gagal menghubungi Agen Lokal di Port 20128.\nDetail: ${err.message}. Pastikan 9Router dan Hermes Workspace Anda aktif!`;
+      }
+    }
+
     if (this.openrouterKey) {
       try {
         return await this.chatWithOpenRouter(message, history, systemPrompt);

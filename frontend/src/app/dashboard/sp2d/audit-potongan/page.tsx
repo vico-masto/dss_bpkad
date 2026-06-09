@@ -16,6 +16,7 @@ import {
   Minus,
   Receipt,
   ArrowRight,
+  Banknote,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { toast } from 'sonner';
@@ -47,6 +48,7 @@ interface Stats {
   KURANG:  { jumlah: number; total_selisih: number };
   LENGKAP: { jumlah: number; total_selisih: number };
   LEBIH:   { jumlah: number; total_selisih: number };
+  BRUTO:   { jumlah: number; total_selisih: number };
   total: number;
 }
 
@@ -64,7 +66,8 @@ interface Row {
   sum_rincian_manual: number;
   selisih: number;
   count_rincian: number;
-  status_kel: 'KURANG' | 'LENGKAP' | 'LEBIH';
+  status_rekon?: string;
+  status_kel: 'KURANG' | 'LENGKAP' | 'LEBIH' | 'BRUTO';
 }
 
 interface ListData {
@@ -77,6 +80,7 @@ const STATUS_CFG = {
   KURANG:  { label: 'Kurang Rincian', icon: TrendingDown, bg: 'bg-amber-100 text-amber-700 border-amber-200', dot: 'bg-amber-500' },
   LENGKAP: { label: 'Lengkap',        icon: CheckCircle2, bg: 'bg-green-100 text-green-700 border-green-200',  dot: 'bg-green-500' },
   LEBIH:   { label: 'Rincian Lebih',  icon: TrendingUp,   bg: 'bg-rose-100 text-rose-700 border-rose-200',    dot: 'bg-rose-500' },
+  BRUTO:   { label: 'Bayar Bruto',    icon: Banknote,     bg: 'bg-blue-100 text-blue-700 border-blue-200',    dot: 'bg-blue-500' },
 };
 
 export default function AuditPotonganPage() {
@@ -210,7 +214,7 @@ export default function AuditPotonganPage() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {/* KURANG */}
         <Card
           className={cn(
@@ -274,6 +278,26 @@ export default function AuditPotonganPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* BRUTO */}
+        <Card
+          className={cn(
+            'border rounded-xl shadow-sm cursor-pointer transition-all hover:shadow-md',
+            filters.status === 'BRUTO' ? 'border-blue-400 ring-2 ring-blue-200' : 'border-fin-border bg-fin-surface',
+          )}
+          onClick={() => handleFilter('status', filters.status === 'BRUTO' ? '' : 'BRUTO')}
+        >
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+              <Banknote size={24} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider">Bayar Bruto</p>
+              <p className="text-2xl font-bold text-fin-text-primary">{stats?.BRUTO.jumlah ?? '—'} SP2D</p>
+              <p className="text-xs text-blue-600 font-semibold mt-0.5">Potongan via pihak ketiga</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Main Table Card */}
@@ -310,6 +334,7 @@ export default function AuditPotonganPage() {
                   { value: 'KURANG', label: 'Kurang Rincian' },
                   { value: 'LENGKAP', label: 'Lengkap' },
                   { value: 'LEBIH', label: 'Rincian Melebihi' },
+                  { value: 'BRUTO', label: 'Bayar Bruto' },
                 ]}
               />
             </div>
@@ -328,6 +353,10 @@ export default function AuditPotonganPage() {
             <div className="flex items-center gap-1.5">
               <div className="w-2 h-2 rounded-full bg-rose-500" />
               <span><strong>Melebihi:</strong> Rincian manual &gt; potongan gelondongan → periksa input ganda</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-blue-500" />
+              <span><strong>Bruto:</strong> Potongan dibayar pihak ketiga, tidak menimbulkan selisih rekonsiliasi bank</span>
             </div>
           </div>
 

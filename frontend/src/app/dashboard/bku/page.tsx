@@ -73,6 +73,7 @@ export default function BkuPage() {
 
   const [queryParams, setQueryParams] = useState(filters);
   const [sumberDanaList, setSumberDanaList] = useState([]);
+  const [opdList, setOpdList] = useState<string[]>([]);
 
   const { data, error, isLoading, mutate } = useSWR(
     ['/reports/bku', queryParams],
@@ -96,12 +97,20 @@ export default function BkuPage() {
 
   useEffect(() => {
     fetchSumberDana();
+    fetchOpdList();
   }, []);
 
   const fetchSumberDana = async () => {
     try {
       const res = await api.get('/dss/sumber-dana');
       setSumberDanaList(res.data);
+    } catch (err) {}
+  };
+
+  const fetchOpdList = async () => {
+    try {
+      const res = await api.get('/sp2d/opd');
+      if (Array.isArray(res.data)) setOpdList(res.data);
     } catch (err) {}
   };
 
@@ -472,21 +481,17 @@ export default function BkuPage() {
                       <Database size={12} className="text-[#2E90FA]" />
                       Filter Sumber Dana
                     </label>
-                    <select
-                      value={filters.sumberDana || 'all'}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setFilters({...filters, sumberDana: v === 'all' ? '' : v, page: 1});
-                      }}
-                      className="w-full h-11 px-3 border border-fin-border rounded-lg bg-fin-surface text-fin-text-primary text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
-                    >
-                      <option value="all">SEMUA SUMBER DANA</option>
-                      {sumberDanaList.map((sd: any) => (
-                        <option key={sd.id} value={sd.id} className="bg-fin-surface text-fin-text-primary">
-                          {sd.nama}
-                        </option>
-                      ))}
-                    </select>
+                    <Combobox
+                      options={[
+                        { value: '', label: 'SEMUA SUMBER DANA' },
+                        ...sumberDanaList.map((sd: any) => ({ value: sd.id.toString(), label: sd.nama }))
+                      ]}
+                      value={filters.sumberDana}
+                      onValueChange={(v) => setFilters({...filters, sumberDana: v, page: 1})}
+                      placeholder="SEMUA SUMBER DANA"
+                      searchPlaceholder="Cari sumber dana..."
+                      className="h-11"
+                    />
                   </div>
 
                   {/* Baris 2: OPD */}
@@ -495,12 +500,16 @@ export default function BkuPage() {
                       <Building2 size={12} className="text-[#2E90FA]" />
                       Cari Nama OPD
                     </label>
-                    <Input
-                      type="text"
-                      placeholder="Contoh: Dinas Kesehatan..."
-                      className="h-11 px-4 bg-fin-page border-fin-border rounded-lg text-sm font-medium text-fin-text-primary focus-visible:ring-ds-focus-ring focus-visible:border-ds-focus-ring transition-all"
+                    <Combobox
+                      options={[
+                        { value: '', label: 'SEMUA OPD' },
+                        ...opdList.map(o => ({ value: o, label: o }))
+                      ]}
                       value={filters.opd}
-                      onChange={(e) => setFilters({...filters, opd: e.target.value, page: 1})}
+                      onValueChange={(v) => setFilters({...filters, opd: v, page: 1})}
+                      placeholder="SEMUA OPD"
+                      searchPlaceholder="Cari nama OPD..."
+                      className="h-11"
                     />
                   </div>
 
