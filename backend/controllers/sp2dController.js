@@ -492,8 +492,12 @@ const updateSp2d = async (req, res) => {
       });
 
       // Sync data_sp2d_potongan dari header (hapus AUTO_HEADER lama, buat baru jika ada potongan)
+      // Jangan buat AUTO_HEADER baru jika rincian manual sudah ada — mencegah duplikasi ghost record.
+      const hasManualRincian = await tx.data_sp2d_potongan.count({
+        where: { id_sp2d: id, keterangan: { not: 'AUTO_HEADER' } }
+      });
       await tx.data_sp2d_potongan.deleteMany({ where: { id_sp2d: id, keterangan: 'AUTO_HEADER' } });
-      if (nPotongan > 0) {
+      if (nPotongan > 0 && hasManualRincian === 0) {
         await tx.data_sp2d_potongan.create({
           data: {
             id_sp2d: id,
@@ -2112,6 +2116,74 @@ const bulkUpdateJenisPotongan = async (req, res) => {
   }
 };
 
+// ─── Bulk Update Sumber Dana ─────────────────────────────────────────────────
+// Ganti sumber dana semua detail untuk banyak SP2D sekaligus (1 SD baru)
+const bulkUpdateSumberDana = async (req, res) => {
+  try {
+    const { ids, id_sumber_dana } = req.body;
+    if (!ids?.length) return res.status(400).json({ message: 'ids wajib diisi' });
+    if (!id_sumber_dana) return res.status(400).json({ message: 'id_sumber_dana wajib diisi' });
+
+    const master = await prisma.master_sumber_dana.findUnique({ where: { id: id_sumber_dana } });
+    if (!master) return res.status(404).json({ message: 'Sumber dana tidak ditemukan' });
+
+    await prisma.$transaction(async (tx) => {
+      for (const id of ids) {
+        const sp2d = await tx.data_sp2d.findUnique({ where: { id } });
+        if (!sp2d) continue;
+        await tx.detail_sp2d.deleteMany({ where: { id_sp2d: id } });
+        await tx.detail_sp2d.create({
+          data: {
+            id_sp2d: id,
+            id_sumber_dana,
+            nilai_bruto: sp2d.nilai_bruto,
+            nilai_neto: sp2d.nilai_neto ?? sp2d.nilai_bruto
+          }
+        });
+      }
+    });
+    res.json({ message: `Sumber dana diperbarui untuk ${ids.length} SP2D`, updated: ids.length });
+  } catch (err) {
+    console.error('bulkUpdateSumberDana error:', err);
+    res.status(500).json({ message: 'Gagal memperbarui sumber dana', error: err.message });
+  }
+};
+
+// ─── Update Sumber Dana Inline (satu SP2D, multi detail) ─────────────────────
+// Ganti/tambah detail sumber dana untuk satu SP2D tanpa buka halaman edit
+const updateSumberDanaInline = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { details } = req.body; // [{ id_sumber_dana, nilai_bruto }]
+    if (!details?.length) return res.status(400).json({ message: 'details wajib diisi' });
+
+    const sp2d = await prisma.data_sp2d.findUnique({ where: { id } });
+    if (!sp2d) return res.status(404).json({ message: 'SP2D tidak ditemukan' });
+
+    const totalBruto = parseFloat(sp2d.nilai_bruto);
+    const totalNeto = parseFloat(sp2d.nilai_neto ?? sp2d.nilai_bruto);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.detail_sp2d.deleteMany({ where: { id_sp2d: id } });
+      for (const d of details) {
+        const ratio = totalBruto > 0 ? parseFloat(d.nilai_bruto) / totalBruto : 0;
+        await tx.detail_sp2d.create({
+          data: {
+            id_sp2d: id,
+            id_sumber_dana: d.id_sumber_dana,
+            nilai_bruto: parseFloat(d.nilai_bruto),
+            nilai_neto: parseFloat((totalNeto * ratio).toFixed(2))
+          }
+        });
+      }
+    });
+    res.json({ message: 'Sumber dana SP2D diperbarui' });
+  } catch (err) {
+    console.error('updateSumberDanaInline error:', err);
+    res.status(500).json({ message: 'Gagal update sumber dana', error: err.message });
+  }
+};
+
 module.exports = {
   createSp2d,
   getSp2dList,
@@ -2142,4 +2214,6 @@ module.exports = {
   restoreTanggalPencairan,
   fixAutoHeaderPotongan,
   bulkUpdateJenisPotongan,
+  bulkUpdateSumberDana,
+  updateSumberDanaInline,
 };

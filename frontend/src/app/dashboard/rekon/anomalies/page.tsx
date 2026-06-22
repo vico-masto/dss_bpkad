@@ -17,7 +17,10 @@ import {
   ExternalLink,
   ChevronRight,
   ShieldAlert,
-  Banknote
+  Banknote,
+  Ghost,
+  Trash2,
+  Eye
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -51,6 +54,11 @@ export default function AnomalyPage() {
   const [brutoData, setBrutoData] = useState<any>(null);
   const [brutoLoading, setBrutoLoading] = useState(false);
   const [brutoPagination, setBrutoPagination] = useState({ page: 1, totalPages: 1, total: 0 });
+
+  // Ghost AUTO_HEADER state
+  const [ghostData, setGhostData] = useState<any>(null);
+  const [ghostLoading, setGhostLoading] = useState(false);
+  const [ghostFixing, setGhostFixing] = useState(false);
 
   const months = [
     { value: '0', label: 'SEMUA BULAN' },
@@ -185,12 +193,39 @@ export default function AnomalyPage() {
     }
   };
 
+  const fetchGhost = async () => {
+    setGhostLoading(true);
+    try {
+      const res = await api.post('/sp2d/fix-autoheader-potongan', { dry_run: true });
+      setGhostData(res.data);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal memuat data ghost AUTO_HEADER');
+    } finally {
+      setGhostLoading(false);
+    }
+  };
+
+  const handleFixGhost = async () => {
+    if (!confirm(`Hapus ${ghostData?.deleted ?? 0} record ghost AUTO_HEADER? Tindakan ini tidak dapat dibatalkan.`)) return;
+    setGhostFixing(true);
+    try {
+      const res = await api.post('/sp2d/fix-autoheader-potongan', { dry_run: false });
+      toast.success(res.data.message);
+      await fetchGhost();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Gagal menghapus ghost records');
+    } finally {
+      setGhostFixing(false);
+    }
+  };
+
   useEffect(() => {
     fetchAnomalies();
   }, [selectedMonth]);
 
   useEffect(() => {
     if (activeTab === 'bruto') fetchBruto(1);
+    if (activeTab === 'ghost') fetchGhost();
   }, [activeTab, selectedMonth]);
 
   if (loading && !data) {
@@ -339,6 +374,9 @@ export default function AnomalyPage() {
               </TabsTrigger>
               <TabsTrigger value="bruto" className="px-4 py-2 rounded-t-lg rounded-b-none border-b-2 border-transparent text-xs font-semibold data-[state=active]:border-ds-focus-ring data-[state=active]:text-fin-info-text data-[state=active]:bg-fin-surface transition-all flex items-center gap-1.5">
                 <Banknote size={12} /> SP2D Pencairan Bruto
+              </TabsTrigger>
+              <TabsTrigger value="ghost" className="px-4 py-2 rounded-t-lg rounded-b-none border-b-2 border-transparent text-xs font-semibold data-[state=active]:border-ds-focus-ring data-[state=active]:text-fin-info-text data-[state=active]:bg-fin-surface transition-all flex items-center gap-1.5">
+                <Ghost size={12} /> Ghost AUTO_HEADER
               </TabsTrigger>
             </TabsList>
             
@@ -741,6 +779,70 @@ export default function AnomalyPage() {
                             Next &rarr;
                           </Button>
                         </div>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+                {/* GHOST AUTO_HEADER TAB */}
+                <TabsContent value="ghost" className="m-0">
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight">Ghost AUTO_HEADER Orphan</h4>
+                        <p className="text-[10px] font-bold text-slate-400 mt-0.5">
+                          Record placeholder yang tidak terhapus meskipun rincian pajak sudah diimport — menyebabkan BKU Belum Rekon menggelembung
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          onClick={fetchGhost}
+                          disabled={ghostLoading}
+                          variant="outline"
+                          className="h-9 px-3 border-fin-border rounded-xl font-semibold text-xs flex items-center gap-1.5"
+                        >
+                          {ghostLoading ? <Loader2 className="animate-spin" size={13} /> : <Eye size={13} />}
+                          Cek Ulang
+                        </Button>
+                        {(ghostData?.deleted ?? 0) > 0 && (
+                          <Button
+                            onClick={handleFixGhost}
+                            disabled={ghostFixing}
+                            className="h-9 px-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-semibold text-xs flex items-center gap-1.5"
+                          >
+                            {ghostFixing ? <Loader2 className="animate-spin" size={13} /> : <Trash2 size={13} />}
+                            Hapus {ghostData?.deleted} Ghost Record
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {ghostLoading ? (
+                      <div className="p-12 text-center">
+                        <Loader2 className="animate-spin mx-auto text-fin-info" size={28} />
+                      </div>
+                    ) : (ghostData?.deleted ?? 0) === 0 ? (
+                      <div className="p-12 text-center rounded-xl border border-fin-border bg-fin-page">
+                        <div className="flex flex-col items-center opacity-40">
+                          <CheckCircle2 size={40} className="text-[#12B76A] mb-2" />
+                          <p className="text-xs font-semibold text-fin-text-secondary">Tidak ada ghost record — data potongan bersih.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl">
+                          <AlertTriangle size={16} className="text-rose-500 shrink-0" />
+                          <div>
+                            <p className="text-xs font-black text-rose-700">
+                              Ditemukan <span className="tabular-nums">{ghostData.deleted}</span> ghost record AUTO_HEADER dari <span className="tabular-nums">{ghostData.sp2d_affected}</span> SP2D
+                            </p>
+                            <p className="text-[10px] text-rose-500 mt-0.5">
+                              Record ini adalah placeholder usang yang menggembungkan angka BKU Belum Rekon. Aman untuk dihapus.
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-fin-text-muted px-1">
+                          Klik <strong>Hapus Ghost Record</strong> di atas untuk membersihkan. Tindakan ini dicatat di log aktivitas.
+                        </p>
                       </div>
                     )}
                   </div>

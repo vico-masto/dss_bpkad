@@ -54,26 +54,28 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
   useEffect(() => {
     const menuStructureLocal = [
       { title: 'Dashboard', items: [] as { href: string }[] },
-      { title: 'Analisa', items: [
-        { href: '/dashboard/simulator' }, { href: '/dashboard/analisa/belanja-opd' }, { href: '/dashboard/lra' }
+      { title: 'Transaksi Kas Keluar', items: [
+        { href: '/dashboard/sp2d?tab=rekam' }, { href: '/dashboard/sp2d?tab=arsip' }, { href: '/dashboard/sp2d/kelengkapan' }
       ]},
       { title: 'Transaksi Kas Masuk', items: [
         { href: '/pendapatan?tab=rekam' }, { href: '/pendapatan?tab=arsip' }
-      ]},
-      { title: 'Transaksi Kas Keluar', items: [
-        { href: '/dashboard/sp2d?tab=rekam' }, { href: '/dashboard/sp2d?tab=arsip' }, { href: '/dashboard/sp2d/kelengkapan' }
       ]},
       { title: 'Manajemen Potongan', items: [
         { href: '/dashboard/pajak?tab=rekam' }, { href: '/dashboard/pajak?tab=arsip' }, { href: '/dashboard/ledgers/potongan-opd' }
       ]},
       { title: 'Rekonsiliasi Bank', items: [
-        { href: '/dashboard/rekon/bank' }, { href: '/dashboard/rekon' }, { href: '/dashboard/rekon/discrepancy' }, { href: '/dashboard/rekon/anomalies' }
+        { href: '/dashboard/rekon/bank' }, { href: '/dashboard/rekon' }, { href: '/dashboard/rekon/discrepancy' },
+        { href: '/dashboard/penyesuaian' }, { href: '/dashboard/rekon/ringkasan' },
+        { href: '/dashboard/rekon/potongan-mengendap' }, { href: '/dashboard/rekon/anomalies' }
       ]},
       { title: 'Laporan', items: [
-        { href: '/dashboard/bku' }, { href: '/dashboard/jurnal' }, { href: '/dashboard/talangan' }, { href: '/dashboard/penyesuaian' }
+        { href: '/dashboard/bku' }, { href: '/dashboard/lra' }, { href: '/dashboard/jurnal' }, { href: '/dashboard/talangan' }
       ]},
       { title: 'Buku Pembantu', items: [
         { href: '/dashboard/ledgers/bank' }, { href: '/dashboard/ledgers/pajak' }, { href: '/dashboard/ledgers/opd' }
+      ]},
+      { title: 'Analisa', items: [
+        { href: '/dashboard/simulator' }, { href: '/dashboard/analisa/belanja-opd' }
       ]},
       { title: 'Administrator', items: [
         { href: '/dashboard/master-data' }, { href: '/dashboard/saldo-awal' }, { href: '/dashboard/logs' }, { href: '/dashboard/users' }, { href: '/dashboard/settings' }
@@ -123,13 +125,13 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
       items: []
     },
     {
-      title: 'Analisa',
-      icon: Activity,
-      dotColor: 'bg-[#6941C6]',
+      title: 'Transaksi Kas Keluar',
+      icon: CreditCard,
+      dotColor: 'bg-[#F04438]',
       items: [
-        { name: 'Simulator Kas Cerdas', href: '/dashboard/simulator', icon: Activity },
-        { name: 'Data LRA Historis', href: '/dashboard/lra', icon: FileSpreadsheet },
-        { name: 'Analisis Belanja OPD', href: '/dashboard/analisa/belanja-opd', icon: BarChart3 },
+        { name: 'Perekaman SP2D', href: '/dashboard/sp2d?tab=rekam', icon: PlusSquare },
+        { name: 'Arsip Kas Keluar', href: '/dashboard/sp2d?tab=arsip', icon: FileText },
+        { name: 'Kelengkapan Pencairan', href: '/dashboard/sp2d/kelengkapan', icon: CalendarCheck },
       ]
     },
     {
@@ -139,16 +141,6 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
       items: [
         { name: 'Perekaman Kas Masuk', href: '/pendapatan?tab=rekam', icon: PlusSquare },
         { name: 'Arsip Kas Masuk', href: '/pendapatan?tab=arsip', icon: FileText },
-      ]
-    },
-    {
-      title: 'Transaksi Kas Keluar',
-      icon: CreditCard,
-      dotColor: 'bg-[#F04438]',
-      items: [
-        { name: 'Perekaman SP2D', href: '/dashboard/sp2d?tab=rekam', icon: PlusSquare },
-        { name: 'Arsip Kas Keluar', href: '/dashboard/sp2d?tab=arsip', icon: FileText },
-        { name: 'Kelengkapan Pencairan', href: '/dashboard/sp2d/kelengkapan', icon: CalendarCheck },
       ]
     },
     {
@@ -169,6 +161,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
         { name: 'Rekening Bank', href: '/dashboard/rekon/bank', icon: Database },
         { name: 'Rekonsiliasi Cerdas', href: '/dashboard/rekon', icon: RefreshCw },
         { name: 'Laporan Selisih', href: '/dashboard/rekon/discrepancy', icon: BarChart3 },
+        { name: 'Penyesuaian & Koreksi', href: '/dashboard/penyesuaian', icon: History },
         { name: 'Ringkasan B & C', href: '/dashboard/rekon/ringkasan', icon: BookOpenCheck },
         { name: 'Potongan Mengendap', href: '/dashboard/rekon/potongan-mengendap', icon: FileText },
         { name: 'Integritas Data', href: '/dashboard/rekon/anomalies', icon: ShieldAlert },
@@ -180,9 +173,9 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
       dotColor: 'bg-[#2E90FA]',
       items: [
         { name: 'Buku Kas Umum', href: '/dashboard/bku', icon: BookOpen },
+        { name: 'Data LRA Historis', href: '/dashboard/lra', icon: FileSpreadsheet },
         { name: 'Buku Besar / Jurnal', href: '/dashboard/jurnal', icon: History },
         { name: 'Jurnal Talangan', href: '/dashboard/talangan', icon: Layers },
-        { name: 'Penyesuaian & Koreksi', href: '/dashboard/penyesuaian', icon: History },
       ]
     },
     {
@@ -193,6 +186,15 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
         { name: 'BP Bank (Rekening)', href: '/dashboard/ledgers/bank', icon: Banknote },
         { name: 'BP Potongan (Pajak/IWP)', href: '/dashboard/ledgers/pajak', icon: Scale },
         { name: 'BP Unit Kerja (OPD)', href: '/dashboard/ledgers/opd', icon: Building2 },
+      ]
+    },
+    {
+      title: 'Analisa',
+      icon: Activity,
+      dotColor: 'bg-[#6941C6]',
+      items: [
+        { name: 'Simulator Kas Cerdas', href: '/dashboard/simulator', icon: Activity },
+        { name: 'Analisis Belanja OPD', href: '/dashboard/analisa/belanja-opd', icon: BarChart3 },
       ]
     },
     {

@@ -262,24 +262,27 @@ export async function POST(req: NextRequest) {
     <div class="text-right font-bold" style="margin-bottom: 36px;">Dobo, ${previewTgl} ${previewBln} ${previewThn}</div>
     <div class="signature-row">
       <div class="sig-col">
-        <p class="font-bold uppercase">PIHAK KESATU,<br>${barConfig.jabatan1 || '—'}</p>
+        <p class="font-bold uppercase" style="margin-bottom: 0;">PIHAK KESATU,</p>
+        <p class="font-bold" style="margin-top: 0;">${barConfig.jabatan1 || '—'}</p>
         <div class="sig-space"></div>
-        <p class="font-bold uppercase underline" style="margin-bottom: 0; margin-top: 0;">${barConfig.pejabat1 || '—'}</p>
+        <p class="font-bold underline" style="margin-bottom: 0; margin-top: 0;">${barConfig.pejabat1 || '—'}</p>
         ${barConfig.showPangkat && barConfig.pangkat1 ? `<p style="margin-top: 2px; margin-bottom: 0;">${barConfig.pangkat1}</p>` : ''}
         <p style="margin-top: 2px;">NIP. ${barConfig.nip1 || '—'}</p>
       </div>
       <div class="sig-col">
-        <p class="font-bold uppercase">PIHAK KEDUA,<br>${barConfig.jabatan2 || '—'}</p>
+        <p class="font-bold uppercase" style="margin-bottom: 0;">PIHAK KEDUA,</p>
+        <p class="font-bold" style="margin-top: 0;">${barConfig.jabatan2 || '—'}</p>
         <div class="sig-space"></div>
-        <p class="font-bold uppercase underline" style="margin-bottom: 0; margin-top: 0;">${barConfig.pejabat2 || '—'}</p>
+        <p class="font-bold underline" style="margin-bottom: 0; margin-top: 0;">${barConfig.pejabat2 || '—'}</p>
         ${barConfig.showPangkat && barConfig.pangkat1 ? `<p style="margin-top: 2px; margin-bottom: 0; visibility: hidden;">_</p>` : ''}
         <p style="margin-top: 2px;">NIP / ID. ${barConfig.nip2 || '—'}</p>
       </div>
     </div>
     <div style="width: 100%; text-align: center; margin-top: 40px;">
-      <p class="font-bold uppercase">Mengetahui,<br>${barConfig.jabatan3 || '—'}</p>
+      <p class="font-bold uppercase" style="margin-bottom: 0;">Mengetahui,</p>
+      <p class="font-bold" style="margin-top: 0;">${barConfig.jabatan3 || '—'}</p>
       <div class="sig-space"></div>
-      <p class="font-bold uppercase underline" style="margin-bottom: 0; margin-top: 0;">${barConfig.pejabat3 || '—'}</p>
+      <p class="font-bold underline" style="margin-bottom: 0; margin-top: 0;">${barConfig.pejabat3 || '—'}</p>
       ${barConfig.showPangkat && barConfig.pangkat3 ? `<p style="margin-top: 2px; margin-bottom: 0;">${barConfig.pangkat3}</p>` : ''}
       <p style="margin-top: 2px;">NIP. ${barConfig.nip3 || '—'}</p>
     </div>

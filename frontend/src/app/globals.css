@@ -338,49 +338,49 @@
   }
   .lux-stat-navy {
     background: linear-gradient(135deg, #0f2d5a 0%, #1e40af 100%);
-    box-shadow: 0 8px 32px -4px rgba(30, 64, 175, 0.45);
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.10), 0 1px 2px -1px rgba(0,0,0,0.10);
   }
   .lux-stat-navy::before { background: #93c5fd; }
 
   .lux-stat-rose {
     background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%);
-    box-shadow: 0 8px 32px -4px rgba(220, 38, 38, 0.45);
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.10), 0 1px 2px -1px rgba(0,0,0,0.10);
   }
   .lux-stat-rose::before { background: #fca5a5; }
 
   .lux-stat-emerald {
     background: linear-gradient(135deg, #064e3b 0%, #059669 100%);
-    box-shadow: 0 8px 32px -4px rgba(5, 150, 105, 0.45);
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.10), 0 1px 2px -1px rgba(0,0,0,0.10);
   }
   .lux-stat-emerald::before { background: #6ee7b7; }
 
   .lux-stat-violet {
     background: linear-gradient(135deg, #2e1065 0%, #7c3aed 100%);
-    box-shadow: 0 8px 32px -4px rgba(124, 58, 237, 0.45);
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.10), 0 1px 2px -1px rgba(0,0,0,0.10);
   }
   .lux-stat-violet::before { background: #c4b5fd; }
 
   .lux-stat-amber {
     background: linear-gradient(135deg, #78350f 0%, #d97706 100%);
-    box-shadow: 0 8px 32px -4px rgba(217, 119, 6, 0.45);
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.10), 0 1px 2px -1px rgba(0,0,0,0.10);
   }
   .lux-stat-amber::before { background: #fde68a; }
 
   .lux-stat-cyan {
     background: linear-gradient(135deg, #0c4a6e 0%, #0284c7 100%);
-    box-shadow: 0 8px 32px -4px rgba(2, 132, 199, 0.45);
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.10), 0 1px 2px -1px rgba(0,0,0,0.10);
   }
   .lux-stat-cyan::before { background: #7dd3fc; }
 
   .lux-stat-slate {
     background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
-    box-shadow: 0 8px 32px -4px rgba(51, 65, 85, 0.45);
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.10), 0 1px 2px -1px rgba(0,0,0,0.10);
   }
   .lux-stat-slate::before { background: #cbd5e1; }
 
   .lux-stat-teal {
     background: linear-gradient(135deg, #134e4a 0%, #0d9488 100%);
-    box-shadow: 0 8px 32px -4px rgba(13, 148, 136, 0.45);
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.10), 0 1px 2px -1px rgba(0,0,0,0.10);
   }
   .lux-stat-teal::before { background: #5eead4; }
 
@@ -644,14 +644,14 @@ html.theme-switching *::after {
    Turunkan opacity glow dari 45% → 28% agar tidak tumpang tindih
    dengan background gelap.
    ═══════════════════════════════════════════════════════════════ */
-.dark .lux-stat-navy    { box-shadow: 0 8px 32px -4px rgba(30,  64,  175, 0.28); }
-.dark .lux-stat-rose    { box-shadow: 0 8px 32px -4px rgba(220, 38,  38,  0.28); }
-.dark .lux-stat-emerald { box-shadow: 0 8px 32px -4px rgba(5,   150, 105, 0.28); }
-.dark .lux-stat-violet  { box-shadow: 0 8px 32px -4px rgba(124, 58,  237, 0.28); }
-.dark .lux-stat-amber   { box-shadow: 0 8px 32px -4px rgba(217, 119, 6,   0.28); }
-.dark .lux-stat-cyan    { box-shadow: 0 8px 32px -4px rgba(2,   132, 199, 0.28); }
-.dark .lux-stat-teal    { box-shadow: 0 8px 32px -4px rgba(13,  148, 136, 0.28); }
-.dark .lux-stat-slate   { box-shadow: 0 8px 32px -4px rgba(51,  65,  85,  0.28); }
+.dark .lux-stat-navy,
+.dark .lux-stat-rose,
+.dark .lux-stat-emerald,
+.dark .lux-stat-violet,
+.dark .lux-stat-amber,
+.dark .lux-stat-cyan,
+.dark .lux-stat-teal,
+.dark .lux-stat-slate   { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.25), 0 1px 2px -1px rgba(0,0,0,0.25); }
 
 /* ═══════════════════════════════════════════════════════════════
    DARK MODE: Scrollbar Styling

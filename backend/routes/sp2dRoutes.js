@@ -30,6 +30,8 @@ const {
   restoreTanggalPencairan,
   fixAutoHeaderPotongan,
   bulkUpdateJenisPotongan,
+  bulkUpdateSumberDana,
+  updateSumberDanaInline,
 } = require('../controllers/sp2dController');
 const authMiddleware = require('../middleware/authMiddleware');
 const upload = require('../config/multer');
@@ -82,6 +84,10 @@ router.post('/restore-tanggal-pencairan', authMiddleware, adminOnly, restoreTang
 
 // Fix AUTO_HEADER redundant — harus sebelum /:id
 router.post('/fix-autoheader-potongan', authMiddleware, adminOnly, fixAutoHeaderPotongan);
+
+// Sumber Dana — harus sebelum /:id agar tidak bentrok
+router.put('/bulk-sumber-dana', authMiddleware, operatorSp2dOrAdminOnly, bulkUpdateSumberDana);
+router.put('/:id/sumber-dana', authMiddleware, operatorSp2dOrAdminOnly, updateSumberDanaInline);
 
 router.get('/:id', authMiddleware, operatorSp2dOrAdminOnly, getSp2dById);
 router.put('/koreksi/:id', authMiddleware, operatorSp2dOrAdminOnly, updateSp2d);

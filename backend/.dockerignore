@@ -1,0 +1,13 @@
+node_modules
+npm-debug.log
+.env
+uploads/
+prisma/migrations
+*.sql
+check*.js
+debug*.js
+analyze*.js
+audit*.js
+seed*.js
+migrate_*.js
+scratch/

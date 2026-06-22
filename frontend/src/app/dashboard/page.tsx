@@ -215,8 +215,8 @@ export default function DashboardPage() {
 
   const { summary, stats: rawStats = [] } = data;
   
-  // PHASE 2: SMART SORTING (Tampilkan yang kritis/defisit di atas)
-  const stats = [...rawStats].sort((a, b) => (a.kas_efektif || 0) - (b.kas_efektif || 0));
+  // PHASE 2: SMART SORTING (Tampilkan nilai terbesar di atas)
+  const stats = [...rawStats].sort((a, b) => (b.kas_efektif || 0) - (a.kas_efektif || 0));
 
   const isDeficit = summary.kasEfektif < 0;
   const kasBebas = stats.filter((s: any) => s.kategori === 'BEBAS').reduce((acc: number, s: any) => acc + (s.kas_efektif || 0), 0);
@@ -769,36 +769,35 @@ export default function DashboardPage() {
                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {stats.filter((s: any) => s.kategori === 'BEBAS' && s.id !== 'SD-ALL').map((item: any) => (
                              <motion.div key={item.id} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-                                <Card className="p-4 border-fin-border hover:border-ds-focus-ring/30 transition-all group relative overflow-hidden bg-fin-surface shadow-sm h-full flex flex-col">
+                                <Card className="lux-stat lux-stat-navy p-4 border-none transition-all group relative overflow-hidden h-full flex flex-col">
                                    <div className="mb-2">
                                       <div className="min-w-0">
-                                         
-                                        <h4 className="text-[11px] font-bold text-fin-text-primary leading-tight line-clamp-2 pr-2 mb-2" title={item.nama}>{item.nama}</h4>
+                                        <h4 className="text-[11px] font-bold text-white leading-tight line-clamp-2 pr-2 mb-2" title={item.nama}>{item.nama}</h4>
                                       </div>
-                                      <div className="pt-3 border-t border-dashed border-fin-border">
-                                         <p className="text-[9px] font-bold text-fin-text-muted tracking-wider mb-1">Kas Efektif</p>
+                                      <div className="pt-3 border-t border-dashed border-white/20">
+                                         <p className="text-[9px] font-bold text-white/60 tracking-wider mb-1">Kas Efektif</p>
                                          <p className={cn(
                                             "text-base font-black tabular-nums leading-none",
-                                            item.kas_efektif > 0 ? "text-[#12B76A]" : "text-[#F04438]"
+                                            item.kas_efektif > 0 ? "text-emerald-300" : "text-red-300"
                                          )}>
                                             {mv(item.kas_efektif)}
                                          </p>
                                       </div>
                                    </div>
 
-                                   <div className="grid grid-cols-2 gap-3 pt-3 border-t border-fin-border mt-auto">
+                                   <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/20 mt-auto">
                                       <div className="space-y-0.5">
-                                         <p className="text-[8px] font-bold text-fin-text-muted tracking-widest">Total Inflow</p>
-                                         <p className="text-[10px] font-bold text-fin-text-primary tabular-nums">{mv(item.total_masuk)}</p>
+                                         <p className="text-[8px] font-bold text-white/60 tracking-widest">Total Inflow</p>
+                                         <p className="text-[10px] font-bold text-white tabular-nums">{mv(item.total_masuk)}</p>
                                       </div>
                                       <div className="space-y-0.5">
-                                         <p className="text-[8px] font-bold text-fin-text-muted tracking-widest">Total Outflow</p>
-                                         <p className="text-[10px] font-bold text-[#D92D20] tabular-nums">{mv(item.total_keluar)}</p>
+                                         <p className="text-[8px] font-bold text-white/60 tracking-widest">Total Outflow</p>
+                                         <p className="text-[10px] font-bold text-red-300 tabular-nums">{mv(item.total_keluar)}</p>
                                       </div>
                                    </div>
 
                                    {item.talangan_diberikan > 0 && (
-                                      <div className="mt-3 flex items-center gap-1.5 text-[#B42318] bg-[#FEF3F2] px-2 py-1 rounded-lg">
+                                      <div className="mt-3 flex items-center gap-1.5 text-white bg-white/20 px-2 py-1 rounded-lg">
                                          <AlertCircle size={10} />
                                          <span className="text-[9px] font-black">Terikat Talangan: {mv(item.talangan_diberikan)}</span>
                                       </div>
@@ -818,31 +817,30 @@ export default function DashboardPage() {
                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {stats.filter((s: any) => s.kategori === 'EARMARK').map((item: any) => (
                              <motion.div key={item.id} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-                                <Card className="p-4 border-fin-border hover:border-amber-500/30 transition-all group relative overflow-hidden bg-fin-surface shadow-sm h-full flex flex-col">
+                                <Card className="lux-stat lux-stat-amber p-4 border-none transition-all group relative overflow-hidden h-full flex flex-col">
                                    <div className="mb-2">
                                       <div className="min-w-0">
-                                         
-                                        <h4 className="text-[11px] font-bold text-fin-text-primary leading-tight line-clamp-2 pr-2 mb-2" title={item.nama}>{item.nama}</h4>
+                                        <h4 className="text-[11px] font-bold text-white leading-tight line-clamp-2 pr-2 mb-2" title={item.nama}>{item.nama}</h4>
                                       </div>
-                                      <div className="pt-3 border-t border-dashed border-fin-border">
-                                         <p className="text-[9px] font-bold text-fin-text-muted tracking-wider mb-1">Kas Efektif</p>
+                                      <div className="pt-3 border-t border-dashed border-white/20">
+                                         <p className="text-[9px] font-bold text-white/60 tracking-wider mb-1">Kas Efektif</p>
                                          <p className={cn(
                                             "text-base font-black tabular-nums leading-none",
-                                            item.kas_efektif > 0 ? "text-[#12B76A]" : "text-[#F04438]"
+                                            item.kas_efektif > 0 ? "text-emerald-300" : "text-red-300"
                                          )}>
                                             {mv(item.kas_efektif)}
                                          </p>
                                       </div>
                                    </div>
 
-                                   <div className="grid grid-cols-2 gap-3 pt-3 border-t border-fin-border mt-auto">
+                                   <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/20 mt-auto">
                                       <div className="space-y-0.5">
-                                         <p className="text-[8px] font-bold text-fin-text-muted tracking-widest">Total Inflow</p>
-                                         <p className="text-[10px] font-bold text-fin-text-primary tabular-nums">{mv(item.total_masuk)}</p>
+                                         <p className="text-[8px] font-bold text-white/60 tracking-widest">Total Inflow</p>
+                                         <p className="text-[10px] font-bold text-white tabular-nums">{mv(item.total_masuk)}</p>
                                       </div>
                                       <div className="space-y-0.5">
-                                         <p className="text-[8px] font-bold text-fin-text-muted tracking-widest">Total Outflow</p>
-                                         <p className="text-[10px] font-bold text-[#D92D20] tabular-nums">{mv(item.total_keluar)}</p>
+                                         <p className="text-[8px] font-bold text-white/60 tracking-widest">Total Outflow</p>
+                                         <p className="text-[10px] font-bold text-red-300 tabular-nums">{mv(item.total_keluar)}</p>
                                       </div>
                                    </div>
                                 </Card>
@@ -924,7 +922,7 @@ export default function DashboardPage() {
                          </Card>
                       </div>
 
-                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                          {/* LEFT: OPD LIST (SCROLLABLE) */}
                          <div className="lg:col-span-5 border rounded-xl overflow-hidden bg-fin-page/50 flex flex-col h-[500px]">
                             <div className="px-4 py-3 bg-fin-surface border-b flex items-center justify-between">
@@ -933,13 +931,13 @@ export default function DashboardPage() {
                             </div>
                             <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
                                {filteredOpd.map((opd: any, idx: number) => (
-                                  <div 
-                                     key={opd.opd} 
+                                  <div
+                                     key={opd.opd}
                                      onClick={() => setSelectedOpd(opd.opd)}
                                      className={cn(
                                         "p-3 rounded-xl cursor-pointer transition-all border flex items-center gap-4 group",
-                                        selectedOpd === opd.opd 
-                                           ? "bg-fin-surface border-indigo-200 shadow-md ring-1 ring-indigo-500/10" 
+                                        selectedOpd === opd.opd
+                                           ? "bg-fin-surface border-indigo-200 shadow-md ring-1 ring-indigo-500/10"
                                            : "bg-transparent border-transparent hover:bg-fin-surface hover:border-fin-border"
                                      )}
                                   >
@@ -965,51 +963,45 @@ export default function DashboardPage() {
                          </div>
 
                          {/* RIGHT: DEEP DIVE ANALYTICS */}
-                         <div className="lg:col-span-7 flex flex-col h-[500px]">
+                         <div className="lg:col-span-7 flex flex-col">
                             {selectedOpd ? (
-                               <div className="flex flex-col h-full animate-in fade-in slide-in-from-right-4 duration-500">
+                               <div className="flex flex-col animate-in fade-in slide-in-from-right-4 duration-500">
                                   <div className="mb-6 p-6 bg-ds-primary rounded-xl text-white relative overflow-hidden">
                                      <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12"><Building2 size={120} /></div>
                                      <Badge className="bg-indigo-500 border-none mb-2 text-[9px] font-bold uppercase tracking-widest px-2 py-0.5">Analisis Mendalam OPD</Badge>
                                      <h3 className="text-lg font-black leading-tight max-w-[80%] uppercase tracking-tight">{selectedOpd}</h3>
-                                     
                                      <div className="grid grid-cols-2 gap-8 mt-6">
                                         <div className="space-y-1">
                                            <p className="text-[9px] font-bold text-indigo-300 uppercase tracking-[0.2em]">Total Realisasi</p>
-                                            <p className="text-2xl font-black tabular-nums">{mv(analytics.opdStats.find((o: any) => o.opd === selectedOpd)?.total_nilai || 0)}</p>
+                                           <p className="text-2xl font-black tabular-nums">{mv(analytics.opdStats.find((o: any) => o.opd === selectedOpd)?.total_nilai || 0)}</p>
                                         </div>
                                         <div className="space-y-1">
                                            <p className="text-[9px] font-bold text-indigo-300 uppercase tracking-[0.2em]">Volume Transaksi</p>
-                                            <p className="text-2xl font-black tabular-nums">{analytics.opdStats.find((o: any) => o.opd === selectedOpd)?.jml_dokumen || 0} <span className="text-xs text-indigo-400 font-bold">DOKUMEN</span></p>
+                                           <p className="text-2xl font-black tabular-nums">{analytics.opdStats.find((o: any) => o.opd === selectedOpd)?.jml_dokumen || 0} <span className="text-xs text-indigo-400 font-bold">DOKUMEN</span></p>
                                         </div>
                                      </div>
                                   </div>
 
-                                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto custom-scrollbar pr-2 pb-2">
-                                     {/* CHART JENIS BELANJA */}
-                                     <Card className="p-5 border-none bg-fin-page/50 rounded-xl flex flex-col">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-2">
+                                     {/* KOMPOSISI BELANJA */}
+                                     <Card className="p-5 border-none bg-fin-page/50 rounded-xl">
                                         <h4 className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-4 flex items-center gap-2">
                                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Komposisi Belanja
                                         </h4>
-                                        <div className="space-y-4 flex-1 flex flex-col justify-center">
+                                        <div className="space-y-4">
                                            {(() => {
-                                              // Fallback: Jika masterJenis tidak ada, ambil unik dari data yang ada
-                                              const masterList = (analytics.masterJenis && analytics.masterJenis.length > 0) 
-                                                 ? analytics.masterJenis 
+                                              const masterList = (analytics.masterJenis && analytics.masterJenis.length > 0)
+                                                 ? analytics.masterJenis
                                                  : Array.from(new Set(analytics.opdDetails.map((d: any) => d.jenis))).filter(Boolean);
-
                                               return masterList.map((jenisName: string) => {
-                                                 const totalOpd = analytics.opdStats.find((o: any) => 
+                                                 const totalOpd = analytics.opdStats.find((o: any) =>
                                                     (o.opd || '').trim().toLowerCase() === (selectedOpd || '').trim().toLowerCase()
                                                  )?.total_nilai || 1;
-                                                 
-                                                 const detail = analytics.opdDetails.find((d: any) => 
-                                                    (d.opd || '').trim().toLowerCase() === (selectedOpd || '').trim().toLowerCase() && 
+                                                 const detail = analytics.opdDetails.find((d: any) =>
+                                                    (d.opd || '').trim().toLowerCase() === (selectedOpd || '').trim().toLowerCase() &&
                                                     (d.jenis === jenisName || (jenisName === 'LS GAJI' && d.jenis === 'LS-GAJI'))
                                                  ) || { total_nilai: 0 };
-
                                                  const percent = (detail.total_nilai / totalOpd) * 100;
-                                                 
                                                  return (
                                                     <div key={jenisName} className="space-y-1.5">
                                                        <div className="flex justify-between items-center text-[10px] font-bold">
@@ -1017,10 +1009,10 @@ export default function DashboardPage() {
                                                           <span className="text-fin-text-primary">{mv(detail.total_nilai)}</span>
                                                        </div>
                                                        <div className="h-2 w-full bg-fin-page rounded-full overflow-hidden">
-                                                          <motion.div 
-                                                             initial={{ width: 0 }} 
-                                                             animate={{ width: `${percent}%` }} 
-                                                             className="h-full bg-ds-primary" 
+                                                          <motion.div
+                                                             initial={{ width: 0 }}
+                                                             animate={{ width: `${percent}%` }}
+                                                             className="h-full bg-ds-primary"
                                                           />
                                                        </div>
                                                     </div>
@@ -1030,13 +1022,13 @@ export default function DashboardPage() {
                                         </div>
                                      </Card>
 
-                                     {/* RECENT TRANSACTIONS FOR THIS OPD */}
+                                     {/* TRANSAKSI TERAKHIR */}
                                      <Card className="p-5 border-none bg-fin-page/50 rounded-xl flex flex-col">
                                         <h4 className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest mb-4 flex items-center gap-2">
                                            <div className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Transaksi Terakhir
                                         </h4>
                                         <div className="space-y-3">
-                                           {analytics.recentTransactions.filter((t: any) => 
+                                           {analytics.recentTransactions.filter((t: any) =>
                                               (t.opd || '').trim().toLowerCase() === (selectedOpd || '').trim().toLowerCase()
                                            ).map((tx: any, i: number) => (
                                               <div key={i} className="bg-fin-surface p-3 rounded-xl border border-fin-border shadow-sm flex flex-col gap-1">
@@ -1048,7 +1040,7 @@ export default function DashboardPage() {
                                                  <p className="text-xs font-black text-fin-text-primary mt-1 text-right">{mv(tx.nilai_bruto)}</p>
                                               </div>
                                            ))}
-                                           {analytics.recentTransactions.filter((t: any) => 
+                                           {analytics.recentTransactions.filter((t: any) =>
                                               (t.opd || '').trim().toLowerCase() === (selectedOpd || '').trim().toLowerCase()
                                            ).length === 0 && (
                                               <div className="flex-1 flex flex-col items-center justify-center text-center opacity-40 py-8">

@@ -59,6 +59,10 @@ import { PageHeader } from '@/components/patterns/page-header';
 const MONTHS = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const toN = (v: any) => Number(v) || 0;
 
+function getBarKey(year: string, bulan: string) {
+  return `bar_config_discrepancy_${year}_${String(bulan).padStart(2, '0')}`;
+}
+
 const terbilang = (n: number): string => {
   if (n < 0) return "Minus " + terbilang(-n);
   if (n < 12) {
@@ -121,7 +125,10 @@ export default function DiscrepancyReportPage() {
 
   // ── Muat konfigurasi BAR dari localStorage saat pertama kali mount ──
   useEffect(() => {
-    const savedBar = localStorage.getItem('bar_config_discrepancy');
+    const currentMonth = String(new Date().getMonth() + 1);
+    // Per-bulan key (baru), fallback ke key lama untuk backward compat
+    const savedBar = localStorage.getItem(getBarKey(year, currentMonth))
+                  ?? localStorage.getItem('bar_config_discrepancy');
     if (savedBar) {
       try { setBarConfig(prev => ({ ...prev, ...JSON.parse(savedBar) })); } catch {}
     }
@@ -147,12 +154,13 @@ export default function DiscrepancyReportPage() {
 
   // ── Auto-save: simpan ke localStorage setiap barConfig berubah ──
   // Run pertama (state default) dilewati agar tidak menimpa data tersimpan.
+  // Disimpan per-bulan: getBarKey(year, bulanRekon).
   useEffect(() => {
     if (skipFirstSave.current) {
       skipFirstSave.current = false;
       return;
     }
-    localStorage.setItem('bar_config_discrepancy', JSON.stringify(barConfig));
+    localStorage.setItem(getBarKey(year, barConfig.bulanRekon), JSON.stringify(barConfig));
   }, [barConfig]);
 
   const [auditNote, setAuditNote] = useState('');
@@ -350,22 +358,25 @@ export default function DiscrepancyReportPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {[
-          { label: 'SP2D Belum Rekon', value: formatCurrency(totalSP2DBelum), sub: 'BKU (Keluar)', color: 'border-b-fin-expense', icon: XCircle, iconColor: 'text-fin-expense' },
-          { label: 'Bank Debet Blm Cocok', value: formatCurrency(totalBankDebetBelum), sub: 'Bank (Keluar)', color: 'border-b-fin-warning', icon: AlertTriangle, iconColor: 'text-fin-warning' },
-          { label: 'Penerimaan Blm Rekon', value: formatCurrency(totalPenerimaanBelum), sub: 'BKU (Masuk)', color: 'border-b-fin-income', icon: CheckCircle2, iconColor: 'text-fin-income' },
-          { label: 'Bank Kredit Blm Cocok', value: formatCurrency(totalBankKreditBelum), sub: 'Bank (Masuk)', color: 'border-b-fin-info', icon: BarChart3, iconColor: 'text-fin-info' },
-          { label: 'Potongan Blm Match', value: formatCurrency(totalPotonganBelum), sub: 'Rincian Pajak', color: 'border-b-fin-surplus', icon: ShieldCheck, iconColor: 'text-fin-surplus' },
-          { label: 'OPD Selisih', value: `${opdDenganSelisih} OPD`, sub: 'Audit Perlu', color: 'border-b-fin-text-muted', icon: Building2, iconColor: 'text-fin-text-muted' },
+          { label: 'SP2D Belum Rekon',    value: formatCurrency(totalSP2DBelum),       sub: 'BKU · Kas Keluar',  lux: 'lux-stat-rose',    icon: XCircle },
+          { label: 'Bank Debet Blm Cocok', value: formatCurrency(totalBankDebetBelum),  sub: 'Bank · Keluar',     lux: 'lux-stat-amber',   icon: AlertTriangle },
+          { label: 'Penerimaan Blm Rekon', value: formatCurrency(totalPenerimaanBelum), sub: 'BKU · Kas Masuk',   lux: 'lux-stat-emerald', icon: CheckCircle2 },
+          { label: 'Bank Kredit Blm Cocok',value: formatCurrency(totalBankKreditBelum), sub: 'Bank · Masuk',      lux: 'lux-stat-cyan',    icon: BarChart3 },
+          { label: 'Potongan Blm Match',   value: formatCurrency(totalPotonganBelum),   sub: 'Rincian Pajak',     lux: 'lux-stat-teal',    icon: ShieldCheck },
+          { label: 'OPD Selisih',          value: `${opdDenganSelisih} OPD`,            sub: 'Perlu Audit',       lux: 'lux-stat-slate',   icon: Building2 },
         ].map((c, i) => (
-          <Card key={i} className={cn("p-5 rounded-xl border border-fin-border bg-fin-surface shadow-sm border-b-2", c.color)}>
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-[9px] font-bold text-fin-text-muted uppercase tracking-widest">{c.label}</p>
-                <p className="text-lg font-black text-fin-text-primary mt-1">{(isLoading && !data) ? '...' : c.value}</p>
+          <div key={i} className={cn('lux-stat p-4 rounded-xl flex flex-col group', c.lux)}>
+            <div className="flex items-start justify-between mb-2">
+              <p className="text-[9px] font-bold text-white/60 uppercase tracking-widest leading-tight">{c.label}</p>
+              <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <c.icon className="w-3.5 h-3.5 text-white/80" />
               </div>
-              <c.icon size={20} className={cn("mt-1", c.iconColor)} />
             </div>
-          </Card>
+            <p className="text-xl font-black tracking-tight text-white tabular-nums truncate">
+              {(isLoading && !data) ? '—' : c.value}
+            </p>
+            <span className="text-[9px] font-bold text-white/40 uppercase mt-2 block">{c.sub}</span>
+          </div>
         ))}
       </div>
 
@@ -583,7 +594,17 @@ export default function DiscrepancyReportPage() {
                   <label className="text-[10px] font-black uppercase text-fin-text-secondary tracking-wider ml-1">Bulan Rekon</label>
                   <select
                     value={barConfig.bulanRekon}
-                    onChange={e => setBarConfig({ ...barConfig, bulanRekon: e.target.value })}
+                    onChange={e => {
+                      const newMonth = e.target.value;
+                      const saved = localStorage.getItem(getBarKey(year, newMonth));
+                      if (saved) {
+                        try {
+                          setBarConfig(prev => ({ ...prev, ...JSON.parse(saved), bulanRekon: newMonth }));
+                          return;
+                        } catch {}
+                      }
+                      setBarConfig(prev => ({ ...prev, bulanRekon: newMonth }));
+                    }}
                     className="h-10 text-xs bg-fin-surface border border-fin-border text-fin-text-primary rounded-lg shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 px-3 w-full outline-none"
                   >
                     <option value="" disabled>Pilih Bulan</option>
@@ -946,20 +967,20 @@ export default function DiscrepancyReportPage() {
                         <p className="text-right font-bold mb-3">Dobo, {previewTgl} {previewBln} {previewThn}</p>
                         <div className="grid grid-cols-2 gap-8 text-center items-stretch">
                           <div className="flex flex-col">
-                            <p className="font-bold uppercase">PIHAK KESATU,</p>
-                            <p className="italic font-bold capitalize">{barConfig.jabatan1 || '—'}</p>
+                            <p className="font-bold uppercase mb-0 leading-tight">PIHAK KESATU,</p>
+                            <p className="font-bold mt-0 leading-tight">{barConfig.jabatan1 || '—'}</p>
                             <div className="flex-1 min-h-[4rem]"></div>
-                            <p className="font-bold uppercase underline leading-tight">{barConfig.pejabat1 || '—'}</p>
+                            <p className="font-bold underline leading-tight">{barConfig.pejabat1 || '—'}</p>
                             {barConfig.showPangkat && barConfig.pangkat1 && (
                               <p className="leading-tight">{barConfig.pangkat1}</p>
                             )}
                             <p className="leading-tight">NIP. {barConfig.nip1 || '—'}</p>
                           </div>
                           <div className="flex flex-col">
-                            <p className="font-bold uppercase">PIHAK KEDUA,</p>
-                            <p className="italic font-bold capitalize">{barConfig.jabatan2 || '—'}</p>
+                            <p className="font-bold uppercase mb-0 leading-tight">PIHAK KEDUA,</p>
+                            <p className="font-bold mt-0 leading-tight">{barConfig.jabatan2 || '—'}</p>
                             <div className="flex-1 min-h-[4rem]"></div>
-                            <p className="font-bold uppercase underline leading-tight">{barConfig.pejabat2 || '—'}</p>
+                            <p className="font-bold underline leading-tight">{barConfig.pejabat2 || '—'}</p>
                             {barConfig.showPangkat && barConfig.pangkat1 && (
                               <p className="leading-tight invisible">_</p>
                             )}
@@ -967,10 +988,10 @@ export default function DiscrepancyReportPage() {
                           </div>
                         </div>
                         <div className="text-center mt-3">
-                          <p className="font-bold uppercase">MENGETAHUI,</p>
-                          <p className="italic font-bold capitalize">{barConfig.jabatan3 || '—'}</p>
+                          <p className="font-bold uppercase mb-0 leading-tight">MENGETAHUI,</p>
+                          <p className="font-bold mt-0 leading-tight">{barConfig.jabatan3 || '—'}</p>
                           <div className="h-16"></div>
-                          <p className="font-bold uppercase underline leading-tight mb-0">{barConfig.pejabat3 || '—'}</p>
+                          <p className="font-bold underline leading-tight mb-0">{barConfig.pejabat3 || '—'}</p>
                           {barConfig.showPangkat && barConfig.pangkat3 && (
                             <p className="leading-tight mb-0">{barConfig.pangkat3}</p>
                           )}
@@ -987,8 +1008,8 @@ export default function DiscrepancyReportPage() {
           <DialogFooter className="p-6 bg-slate-50 border-t border-slate-100 flex gap-4 justify-end shrink-0">
             <Button variant="ghost" onClick={() => setShowBarModal(false)} className="h-11 px-8 rounded-xl font-black text-xs uppercase">Batal</Button>
             <Button onClick={() => {
-              localStorage.setItem('bar_config_discrepancy', JSON.stringify(barConfig));
-              toast.success('Konfigurasi BAR berhasil disimpan');
+              localStorage.setItem(getBarKey(year, barConfig.bulanRekon), JSON.stringify(barConfig));
+              toast.success(`Konfigurasi BAR ${MONTHS[parseInt(barConfig.bulanRekon) - 1]} berhasil disimpan`);
             }} variant="outline" className="h-11 border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-xl font-black text-xs uppercase px-8 shadow-sm flex items-center gap-2">
               <Save size={16} /> Simpan
             </Button>

@@ -73,12 +73,17 @@ import {
   DialogDescription, 
   DialogFooter 
 } from "@/components/ui/dialog";
-import { 
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { NumericInput } from "@/components/NumericInput";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -179,9 +184,22 @@ function Sp2dUnifiedPageContent() {
     return sessionStorage.getItem('pencairan_banner_dismissed') === '1';
   });
 
+  const [sumberDanaList, setSumberDanaList] = useState<any[]>([]);
+
+  // Bulk Sumber Dana
+  const [showBulkSdModal, setShowBulkSdModal] = useState(false);
+  const [bulkSdTarget, setBulkSdTarget] = useState('');
+  const [bulkSdLoading, setBulkSdLoading] = useState(false);
+
+  // Inline Sumber Dana Popover
+  const [inlineSdPopover, setInlineSdPopover] = useState<string | null>(null);
+  const [inlineSdDetails, setInlineSdDetails] = useState<{ id_sumber_dana: string; nilai_bruto: number }[]>([]);
+  const [inlineSdLoading, setInlineSdLoading] = useState(false);
+
   useEffect(() => {
     fetchOpdList();
     fetchJenisList();
+    api.get('/dss/sumber-dana').then(r => setSumberDanaList(r.data)).catch(() => {});
   }, []);
 
   const fetchJenisList = async () => {
@@ -239,6 +257,37 @@ function Sp2dUnifiedPageContent() {
       fetchCashStats();
     }
   }, [isCashMonitorOpen]);
+
+  const handleBulkUpdateSumberDana = async () => {
+    if (!bulkSdTarget || !selectedIds.length) return;
+    setBulkSdLoading(true);
+    try {
+      await api.put('/sp2d/bulk-sumber-dana', { ids: selectedIds, id_sumber_dana: bulkSdTarget });
+      toast.success(`Sumber dana diperbarui untuk ${selectedIds.length} SP2D`);
+      setShowBulkSdModal(false);
+      setBulkSdTarget('');
+      setSelectedIds([]);
+      mutate();
+    } catch {
+      toast.error('Gagal memperbarui sumber dana');
+    } finally {
+      setBulkSdLoading(false);
+    }
+  };
+
+  const handleSaveInlineSd = async (id: string) => {
+    setInlineSdLoading(true);
+    try {
+      await api.put(`/sp2d/${id}/sumber-dana`, { details: inlineSdDetails });
+      toast.success('Sumber dana diperbarui');
+      setInlineSdPopover(null);
+      mutate();
+    } catch {
+      toast.error('Gagal menyimpan sumber dana');
+    } finally {
+      setInlineSdLoading(false);
+    }
+  };
 
   const sp2dList = data?.data || [];
 
@@ -911,184 +960,183 @@ function Sp2dUnifiedPageContent() {
                </div>
             </div>
 
-            {/* Filter Bar (Modernized Gold Standard) */}
-            <Card className="rounded-xl border border-fin-border bg-fin-surface shadow-sm overflow-hidden">
-                 <div className="px-6 py-4 border-b border-fin-border flex justify-between items-center bg-fin-surface rounded-t-xl">
-                    <div className="flex items-center gap-3">
-                       <div className="w-9 h-9 bg-fin-subtle text-fin-info rounded-xl flex items-center justify-center shadow-sm border border-fin-border">
-                          <Filter size={18} />
-                       </div>
-                       <div>
-                          <h3 className="text-xs font-black text-fin-text-primary uppercase tracking-widest leading-none">Panel Kontrol Arsip</h3>
-                          <p className="text-xs text-fin-text-muted font-medium mt-1.5 flex items-center gap-1">
-                             <Activity size={10} className="text-fin-info" /> Filter & Ekspor Data SP2D
-                          </p>
-                       </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                       <Button 
-                         variant="ghost" 
-                         size="sm" 
-                         onClick={() => setShowFilters(!showFilters)}
-                         className="h-9 px-4 text-xs font-bold text-fin-info hover:bg-fin-info/10 rounded-full transition-all flex items-center gap-2 border border-transparent hover:border-fin-info/20"
-                       >
-                         {showFilters ? <><X size={14} /> Sembunyikan Filter</> : <><Filter size={14} /> Tampilkan Filter</>}
-                       </Button>
-                       <Button 
-                         variant="ghost" 
-                         size="icon" 
-                         onClick={() => { setFilters({ opd: '', jenis: '', status: '', search: '', startDate: '', endDate: '', onlySelisih: '' }); mutate(); }}
-                         className="h-9 w-9 text-fin-text-muted hover:text-fin-text-primary hover:bg-fin-subtle rounded-full transition-all border border-fin-border"
-                         title="Refresh & Reset"
-                       >
-                         <RefreshCw size={15} className={cn(isLoading && "animate-spin")} />
-                       </Button>
-                    </div>
-                 </div>
+            {/* Filter Panel */}
+            <Card className="rounded-xl shadow-sm border border-fin-border bg-fin-surface overflow-hidden">
+              <div className="px-6 py-3 border-b border-fin-subtle flex justify-between items-center bg-fin-surface">
+                <div className="flex items-center gap-2">
+                  <Filter size={14} className="text-fin-info-text" />
+                  <h3 className="text-[11px] font-bold text-fin-text-muted uppercase tracking-wider">Panel Kontrol Arsip SP2D</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowFilters(!showFilters)}
+                    className="h-8 px-3 text-[10px] font-bold text-fin-info-text hover:bg-fin-subtle rounded-lg transition-all flex items-center gap-2"
+                  >
+                    {showFilters ? <><X size={14} /> Sembunyikan Filter</> : <><Filter size={14} /> Tampilkan Filter</>}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => { setFilters({ opd: '', jenis: '', status: '', search: '', startDate: '', endDate: '', onlySelisih: '' }); mutate(); }}
+                    className="h-8 w-8 text-fin-text-muted hover:text-fin-text-primary hover:bg-fin-subtle rounded-lg transition-all border border-fin-border"
+                    title="Refresh & Reset"
+                  >
+                    <RefreshCw size={14} className={cn(isLoading && "animate-spin")} />
+                  </Button>
+                </div>
+              </div>
 
-                 <AnimatePresence>
-                   {showFilters && (
-                     <motion.div 
-                       initial={{ height: 0, opacity: 0 }}
-                       animate={{ height: 'auto', opacity: 1 }}
-                       exit={{ height: 0, opacity: 0 }}
-                       transition={{ duration: 0.3, ease: 'easeInOut' }}
-                     >
-                        <div className="p-7 space-y-7 bg-fin-surface border-b border-fin-border">
-                           {/* ROW 1: MAIN FILTERS */}
-                           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-end">
-                              <div className="lg:col-span-3 space-y-2.5">
-                                 <label className="text-xs font-bold text-fin-info uppercase tracking-wider flex items-center gap-2 ml-1">
-                                    <Search size={13} /> Pencarian Bukti
-                                 </label>
-                                 <Input 
-                                   placeholder="Cari bukti / uraian..." 
-                                   className="h-11 bg-fin-page border-fin-border rounded-xl text-xs font-medium px-4 focus:ring-2 focus:ring-ds-focus-ring transition-all shadow-sm" 
-                                   value={filters.search}
-                                   onChange={(e) => setFilters({...filters, search: e.target.value})}
-                                 />
-                              </div>
-
-                              <div className="lg:col-span-3 space-y-2.5">
-                                 <label className="text-[10px] font-bold text-fin-info uppercase tracking-wider flex items-center gap-2 ml-1">
-                                    <Building2 size={13} /> Satuan Kerja (OPD)
-                                 </label>
-                                 <Combobox
-                                   value={filters.opd || 'none'}
-                                   onValueChange={(v) => setFilters({...filters, opd: v === 'none' || !v ? '' : v})}
-                                   placeholder="Semua Dinas / Badan"
-                                   className="h-11"
-                                   options={[
-                                     { value: 'none', label: 'SEMUA SUMBER' },
-                                     ...opdList.map((opd: any) => ({ value: opd, label: opd })),
-                                   ]}
-                                 />
-                              </div>
-
-                              <div className="lg:col-span-4 space-y-2.5">
-                                 <label className="text-[10px] font-bold text-fin-info uppercase tracking-wider flex items-center gap-2 ml-1">
-                                    <Calendar size={13} /> Rentang Periode
-                                 </label>
-                                 <div className="flex items-center gap-2 bg-fin-page border border-fin-border rounded-xl px-3 h-11 transition-all focus-within:ring-2 focus-within:ring-fin-info/10 shadow-sm">
-                                    <Input type="date" className="h-9 border-none bg-transparent text-[11px] font-bold p-0 w-full focus-visible:ring-0" value={filters.startDate} onChange={(e) => setFilters({...filters, startDate: e.target.value})} />
-                                    <span className="text-[10px] font-black text-fin-text-muted shrink-0 px-2 uppercase">S/D</span>
-                                    <Input type="date" className="h-9 border-none bg-transparent text-[11px] font-bold p-0 w-full focus-visible:ring-0 text-right" value={filters.endDate} onChange={(e) => setFilters({...filters, endDate: e.target.value})} />
-                                 </div>
-                              </div>
-
-                              <div className="lg:col-span-2 flex items-center gap-2">
-                                 <Button variant="primary" onClick={() => setCurrentPage(1)} className="h-11 flex-1 rounded-xl text-[10px] font-black gap-2 shadow-md active:scale-95">
-                                    <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} /> Tampilkan
-                                 </Button>
-                                 <Button variant="ghost" onClick={() => setFilters({ opd: '', jenis: '', status: '', search: '', startDate: '', endDate: '', onlySelisih: '' })} className="h-11 px-3 bg-fin-subtle hover:bg-fin-border text-fin-text-muted rounded-xl text-[10px] font-bold transition-all">
-                                    Reset
-                                 </Button>
-                              </div>
-                           </div>
-
-                           {/* ROW 2: QUICK FILTERS & ACTION BAR */}
-                           <div className="flex flex-wrap items-center justify-between gap-6 pt-6 border-t border-[#F8F9FA]">
-                              <div className="flex items-center gap-5">
-                                 <span className="text-[10px] font-bold text-fin-text-muted uppercase tracking-widest ml-1">Filter Cepat:</span>
-                                 <div className="flex items-center gap-2.5">
-                                    <Button variant="outline" onClick={() => handleQuickFilter('bulan_ini')} className="h-9 px-4 border-[#EAECF0] hover:border-[#2E90FA] hover:bg-fin-surface rounded-full text-[10px] font-bold text-fin-text-muted gap-2 transition-all shadow-sm">
-                                       <Calendar size={14} className="text-fin-info" /> Bulan Ini
-                                    </Button>
-                                    <Button variant="outline" onClick={() => handleQuickFilter('talangan')} className="h-9 px-4 border-[#EAECF0] hover:border-[#F04438] hover:bg-fin-surface rounded-full text-[10px] font-bold text-fin-text-muted gap-2 transition-all shadow-sm">
-                                       <Activity size={14} className="text-fin-expense" /> Nominal Besar (&gt;1M)
-                                    </Button>
-                                    <Button 
-                                       variant="outline" 
-                                       onClick={() => { setFilters({...filters, onlySelisih: filters.onlySelisih === 'true' ? '' : 'true'}); setCurrentPage(1); }} 
-                                       className={cn(
-                                         "h-9 px-4 rounded-full text-[10px] font-bold gap-2 transition-all shadow-sm border",
-                                         filters.onlySelisih === 'true' 
-                                           ? "bg-[#B54708] text-white border-[#B54708] hover:bg-[#93370d]" 
-                                           : "border-[#EAECF0] hover:border-[#B54708] text-fin-text-muted"
-                                       )}
-                                     >
-                                        <RefreshCw size={14} className={filters.onlySelisih === 'true' ? "text-white" : "text-[#B54708]"} /> 
-                                        {filters.onlySelisih === 'true' ? 'Menampilkan Temuan Selisih' : 'Hanya Selisih'}
-                                     </Button>
-                                    <div className="flex items-center gap-2.5 ml-3">
-                                        <select
-                                          value={filters.jenis || 'none'}
-                                          onChange={(e) => {
-                                            const v = e.target.value;
-                                            setFilters({...filters, jenis: v === 'none' || !v ? '' : v});
-                                          }}
-                                          className="h-9 min-w-[150px] px-3 border border-fin-border rounded-lg bg-fin-surface text-fin-text-primary text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
-                                        >
-                                          <option value="none">SEMUA JENIS</option>
-                                          {jenisList.map((j: any) => (
-                                            <option key={j} value={j} className="bg-fin-surface text-fin-text-primary">
-                                              {j}
-                                            </option>
-                                          ))}
-                                        </select>
-                                        <select
-                                          value={filters.status || 'none'}
-                                          onChange={(e) => {
-                                            const v = e.target.value;
-                                            setFilters({...filters, status: v === 'none' || !v ? '' : v});
-                                          }}
-                                          className="h-9 min-w-[140px] px-3 border border-fin-border rounded-lg bg-fin-surface text-fin-text-primary text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
-                                        >
-                                          <option value="none">SEMUA STATUS</option>
-                                          <option value="Aman" className="bg-fin-surface text-fin-text-primary">AMAN (KAS)</option>
-                                          <option value="Talangan" className="bg-fin-surface text-fin-text-primary">TALANGAN</option>
-                                        </select>
-                                     </div>
-                                 </div>
-                              </div>
-
-                              <div className="flex items-center gap-1 p-1 bg-fin-subtle border border-fin-border rounded-full shadow-inner">
-                                 <Button variant="ghost" onClick={handlePreviewReport} className="h-8 px-4 text-[10px] font-bold text-fin-text-muted hover:text-fin-info hover:bg-fin-surface rounded-full flex items-center gap-2 transition-all">
-                                    <Eye size={13} /> Preview
-                                 </Button>
-                                 <div className="w-px h-3.5 bg-[#D0D5DD] mx-1" />
-                                 <Button variant="ghost" onClick={handlePrintPDF} className="h-8 px-4 text-[10px] font-bold text-fin-text-muted hover:text-fin-expense hover:bg-fin-surface rounded-full flex items-center gap-2 transition-all">
-                                    <Printer size={13} /> PDF
-                                 </Button>
-                                 <Button variant="ghost" onClick={handleExportExcel} className="h-8 px-4 text-[10px] font-bold text-fin-text-muted hover:text-fin-income hover:bg-fin-surface rounded-full flex items-center gap-2 transition-all">
-                                    <FileSpreadsheet size={13} /> Excel
-                                 </Button>
-                                 <div className="w-px h-3.5 bg-[#D0D5DD] mx-1" />
-                                 <Button variant="ghost" onClick={handleDownloadTemplate} className="h-8 px-4 text-[10px] font-bold text-fin-text-muted hover:text-fin-info hover:bg-fin-surface rounded-full flex items-center gap-2 transition-all">
-                                    <LayoutTemplate size={13} /> Template
-                                 </Button>
-                                 <div className="relative">
-                                    <input type="file" className="absolute inset-0 opacity-0 cursor-pointer z-10" onChange={handleImportFile} />
-                                    <Button variant="ghost" className="h-8 px-4 text-[10px] font-bold text-fin-income hover:bg-fin-surface rounded-full flex items-center gap-2 transition-all">
-                                       <FileUp size={13} /> Import
-                                    </Button>
-                                 </div>
-                              </div>
-                           </div>
+              <AnimatePresence>
+                {showFilters && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  >
+                    <div className="p-6 space-y-4 border-b border-[#F8F9FA]">
+                      {/* ROW 1: Search, OPD, Periode, Tombol */}
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
+                        <div className="lg:col-span-3 space-y-2">
+                          <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-tight ml-1 flex items-center gap-1.5">
+                            <Search size={12} className="text-[#2E90FA]" /> Pencarian Bukti
+                          </label>
+                          <Input
+                            placeholder="Cari nomor / uraian / penerima..."
+                            className="h-11 bg-fin-page border-fin-border rounded-lg text-xs font-medium px-4"
+                            value={filters.search}
+                            onChange={(e) => setFilters({...filters, search: e.target.value})}
+                          />
                         </div>
-                     </motion.div>
-                   )}
-                 </AnimatePresence>
+
+                        <div className="lg:col-span-3 space-y-2">
+                          <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-tight ml-1 flex items-center gap-1.5">
+                            <Building2 size={12} className="text-[#2E90FA]" /> Satuan Kerja (OPD)
+                          </label>
+                          <Combobox
+                            value={filters.opd || 'none'}
+                            onValueChange={(v) => setFilters({...filters, opd: v === 'none' || !v ? '' : v})}
+                            placeholder="Semua Dinas / Badan"
+                            className="h-11"
+                            options={[
+                              { value: 'none', label: 'SEMUA OPD' },
+                              ...opdList.map((opd: any) => ({ value: opd, label: opd })),
+                            ]}
+                          />
+                        </div>
+
+                        <div className="lg:col-span-4 space-y-2">
+                          <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-tight ml-1 flex items-center gap-1.5">
+                            <Calendar size={12} className="text-[#2E90FA]" /> Rentang Periode
+                          </label>
+                          <div className="flex items-center gap-3">
+                            <Input type="date" className="h-11 px-4 bg-fin-page border-fin-border rounded-lg text-sm font-medium" value={filters.startDate} onChange={(e) => setFilters({...filters, startDate: e.target.value})} />
+                            <span className="text-[#D0D5DD] text-[10px] font-bold shrink-0">S/D</span>
+                            <Input type="date" className="h-11 px-4 bg-fin-page border-fin-border rounded-lg text-sm font-medium" value={filters.endDate} onChange={(e) => setFilters({...filters, endDate: e.target.value})} />
+                          </div>
+                        </div>
+
+                        <div className="lg:col-span-2 flex items-center gap-2 pt-5">
+                          <Button onClick={() => setCurrentPage(1)} className="flex-1 h-11 bg-ds-primary text-white rounded-lg font-bold text-[11px] hover:bg-ds-primary-hover transition-all gap-2 active:scale-95">
+                            <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} /> Tampilkan
+                          </Button>
+                          <Button variant="ghost" onClick={() => setFilters({ opd: '', jenis: '', status: '', search: '', startDate: '', endDate: '', onlySelisih: '' })} className="h-11 px-3 bg-fin-subtle hover:bg-fin-border text-fin-text-muted rounded-lg text-[10px] font-bold transition-all">
+                            Reset
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* ROW 2: Jenis, Status, Quick Filters */}
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center pt-2 border-t border-fin-subtle">
+                        <div className="lg:col-span-3 space-y-2">
+                          <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-tight ml-1 flex items-center gap-1.5">
+                            <Filter size={12} className="text-[#2E90FA]" /> Jenis SP2D
+                          </label>
+                          <select
+                            value={filters.jenis || 'none'}
+                            onChange={(e) => { const v = e.target.value; setFilters({...filters, jenis: v === 'none' ? '' : v}); }}
+                            className="w-full h-11 px-3 border border-fin-border rounded-lg bg-fin-surface text-fin-text-primary text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                          >
+                            <option value="none">SEMUA JENIS</option>
+                            {jenisList.map((j: any) => <option key={j} value={j}>{j}</option>)}
+                          </select>
+                        </div>
+
+                        <div className="lg:col-span-3 space-y-2">
+                          <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-tight ml-1 flex items-center gap-1.5">
+                            <CheckCircle2 size={12} className="text-[#2E90FA]" /> Status Dana
+                          </label>
+                          <select
+                            value={filters.status || 'none'}
+                            onChange={(e) => { const v = e.target.value; setFilters({...filters, status: v === 'none' ? '' : v}); }}
+                            className="w-full h-11 px-3 border border-fin-border rounded-lg bg-fin-surface text-fin-text-primary text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                          >
+                            <option value="none">SEMUA STATUS</option>
+                            <option value="Aman">AMAN (KAS)</option>
+                            <option value="Talangan">TALANGAN</option>
+                          </select>
+                        </div>
+
+                        <div className="lg:col-span-6 flex items-end gap-2 pb-0.5">
+                          <div className="flex-1 space-y-2">
+                            <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-tight ml-1">Filter Cepat</label>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Button variant="outline" onClick={() => handleQuickFilter('bulan_ini')} className="h-9 px-3 border-fin-border hover:border-[#2E90FA] hover:text-[#2E90FA] rounded-lg text-[10px] font-bold text-fin-text-muted gap-1.5 transition-all">
+                                <Calendar size={13} className="text-fin-info" /> Bulan Ini
+                              </Button>
+                              <Button variant="outline" onClick={() => handleQuickFilter('talangan')} className="h-9 px-3 border-fin-border hover:border-fin-expense hover:text-fin-expense rounded-lg text-[10px] font-bold text-fin-text-muted gap-1.5 transition-all">
+                                <Activity size={13} className="text-fin-expense" /> Nominal Besar
+                              </Button>
+                              <Button
+                                variant="outline"
+                                onClick={() => { setFilters({...filters, onlySelisih: filters.onlySelisih === 'true' ? '' : 'true'}); setCurrentPage(1); }}
+                                className={cn(
+                                  "h-9 px-3 rounded-lg text-[10px] font-bold gap-1.5 transition-all border",
+                                  filters.onlySelisih === 'true'
+                                    ? "bg-amber-600 text-white border-amber-600 hover:bg-amber-700"
+                                    : "border-fin-border hover:border-amber-500 hover:text-amber-600 text-fin-text-muted"
+                                )}
+                              >
+                                <AlertCircle size={13} className={filters.onlySelisih === 'true' ? "text-white" : "text-amber-500"} />
+                                {filters.onlySelisih === 'true' ? 'Menampilkan Selisih' : 'Hanya Selisih'}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ROW 3: Export bar */}
+                      <div className="flex items-center justify-between pt-2 border-t border-fin-subtle">
+                        <span className="text-[10px] font-bold text-fin-text-muted uppercase tracking-tight ml-1">Ekspor & Cetak</span>
+                        <div className="flex items-center gap-1 p-1 bg-fin-subtle border border-fin-border rounded-lg shadow-inner">
+                          <Button variant="ghost" onClick={handlePreviewReport} className="h-8 px-3 text-[10px] font-bold text-fin-text-muted hover:text-fin-info hover:bg-fin-surface rounded-md flex items-center gap-1.5 transition-all">
+                            <Eye size={13} /> Preview
+                          </Button>
+                          <div className="w-px h-3.5 bg-fin-border mx-0.5" />
+                          <Button variant="ghost" onClick={handlePrintPDF} className="h-8 px-3 text-[10px] font-bold text-fin-text-muted hover:text-fin-expense hover:bg-fin-surface rounded-md flex items-center gap-1.5 transition-all">
+                            <Printer size={13} /> PDF
+                          </Button>
+                          <Button variant="ghost" onClick={handleExportExcel} className="h-8 px-3 text-[10px] font-bold text-fin-text-muted hover:text-fin-income hover:bg-fin-surface rounded-md flex items-center gap-1.5 transition-all">
+                            <FileSpreadsheet size={13} /> Excel
+                          </Button>
+                          <div className="w-px h-3.5 bg-fin-border mx-0.5" />
+                          <Button variant="ghost" onClick={handleDownloadTemplate} className="h-8 px-3 text-[10px] font-bold text-fin-text-muted hover:text-fin-info hover:bg-fin-surface rounded-md flex items-center gap-1.5 transition-all">
+                            <LayoutTemplate size={13} /> Template
+                          </Button>
+                          <div className="relative">
+                            <input type="file" className="absolute inset-0 opacity-0 cursor-pointer z-10" onChange={handleImportFile} />
+                            <Button variant="ghost" className="h-8 px-3 text-[10px] font-bold text-fin-income hover:bg-fin-surface rounded-md flex items-center gap-1.5 transition-all">
+                              <FileUp size={13} /> Import
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </Card>
 
       {/* Results Table (Industrial Standard with Shadcn/UI) */}
@@ -1213,17 +1261,102 @@ function Sp2dUnifiedPageContent() {
                             <p className="text-xs text-fin-text-muted max-w-[200px] truncate mt-0.5" title={item.penerima}>{item.penerima}</p>
                           </TableCell>
                           <TableCell className="px-4 py-4">
-                             <div className="flex flex-wrap gap-1 max-w-[120px]">
-                                {item.sumber_dana && item.sumber_dana !== 'SD-LAINNYA' ? item.sumber_dana.split(',').map((sd: string) => (
-                                   <Badge key={sd} className="bg-[#F5F8FF] text-fin-info border-[#B2DDFF] text-[10px] font-bold px-1.5 py-0">
+                            <Popover open={inlineSdPopover === item.id} onOpenChange={(open) => {
+                              if (open) {
+                                setInlineSdPopover(item.id);
+                                setInlineSdDetails(
+                                  item.details?.map((d: any) => ({
+                                    id_sumber_dana: d.id_sumber_dana,
+                                    nilai_bruto: parseFloat(d.nilai_bruto) || 0,
+                                  })) || []
+                                );
+                              } else {
+                                setInlineSdPopover(null);
+                              }
+                            }}>
+                              <PopoverTrigger asChild>
+                                <div className="flex flex-wrap gap-1 max-w-[120px] cursor-pointer group">
+                                  {item.sumber_dana && item.sumber_dana !== 'SD-LAINNYA' ? item.sumber_dana.split(',').map((sd: string) => (
+                                    <Badge key={sd} className="bg-[#F5F8FF] text-fin-info border-[#B2DDFF] text-[10px] font-bold px-1.5 py-0 group-hover:bg-blue-100">
                                       {sd.trim()}
-                                   </Badge>
-                                )) : (
-                                   <Badge className="bg-fin-expense/10 text-fin-expense border-fin-expense/20 text-[10px] font-bold px-1.5 py-0 italic">
+                                    </Badge>
+                                  )) : (
+                                    <Badge className="bg-fin-expense/10 text-fin-expense border-fin-expense/20 text-[10px] font-bold px-1.5 py-0 italic group-hover:bg-red-100">
                                       BELUM INPUT
-                                   </Badge>
-                                )}
-                             </div>
+                                    </Badge>
+                                  )}
+                                  <span className="text-[9px] text-fin-text-muted opacity-0 group-hover:opacity-100">✎</span>
+                                </div>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 p-3 space-y-2 z-[200]">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-fin-text-muted">Edit Sumber Dana</p>
+                                {/* Header kolom */}
+                                <div className="grid grid-cols-[1fr_90px_16px] gap-1.5 items-center">
+                                  <span className="text-[9px] text-fin-text-muted font-semibold uppercase">Sumber Dana</span>
+                                  <span className="text-[9px] text-fin-text-muted font-semibold uppercase text-right">Nilai Bruto</span>
+                                  <span />
+                                </div>
+                                {inlineSdDetails.map((d, i) => (
+                                  <div key={i} className="grid grid-cols-[1fr_90px_16px] gap-1.5 items-center">
+                                    <select
+                                      value={d.id_sumber_dana}
+                                      onChange={e => setInlineSdDetails(prev => prev.map((x, j) => j === i ? { ...x, id_sumber_dana: e.target.value } : x))}
+                                      className="border border-fin-border rounded px-1.5 py-1 text-xs bg-fin-surface"
+                                    >
+                                      <option value="">-- Pilih --</option>
+                                      {sumberDanaList.map((sd: any) => (
+                                        <option key={sd.id} value={sd.id}>{sd.nama}</option>
+                                      ))}
+                                    </select>
+                                    <input
+                                      type="number"
+                                      value={d.nilai_bruto || ''}
+                                      onChange={e => setInlineSdDetails(prev => prev.map((x, j) => j === i ? { ...x, nilai_bruto: parseFloat(e.target.value) || 0 } : x))}
+                                      className="border border-fin-border rounded px-1.5 py-1 text-xs bg-fin-surface text-right w-full"
+                                      placeholder="0"
+                                    />
+                                    <button
+                                      onClick={() => setInlineSdDetails(prev => prev.filter((_, j) => j !== i))}
+                                      className="text-red-400 hover:text-red-600 text-xs leading-none"
+                                    >✕</button>
+                                  </div>
+                                ))}
+                                {/* Total vs SP2D nilai_bruto */}
+                                {(() => {
+                                  const totalSd = inlineSdDetails.reduce((s, d) => s + (d.nilai_bruto || 0), 0);
+                                  const totalSp2d = parseFloat(item.nilai_bruto) || 0;
+                                  const selisih = totalSp2d - totalSd;
+                                  return (
+                                    <div className={cn(
+                                      "text-[10px] rounded px-2 py-1 flex justify-between",
+                                      Math.abs(selisih) < 1 ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"
+                                    )}>
+                                      <span>Total SD: {formatCurrency(totalSd)}</span>
+                                      {Math.abs(selisih) >= 1 && <span>Selisih: {formatCurrency(selisih)}</span>}
+                                      {Math.abs(selisih) < 1 && <span>✓ Sesuai</span>}
+                                    </div>
+                                  );
+                                })()}
+                                <button
+                                  onClick={() => {
+                                    const totalSd = inlineSdDetails.reduce((s, d) => s + (d.nilai_bruto || 0), 0);
+                                    const sisa = Math.max(0, (parseFloat(item.nilai_bruto) || 0) - totalSd);
+                                    setInlineSdDetails(prev => [...prev, { id_sumber_dana: '', nilai_bruto: sisa }]);
+                                  }}
+                                  className="text-xs text-blue-600 hover:underline"
+                                >+ Tambah Sumber Dana</button>
+                                <div className="flex justify-end gap-2 pt-1 border-t border-fin-border">
+                                  <button onClick={() => setInlineSdPopover(null)} className="text-xs text-fin-text-muted">Batal</button>
+                                  <button
+                                    onClick={() => handleSaveInlineSd(item.id)}
+                                    disabled={inlineSdLoading}
+                                    className="text-xs font-bold text-white bg-ds-primary px-3 py-1 rounded-lg disabled:opacity-50"
+                                  >
+                                    {inlineSdLoading ? '...' : 'Simpan'}
+                                  </button>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
                           </TableCell>
                           <TableCell className="px-4 py-4 text-right">
                             <div className="space-y-1">
@@ -1699,7 +1832,15 @@ function Sp2dUnifiedPageContent() {
                   >
                     Batalkan
                   </Button>
-                  <Button 
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowBulkSdModal(true)}
+                    className="h-10 px-4 text-xs font-semibold border-blue-300 text-blue-700 hover:bg-blue-50 rounded-lg flex items-center gap-2"
+                  >
+                    <Pencil size={13} />
+                    Ganti Sumber Dana
+                  </Button>
+                  <Button
                     onClick={handleDeleteBulk}
                     className="h-10 px-6 bg-fin-expense text-fin-surface rounded-lg font-bold text-xs hover:opacity-90 shadow-lg shadow-fin-expense/20 flex items-center gap-2"
                   >
@@ -1711,6 +1852,39 @@ function Sp2dUnifiedPageContent() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* BULK GANTI SUMBER DANA DIALOG */}
+      <Dialog open={showBulkSdModal} onOpenChange={setShowBulkSdModal}>
+        <DialogContent className="max-w-sm rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-black">Ganti Sumber Dana Massal</DialogTitle>
+            <DialogDescription className="text-xs">
+              {selectedIds.length} SP2D dipilih. Semua detail sumber dana akan diganti dengan pilihan di bawah.
+            </DialogDescription>
+          </DialogHeader>
+          <select
+            value={bulkSdTarget}
+            onChange={e => setBulkSdTarget(e.target.value)}
+            className="w-full border border-fin-border rounded-lg px-3 py-2 text-sm bg-fin-surface"
+          >
+            <option value="">-- Pilih Sumber Dana --</option>
+            {sumberDanaList.map((sd: any) => (
+              <option key={sd.id} value={sd.id}>{sd.nama}</option>
+            ))}
+          </select>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setShowBulkSdModal(false)}>Batal</Button>
+            <Button
+              size="sm"
+              disabled={!bulkSdTarget || bulkSdLoading}
+              onClick={handleBulkUpdateSumberDana}
+              className="bg-ds-primary text-white"
+            >
+              {bulkSdLoading ? 'Memproses...' : 'Terapkan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* RESTORE TANGGAL PENCAIRAN DIALOG */}
       <Dialog open={restoreModal} onOpenChange={setRestoreModal}>

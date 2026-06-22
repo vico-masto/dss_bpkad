@@ -390,17 +390,19 @@ export default function BkuPage() {
            transition={{ delay: 0.1 }}
            className="group"
          >
-           <div className="lux-stat lux-stat-rose p-4 rounded-xl flex flex-col group">
+           <div className="lux-stat lux-stat-rose p-4 rounded-xl flex flex-col justify-between group h-full min-h-[150px]">
               <div className="flex items-center justify-between mb-2">
                  <p className="text-[9px] font-bold text-red-200/70 uppercase tracking-widest">Total Pengeluaran</p>
                  <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
                     <ArrowDownLeft className="w-3.5 h-3.5 text-red-200" />
                  </div>
               </div>
-              <h2 className="text-xl font-black tracking-tight text-white tabular-nums truncate">
-                {formatCurrency(summary.totalPengeluaran)}
-              </h2>
-              <span className="text-[9px] font-bold text-red-200/50 uppercase mt-2">Mutasi Keluar Periode Ini</span>
+              <div>
+                <h2 className="text-xl font-black tracking-tight text-white tabular-nums truncate">
+                  {formatCurrency(summary.totalPengeluaran)}
+                </h2>
+                <span className="text-[9px] font-bold text-red-200/50 uppercase mt-2 block">Mutasi Keluar Periode Ini</span>
+              </div>
            </div>
          </motion.div>
 
@@ -411,17 +413,19 @@ export default function BkuPage() {
            transition={{ delay: 0.2 }}
            className="group"
          >
-           <div className="lux-stat lux-stat-violet p-4 rounded-xl flex flex-col group">
+           <div className="lux-stat lux-stat-violet p-4 rounded-xl flex flex-col justify-between group h-full min-h-[150px]">
               <div className="flex items-center justify-between mb-2">
                  <p className="text-[9px] font-bold text-violet-200/70 uppercase tracking-widest">Saldo Akhir Periode</p>
                  <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
                     <Wallet className="w-3.5 h-3.5 text-violet-200" />
                  </div>
               </div>
-              <h2 className="text-xl font-black tracking-tight text-white tabular-nums truncate">
-                {formatCurrency(summary.saldoAkhir)}
-              </h2>
-              <span className="text-[9px] font-bold text-violet-200/50 uppercase mt-2">Saldo Kas Tersedia</span>
+              <div>
+                <h2 className="text-xl font-black tracking-tight text-white tabular-nums truncate">
+                  {formatCurrency(summary.saldoAkhir)}
+                </h2>
+                <span className="text-[9px] font-bold text-violet-200/50 uppercase mt-2 block">Saldo Kas Tersedia</span>
+              </div>
            </div>
          </motion.div>
       </div>
