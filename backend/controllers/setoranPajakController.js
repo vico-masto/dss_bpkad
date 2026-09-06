@@ -1,6 +1,7 @@
 const prisma = require('../prismaClient');
 const auditService = require('../services/auditService');
 const { parseDateSafe } = require('../utils/dateUtils');
+const { ensureRincianForSetoran } = require('../services/potonganSyncService');
 
 /**
  * Mencatat Setoran Pajak (NTPN)
@@ -39,7 +40,14 @@ const createSetoranPajak = async (req, res) => {
     // Log Aktivitas via auditService
     await auditService.logActivity(req, 'TAMBAH', 'SETORAN_PAJAK', `NTPN: ${nomor_bukti} | Rp ${parseFloat(nilai).toLocaleString('id-ID')}`);
 
-    res.status(201).json({ message: 'Setoran pajak berhasil direkam', id: result.id });
+    // [PARITAS MANUAL==UPLOAD] Jika nomor_bukti menunjuk header SP2D yang belum
+    // punya rincian potongan → materialisasikan rincian otomatis (SUDAH, terwakili).
+    const sync = await ensureRincianForSetoran(
+      { id: result.id, nomor_bukti, uraian, jenis_pajak: jenis_pajak || 'PPN' },
+      req.user?.username || 'SYSTEM'
+    );
+
+    res.status(201).json({ message: 'Setoran pajak berhasil direkam', id: result.id, rincian_auto_synced: sync.synced, sync_reason: sync.reason });
   } catch (err) {
     console.error('ERROR CREATE SETORAN PAJAK:', err.message);
     if (err.code === 'P2002') {
@@ -118,7 +126,14 @@ const updateSetoranPajak = async (req, res) => {
 
     await auditService.logActivity(req, 'UPDATE', 'SETORAN_PAJAK', `NTPN: ${nomor_bukti} | Rp ${parseFloat(nilai).toLocaleString('id-ID')}`);
 
-    res.json({ message: 'Setoran pajak berhasil diperbarui' });
+    // [PARITAS MANUAL==UPLOAD] Jika nomor_bukti diubah/diperbarui menunjuk header
+    // SP2D tanpa rincian → materialisasikan rincian otomatis juga.
+    const syncUpd = await ensureRincianForSetoran(
+      { id, nomor_bukti, uraian, jenis_pajak: jenis_pajak || 'PPN' },
+      req.user?.username || 'SYSTEM'
+    );
+
+    res.json({ message: 'Setoran pajak berhasil diperbarui', rincian_auto_synced: syncUpd.synced });
   } catch (err) {
     console.error('ERROR UPDATE SETORAN PAJAK:', err.message);
     if (err.code === 'P2002') {
@@ -144,6 +159,17 @@ const deleteSetoranPajak = async (req, res) => {
     }
 
     await prisma.setoran_pajak.delete({ where: { id } });
+
+    // [PARITAS MANUAL==UPLOAD] Peringatan bila penghapusan meninggalkan rincian
+    // auto-sync yang kini kehilangan pasangan setornya (tetap dipertahankan —
+    // sejarah SUDAH; hanya informasi).
+    const yatim = await prisma.$queryRaw`
+      SELECT COUNT(*)::int as n FROM data_sp2d_potongan
+      WHERE keterangan_rekon LIKE ${'%Auto-sync dari setoran manual ' + id + '%'}`;
+    if ((yatim[0]?.n || 0) > 0) {
+      await auditService.logActivity(req, 'PERINGATAN', 'SETORAN_PAJAK',
+        `Hapus setoran ${info.nomor_bukti} menyisakan ${yatim[0].n} rincian auto-sync tanpa pasangan`);
+    }
 
     await auditService.logActivity(req, 'HAPUS', 'SETORAN_PAJAK', `NTPN: ${info.nomor_bukti} | Rp ${Number(info.nilai).toLocaleString('id-ID')}`);
 

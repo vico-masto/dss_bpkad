@@ -28,6 +28,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateRange } from "@/components/ui/date-range";
 
 const fetcher = (url: string, params: any) => api.get(url, { params }).then(res => res.data);
 
@@ -66,22 +67,13 @@ export default function BKUPage() {
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-fin-border">
-              <Calendar size={14} className="text-fin-text-muted" />
-              <div className="flex items-center text-xs font-medium text-fin-text-primary">
-                <input
-                  type="date"
-                  className="bg-transparent border-none outline-none cursor-pointer"
-                  value={filters.tgl_awal}
-                  onChange={(e) => setFilters({...filters, tgl_awal: e.target.value})}
-                />
-                <span className="mx-2 text-fin-text-muted">to</span>
-                <input
-                  type="date"
-                  className="bg-transparent border-none outline-none cursor-pointer"
-                  value={filters.tgl_akhir}
-                  onChange={(e) => setFilters({...filters, tgl_akhir: e.target.value})}
-                />
-              </div>
+              <DateRange
+                variant="compact"
+                startDate={filters.tgl_awal}
+                endDate={filters.tgl_akhir}
+                onChangeStart={(v) => setFilters({...filters, tgl_awal: v})}
+                onChangeEnd={(v) => setFilters({...filters, tgl_akhir: v})}
+              />
             </div>
             <div className="relative">
               <select

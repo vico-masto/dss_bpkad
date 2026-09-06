@@ -61,6 +61,7 @@ async function cleanOrphanBankRefs() {
       AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan WHERE id::text           = bank_statement.ref_bku_id)
       AND NOT EXISTS (SELECT 1 FROM setoran_pajak    WHERE id::text            = bank_statement.ref_bku_id)
       AND NOT EXISTS (SELECT 1 FROM data_pendapatan  WHERE id::text            = bank_statement.ref_bku_id)
+      AND NOT EXISTS (SELECT 1 FROM data_penyesuaian WHERE id::text            = bank_statement.ref_bku_id)
   `);
   if (result > 0)
     console.log(`[CLEANUP] ${result} bank_statement orphan ref direset ke unmatched`);

@@ -9,6 +9,7 @@ import {
   Upload, 
   FileSpreadsheet, 
   Download, 
+  DownloadCloud,
   Printer,
   Database, 
   AlertTriangle, 
@@ -19,16 +20,17 @@ import {
   ShieldCheck,
   Calendar,
   ArrowLeft,
-  Loader2
+  Loader2,
+  Info
 } from 'lucide-react';
 import { formatCurrency, cn, parseNumber } from '@/lib/utils';
 import { format } from 'date-fns';
 import api from '@/lib/api';
-import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateRange } from "@/components/ui/date-range";
 import { Badge } from "@/components/ui/badge";
 import { 
   Dialog, 
@@ -69,7 +71,6 @@ export default function BankManagementPage() {
 
   const [isUploading, setIsUploading] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [resetModal, setResetModal] = useState({ isOpen: false, value: '' });
@@ -83,6 +84,7 @@ export default function BankManagementPage() {
     endDate: format(new Date(), 'yyyy-MM-dd')
   });
   const [isDeletingRange, setIsDeletingRange] = useState(false);
+  const [hasSaldoDetected, setHasSaldoDetected] = useState<boolean | null>(null);
 
   // Handle File Upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,7 +92,6 @@ export default function BankManagementPage() {
     if (!file) return;
 
     setIsUploading(true);
-    setUploadProgress(10);
     
     const reader = new FileReader();
     reader.onload = async (evt) => {
@@ -100,9 +101,12 @@ export default function BankManagementPage() {
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
         const rawData = XLSX.utils.sheet_to_json(ws);
-        
-        setUploadProgress(40);
-        
+
+        // Deteksi kolom Saldo
+        const excelHeaders = Object.keys(rawData[0] || {});
+        const saldoKeywords = ['Saldo', 'SALDO', 'SALDO AKHIR', 'Saldo Akhir', 'SALDO_AKHIR', 'saldo_akhir'];
+        setHasSaldoDetected(excelHeaders.some(h => saldoKeywords.includes(h)));
+
         // Map data to backend format
         const mappedData = rawData.map((row: any) => ({
           TANGGAL: row['Tanggal'] || row['TANGGAL'] || row['Date'] || row['DATE'],
@@ -119,14 +123,12 @@ export default function BankManagementPage() {
           return;
         }
 
-        setUploadProgress(100);
         setPreviewData(mappedData);
         toast.success('Data siap di-preview!');
       } catch (err: any) {
         toast.error('Gagal memproses file', { description: err.message });
       } finally {
         setIsUploading(false);
-        setUploadProgress(0);
       }
     };
     reader.readAsBinaryString(file);
@@ -134,34 +136,37 @@ export default function BankManagementPage() {
 
   const handleConfirmUpload = async () => {
     setIsUploading(true);
-    setUploadProgress(5);
-    let trickle: ReturnType<typeof setInterval> | null = null;
     try {
-      const res = await api.post('/reports/reconciliation/import', { data: previewData }, {
-        onUploadProgress: (event) => {
-          if (event.total && event.total > 0) {
-            const pct = Math.round((event.loaded / event.total) * 70) + 5;
-            setUploadProgress(Math.min(pct, 75));
-            if (event.loaded >= event.total && !trickle) {
-              trickle = setInterval(() => {
-                setUploadProgress(p => {
-                  if (p >= 96) { clearInterval(trickle!); return 96; }
-                  return p + 0.3;
-                });
-              }, 100);
-            }
-          }
-        }
-      });
-      if (trickle) clearInterval(trickle);
-      setUploadProgress(100);
-      toast.success(`Berhasil mengimpor ${res.data.importedCount} mutasi bank baru.`);
+      const res = await api.post('/reports/reconciliation/import', { data: previewData, hasSaldo: hasSaldoDetected });
+      const { mode, importedCount, driftCheck } = res.data;
+      if (mode === 'TANPA_SALDO') {
+        const { saldoAwalOtomatis, saldoAkhirOtomatis } = res.data;
+        toast.success(`Berhasil mengimpor ${importedCount} mutasi bank — saldo dihitung otomatis.`, {
+          description: `Saldo awal: ${formatCurrency(saldoAwalOtomatis)} → Saldo akhir: ${formatCurrency(saldoAkhirOtomatis)}`
+        });
+      } else if (driftCheck?.status === 'FILE_TIDAK_KONSISTEN') {
+        toast.warning(`Data terimpor (${importedCount} baris), tapi saldo file tidak konsisten.`, {
+          description: `Selisih kolom Saldo vs hitungan sistem: ${formatCurrency(driftCheck.selisihFileVsHitung)}`
+        });
+      } else {
+        toast.success(`Berhasil mengimpor ${importedCount} mutasi bank baru.`);
+      }
       setShowUploadModal(false);
       setPreviewData([]);
+      setHasSaldoDetected(null);
       mutate();
     } catch (err: any) {
-      if (trickle) clearInterval(trickle);
-      toast.error('Gagal mengimpor ke database', { description: err.message });
+      const errMsg = err.response?.data?.message || err.message || 'Gagal mengimpor ke database';
+      const errDetail = err.response?.data?.detail || err.response?.data?.errors?.join?.('; ') || '';
+      toast.error('Gagal mengimpor rekening koran', {
+        description: (
+          <div className="mt-1 space-y-1">
+            <p className="text-[11px]">{errMsg}</p>
+            {errDetail && <p className="text-[10px] text-orange-600 break-words">{errDetail}</p>}
+          </div>
+        ),
+        duration: 8000,
+      });
     } finally {
       setIsUploading(false);
     }
@@ -186,6 +191,31 @@ export default function BankManagementPage() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template_Bank");
     XLSX.writeFile(wb, "Template_Mutasi_Bank.xlsx");
+  };
+
+  const [isExporting, setIsExporting] = useState(false);
+  const handleDownloadRekeningKoran = async () => {
+    setIsExporting(true);
+    try {
+      const res = await api.get('/reports/reconciliation/bank/export', {
+        params: { startDate: filters.startDate, endDate: filters.endDate },
+        responseType: 'blob'
+      });
+      const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Rekening_Koran_${filters.startDate}_${filters.endDate}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Rekening koran berhasil diunduh');
+    } catch (err: any) {
+      toast.error('Gagal mengunduh rekening koran', { description: err.message });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleDeleteItem = async (id: number) => {
@@ -322,6 +352,17 @@ export default function BankManagementPage() {
           </Button>
 
           <Button 
+            onClick={handleDownloadRekeningKoran}
+            disabled={isExporting}
+            variant="outline"
+            size="md"
+            className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5"
+          >
+            {isExporting ? <Loader2 size={14} className="animate-spin" /> : <DownloadCloud size={14} />}
+            <span>Download Rekening Koran</span>
+          </Button>
+
+          <Button 
             onClick={() => window.print()}
             variant="outline"
             size="md"
@@ -386,15 +427,20 @@ export default function BankManagementPage() {
 
         <div className="lux-stat lux-stat-navy p-4 rounded-xl flex flex-col group">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[9px] font-black text-blue-200/70 uppercase tracking-widest">Saldo Akhir Terdeteksi</span>
+            <span className="text-[9px] font-black text-blue-200/70 uppercase tracking-widest">Saldo Akhir Rekening Koran</span>
             <div className="w-7 h-7 bg-white/10 border border-white/10 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
               <ShieldCheck className="w-3.5 h-3.5 text-blue-200" />
             </div>
           </div>
           <h3 className="text-lg xl:text-xl font-bold tracking-tight text-white tabular-nums truncate">
-            {isLoading ? '...' : formatCurrency(data?.summary?.lastBalance || 0)}
+            {isLoading ? '...' : formatCurrency(data?.summary?.saldoHitungSistem || 0)}
           </h3>
-          <span className="text-[9px] font-bold text-blue-200/60 uppercase mt-2">Validated Bank Position</span>
+          <span className="text-[9px] font-bold text-blue-200/60 uppercase mt-2">Hitung Sistem · Cetakan File: {isLoading ? '...' : formatCurrency(data?.summary?.lastBalance || 0)}</span>
+          {!isLoading && data?.summary?.lastBalance != null && Math.abs((data.summary.lastBalance || 0) - (data.summary.saldoHitungSistem || 0)) >= 0.01 && (
+            <span className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full bg-amber-400/20 border border-amber-300/30 text-amber-200 text-[9px] font-bold uppercase tracking-wider">
+              Δ Drift File: {formatCurrency((data.summary.lastBalance || 0) - (data.summary.saldoHitungSistem || 0))}
+            </span>
+          )}
         </div>
       </div>
 
@@ -413,25 +459,13 @@ export default function BankManagementPage() {
             />
           </div>
 
-          <div className="lg:col-span-4 space-y-1.5">
-            <label className="text-micro font-bold uppercase tracking-wide text-fin-text-muted flex items-center gap-1.5 ml-1">
-              <Calendar size={12} /> Rentang Tanggal
-            </label>
-            <div className="flex items-center gap-2">
-              <Input 
-                type="date" 
-                className="font-semibold text-xs animate-none"
-                value={filters.startDate}
-                onChange={(e) => setFilters({...filters, startDate: e.target.value})}
-              />
-              <span className="text-xs font-bold text-fin-text-muted">s/d</span>
-              <Input 
-                type="date" 
-                className="font-semibold text-xs animate-none"
-                value={filters.endDate}
-                onChange={(e) => setFilters({...filters, endDate: e.target.value})}
-              />
-            </div>
+          <div className="lg:col-span-4">
+            <DateRange
+              startDate={filters.startDate}
+              endDate={filters.endDate}
+              onChangeStart={(v) => setFilters({...filters, startDate: v})}
+              onChangeEnd={(v) => setFilters({...filters, endDate: v})}
+            />
           </div>
 
           <div className="lg:col-span-2">
@@ -564,7 +598,7 @@ export default function BankManagementPage() {
       </Card>
 
       {/* UPLOAD MODAL */}
-      <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
+      <Dialog open={showUploadModal} onOpenChange={(open) => { setShowUploadModal(open); if (!open) { setHasSaldoDetected(null); setPreviewData([]); } }}>
         <DialogContent size={previewData.length > 0 ? "xl" : "md"}>
           <DialogHeader>
             <DialogTitle>{previewData.length > 0 ? "Preview Data Import" : "Import Rekening Koran"}</DialogTitle>
@@ -593,27 +627,12 @@ export default function BankManagementPage() {
                   </div>
                   
                   {isUploading && (
-                    <div className="w-full space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                      <div className="flex justify-between items-end">
-                        <div className="space-y-0.5">
-                          <p className="text-[10px] font-black text-fin-text-primary uppercase tracking-widest">Status Pengunggahan</p>
-                          <p className="text-xs font-medium text-[#667085]">
-                            {uploadProgress < 50 ? 'Membaca & memvalidasi file Excel...' : uploadProgress < 100 ? 'Memetakan kolom data...' : 'Data siap dikonfirmasi!'}
-                          </p>
-                        </div>
-                        <p className="text-xl font-black text-fin-text-primary tabular-nums">{Math.round(uploadProgress)}%</p>
+                    <div className="flex items-center gap-3 py-3">
+                      <Loader2 className="animate-spin text-ds-primary shrink-0" size={20} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-fin-text-primary">Membaca file Excel...</p>
+                        <p className="text-[11px] text-fin-text-muted">Memvalidasi dan memetakan kolom data</p>
                       </div>
-                      <div className="h-3 w-full bg-[#EAECF0] rounded-full overflow-hidden border border-fin-border-strong/20 shadow-inner">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${uploadProgress}%` }}
-                          transition={{ duration: 0.2, ease: "easeOut" }}
-                          className="h-full bg-ds-primary rounded-full"
-                        />
-                      </div>
-                      <p className="text-[10px] text-center font-bold text-fin-text-muted uppercase tracking-widest">
-                        {uploadProgress < 50 ? 'MEMPROSES DATA LOKAL...' : uploadProgress < 100 ? 'MEMVALIDASI BARIS DATA...' : 'DATA SIAP DIKONFIRMASI'}
-                      </p>
                     </div>
                   )}
                 </div>
@@ -627,6 +646,18 @@ export default function BankManagementPage() {
               </>
             ) : (
               <div className="space-y-4">
+                {hasSaldoDetected === false && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800 flex gap-2 items-start">
+                    <Info size={14} className="shrink-0 mt-0.5" />
+                    <span>Kolom Saldo tidak terdeteksi — <strong>saldo akan dihitung otomatis</strong> dari total Penerimaan − Pengeluaran.</span>
+                  </div>
+                )}
+                {hasSaldoDetected === true && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-800 flex gap-2 items-start">
+                    <CheckCircle2 size={14} className="shrink-0 mt-0.5" />
+                    <span>Kolom Saldo terdeteksi — saldo akan <strong>divalidasi</strong> terhadap hitungan sistem.</span>
+                  </div>
+                )}
                 <div className="max-h-[300px] overflow-auto border border-fin-border rounded-lg">
                   <Table>
                     <TableHeader className="bg-fin-page sticky top-0 z-10">
@@ -661,26 +692,12 @@ export default function BankManagementPage() {
           <DialogFooter>
             {previewData.length > 0 ? (
               isUploading ? (
-                <div className="w-full space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div className="flex justify-between items-end">
-                    <div className="space-y-0.5">
-                      <p className="text-[10px] font-black text-fin-text-primary uppercase tracking-widest">Menyimpan ke Database</p>
-                      <p className="text-xs font-medium text-[#667085]">
-                        {uploadProgress < 75 ? `Mengunggah ${previewData.length} mutasi bank...` : uploadProgress < 96 ? 'Memproses di server...' : 'Selesai!'}
-                      </p>
-                    </div>
-                    <p className="text-xl font-black text-fin-text-primary tabular-nums">{Math.round(uploadProgress)}%</p>
+                <div className="w-full flex items-center gap-3">
+                  <Loader2 className="animate-spin text-ds-primary shrink-0" size={20} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-fin-text-primary">Menyimpan ke database...</p>
+                    <p className="text-[11px] text-fin-text-muted">{previewData.length} mutasi bank sedang diproses</p>
                   </div>
-                  <div className="h-3 w-full bg-[#EAECF0] rounded-full overflow-hidden border border-fin-border-strong/20 shadow-inner">
-                    <motion.div
-                      animate={{ width: `${uploadProgress}%` }}
-                      transition={{ duration: 0.15, ease: "easeOut" }}
-                      className="h-full bg-ds-primary rounded-full"
-                    />
-                  </div>
-                  <p className="text-[10px] text-center font-bold text-fin-text-muted uppercase tracking-widest">
-                    {uploadProgress < 75 ? 'MENGIRIM DATA KE SERVER...' : uploadProgress < 96 ? 'SERVER MEMPROSES DATA...' : 'SELESAI — MEMUAT ULANG...'}
-                  </p>
                 </div>
               ) : (
                 <>
@@ -784,71 +801,56 @@ export default function BankManagementPage() {
 
       {/* DELETE RANGE DIALOG */}
       <Dialog open={showDeleteRangeModal} onOpenChange={setShowDeleteRangeModal}>
-        <DialogContent size="md">
-          <DialogHeader>
-            <DialogTitle className="text-rose-600 flex items-center gap-2">
-              <Trash2 size={20} />
-              Hapus Rekening Koran per Rentang Tanggal
-            </DialogTitle>
-            <DialogDescription>
-              Menghapus data mutasi bank pada rentang tanggal tertentu secara permanen dan otomatis membatalkan rekonsiliasi terkait.
-            </DialogDescription>
-          </DialogHeader>
-
-          <DialogBody className="space-y-4">
-            <div className="bg-fin-warning-bg border border-fin-warning/20 rounded-lg p-4 flex gap-3">
-              <AlertTriangle className="size-5 text-fin-warning-text shrink-0" />
-              <div className="text-xs text-fin-warning-text leading-relaxed font-semibold">
-                PERINGATAN:
-                <ul className="list-disc pl-4 mt-1 font-medium space-y-1">
-                  <li>Data mutasi bank pada rentang tanggal yang dipilih akan dihapus permanen.</li>
-                  <li>Setiap transaksi yang sudah ter-rekon (MATCHED) pada rentang ini akan otomatis di-reset kembali menjadi BELUM REKON.</li>
-                </ul>
+        <DialogContent className="max-w-md bg-white dark:bg-fin-surface rounded-2xl p-0 overflow-hidden border border-fin-border/60 shadow-xl">
+          <div className="bg-gradient-to-br from-rose-50 to-red-50 dark:from-rose-950/30 dark:to-red-950/20 px-6 pt-6 pb-4 border-b border-rose-100 dark:border-rose-900/30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-rose-100 dark:bg-rose-900/40 rounded-xl flex items-center justify-center">
+                <Trash2 size={20} className="text-rose-600 dark:text-rose-400" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-fin-text-primary">Hapus Rekening Koran</h2>
+                <p className="text-[11px] text-fin-text-muted mt-0.5">Hapus data mutasi bank per rentang tanggal</p>
               </div>
             </div>
+          </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-micro font-bold uppercase tracking-wide text-fin-text-muted">Tanggal Awal</label>
-                <Input 
-                  type="date"
-                  className="font-bold text-xs"
-                  value={deleteRange.startDate}
-                  onChange={(e) => setDeleteRange(prev => ({ ...prev, startDate: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-micro font-bold uppercase tracking-wide text-fin-text-muted">Tanggal Akhir</label>
-                <Input 
-                  type="date"
-                  className="font-bold text-xs"
-                  value={deleteRange.endDate}
-                  onChange={(e) => setDeleteRange(prev => ({ ...prev, endDate: e.target.value }))}
-                />
-              </div>
+          <div className="p-6 space-y-5">
+            <div className="bg-rose-50/80 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-800/30 rounded-xl px-4 py-3">
+              <p className="text-[11px] text-rose-700 dark:text-rose-300 leading-relaxed">
+                Data mutasi bank pada rentang yang dipilih akan dihapus permanen. Setiap transaksi yang sudah ter-rekon akan otomatis di-reset ke <strong>Belum Rekon</strong>.
+              </p>
             </div>
-          </DialogBody>
 
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setShowDeleteRangeModal(false)}
-              className="rounded-lg text-xs font-bold font-sans"
-              disabled={isDeletingRange}
-            >
-              Batal
-            </Button>
-            <Button 
-              onClick={handleDeleteRange}
-              variant="destructive"
-              className="rounded-lg text-xs font-bold font-sans flex items-center gap-1.5 shadow-sm"
-              loading={isDeletingRange}
-              disabled={isDeletingRange}
-            >
-              <Trash2 size={14} />
-              Hapus Data Rentang
-            </Button>
-          </DialogFooter>
+            <DateRange
+              variant="danger"
+              showIcon={false}
+              startDate={deleteRange.startDate}
+              endDate={deleteRange.endDate}
+              onChangeStart={(v) => setDeleteRange(prev => ({ ...prev, startDate: v }))}
+              onChangeEnd={(v) => setDeleteRange(prev => ({ ...prev, endDate: v }))}
+            />
+
+            <div className="flex gap-3 pt-1">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowDeleteRangeModal(false)}
+                className="flex-1 h-10 rounded-xl font-semibold text-xs"
+                disabled={isDeletingRange}
+              >
+                Batal
+              </Button>
+              <Button 
+                onClick={handleDeleteRange}
+                variant="destructive"
+                className="flex-1 h-10 rounded-xl font-bold text-xs flex items-center gap-1.5"
+                loading={isDeletingRange}
+                disabled={isDeletingRange}
+              >
+                <Trash2 size={13} />
+                Hapus Data
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

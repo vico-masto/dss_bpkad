@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { DateRange } from "@/components/ui/date-range";
 import { Label } from "@/components/ui/label";
 import { format, startOfMonth } from 'date-fns';
 import { id } from 'date-fns/locale';
@@ -220,12 +221,14 @@ export default function BARekonPage() {
                 <Input value={baData.nomorBA} onChange={e => setBaData({...baData, nomorBA: e.target.value})} className="h-10 rounded-xl border-fin-border bg-fin-page text-fin-text-primary font-black text-sm focus:border-indigo-500" /></div>
               <div className="space-y-1"><Label className="text-[10px] font-black text-fin-text-secondary uppercase tracking-widest">Dasar Hukum</Label>
                 <textarea value={baData.dasarHukum} onChange={e => setBaData({...baData, dasarHukum: e.target.value})} className="w-full h-16 p-3 bg-fin-page border border-fin-border rounded-xl text-xs font-bold text-fin-text-primary outline-none focus:border-indigo-500 resize-none" /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1"><Label className="text-[10px] font-black text-fin-text-secondary uppercase tracking-widest">Dari</Label>
-                  <Input type="date" value={baData.startDate} onChange={e => setBaData({...baData, startDate: e.target.value})} className="h-10 rounded-xl border-fin-border bg-fin-page text-fin-text-primary text-xs focus:border-indigo-500" /></div>
-                <div className="space-y-1"><Label className="text-[10px] font-black text-fin-text-secondary uppercase tracking-widest">Sampai</Label>
-                  <Input type="date" value={baData.endDate} onChange={e => setBaData({...baData, endDate: e.target.value})} className="h-10 rounded-xl border-fin-border bg-fin-page text-fin-text-primary text-xs focus:border-indigo-500" /></div>
-              </div>
+              <DateRange
+                label="Dari"
+                showIcon={false}
+                startDate={baData.startDate}
+                endDate={baData.endDate}
+                onChangeStart={(v) => setBaData({...baData, startDate: v})}
+                onChangeEnd={(v) => setBaData({...baData, endDate: v})}
+              />
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1"><Label className="text-[10px] font-black text-fin-text-secondary uppercase tracking-widest">Tgl TTD</Label>
                   <Input type="date" value={baData.tanggalBA} onChange={e => setBaData({...baData, tanggalBA: e.target.value})} className="h-10 rounded-xl border-fin-border bg-fin-page text-fin-text-primary text-xs focus:border-indigo-500" /></div>

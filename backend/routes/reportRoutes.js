@@ -41,6 +41,7 @@ router.get('/reconciliation/suggestions/:bankId', authMiddleware, reconciliation
 router.get('/reconciliation/bank-list', authMiddleware, reconciliationController.getBankStatements);
 router.delete('/reconciliation/bank/:id', authMiddleware, reconciliationController.deleteBankItem);
 router.post('/reconciliation/bank/delete-range', authMiddleware, reconciliationController.deleteBankByDateRange);
+router.get('/reconciliation/bank/export', authMiddleware, reconciliationController.exportBankData);
 router.post('/reconciliation/match-individual', authMiddleware, reconciliationController.matchIndividual);
 router.post('/reconciliation/match-multiple', authMiddleware, reconciliationController.matchMultiple);
 router.post('/reconciliation/unmatch/:id', authMiddleware, reconciliationController.undoMatch);

@@ -52,6 +52,7 @@ import {
   TooltipTrigger 
 } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
+import { DateRange } from "@/components/ui/date-range";
 import { Combobox } from "@/components/ui/combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from 'sonner';
@@ -397,7 +398,15 @@ function PajakUnifiedPageContent() {
             
             if (failCount > 0) {
                toast.warning(`Impor selesai: ${successCount} berhasil, ${failCount} gagal.`, {
-                 description: errors.length > 0 ? `Masalah: ${errors.join(', ')}` : undefined
+                 description: errors.length > 0 ? (
+                   <div className="mt-2 max-h-32 overflow-y-auto">
+                     <ul className="list-disc pl-4 text-[11px] text-orange-700 space-y-0.5">
+                       {errors.slice(0, 20).map((e, i) => <li key={i}>{e}</li>)}
+                       {errors.length > 20 && <li className="italic">...dan {errors.length - 20} error lainnya</li>}
+                     </ul>
+                   </div>
+                 ) : undefined,
+                 duration: 10000,
                });
             } else {
                toast.success(`Berhasil mengimpor ${successCount} data setoran pajak.`);
@@ -614,7 +623,17 @@ function PajakUnifiedPageContent() {
         } catch (err: any) {
           if (trickle) clearInterval(trickle);
           setImportProgressModal({ isOpen: false, percent: 0, label: '', sublabel: '' });
-          toast.error(err.response?.data?.message || 'Gagal mengimpor file Excel');
+          const errMsg = err.response?.data?.message || err.message || 'Gagal mengimpor file Excel';
+          const errDetail = err.response?.data?.detail || err.response?.data?.errors?.join?.('; ') || '';
+          toast.error('Gagal mengimpor file SIPD', {
+            description: (
+              <div className="mt-1 space-y-1">
+                <p className="text-[11px]">{errMsg}</p>
+                {errDetail && <p className="text-[10px] text-orange-600 break-words">{errDetail}</p>}
+              </div>
+            ),
+            duration: 8000,
+          });
           setConfirmConfig(prev => ({ ...prev, isLoading: false }));
         } finally {
           setIsImportingExcel(false);
@@ -1699,63 +1718,62 @@ function PajakUnifiedPageContent() {
       </Dialog>
 
       <Dialog open={showDeleteRangeModal} onOpenChange={setShowDeleteRangeModal}>
-        <DialogContent className="max-w-md rounded-xl p-8 border-none shadow-2xl bg-fin-surface">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold text-fin-text-primary flex items-center gap-2">
-              <Trash2 size={18} className="text-fin-expense" /> Hapus Rincian & Setoran Pajak
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-5 py-2">
-            <p className="text-xs text-fin-text-muted leading-relaxed">
-              Tindakan ini akan menghapus <strong>semua</strong> rincian potongan dan setoran pajak beserta jurnal akuntansinya secara permanen pada rentang tanggal yang ditentukan.
-            </p>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-fin-text-muted ml-1">Tanggal Awal <span className="text-rose-500">*</span></label>
-                <input
-                  type="date"
-                  className="w-full h-10 px-3 rounded-lg border border-fin-border bg-fin-page text-fin-text-primary text-sm focus:outline-none focus:ring-1 focus:ring-fin-info"
-                  value={deleteStartDate}
-                  onChange={(e) => setDeleteStartDate(e.target.value)}
-                />
+        <DialogContent className="max-w-md bg-white dark:bg-fin-surface rounded-2xl p-0 overflow-hidden border border-fin-border/60 shadow-xl">
+          <div className="bg-gradient-to-br from-rose-50 to-red-50 dark:from-rose-950/30 dark:to-red-950/20 px-6 pt-6 pb-4 border-b border-rose-100 dark:border-rose-900/30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-rose-100 dark:bg-rose-900/40 rounded-xl flex items-center justify-center">
+                <Trash2 size={20} className="text-rose-600 dark:text-rose-400" />
               </div>
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-fin-text-muted ml-1">Tanggal Akhir <span className="text-rose-500">*</span></label>
-                <input
-                  type="date"
-                  className="w-full h-10 px-3 rounded-lg border border-fin-border bg-fin-page text-fin-text-primary text-sm focus:outline-none focus:ring-1 focus:ring-fin-info"
-                  value={deleteEndDate}
-                  onChange={(e) => setDeleteEndDate(e.target.value)}
-                />
+              <div>
+                <h2 className="text-sm font-bold text-fin-text-primary">Hapus Rincian & Setoran Pajak</h2>
+                <p className="text-[11px] text-fin-text-muted mt-0.5">Hapus data pajak per rentang tanggal secara permanen</p>
               </div>
             </div>
+          </div>
 
-            <div className="space-y-2 pt-2 border-t border-fin-border">
-              <label className="text-xs font-bold text-fin-text-muted ml-1 uppercase tracking-wider">
-                Ketik <span className="text-rose-500 font-black">HAPUS</span> untuk konfirmasi
+          <div className="p-6 space-y-5">
+            <div className="bg-rose-50/80 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-800/30 rounded-xl px-4 py-3">
+              <p className="text-[11px] text-rose-700 dark:text-rose-300 leading-relaxed">
+                Rincian potongan, setoran pajak, dan jurnal akuntansinya akan dihapus <strong>secara permanen</strong> pada rentang tanggal yang ditentukan.
+              </p>
+            </div>
+
+            <DateRange
+              variant="danger"
+              showIcon={false}
+              startDate={deleteStartDate}
+              endDate={deleteEndDate}
+              onChangeStart={(v) => setDeleteStartDate(v)}
+              onChangeEnd={(v) => setDeleteEndDate(v)}
+            />
+
+            <div className="space-y-2 pt-1 border-t border-fin-border/60">
+              <label className="text-[11px] font-semibold text-fin-text-muted">
+                Ketik <span className="text-rose-500 font-bold">HAPUS</span> untuk konfirmasi
               </label>
               <Input
                 type="text"
                 placeholder="HAPUS"
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
-                className="h-10 text-center uppercase font-bold text-fin-text-primary border-fin-border placeholder:opacity-50"
+                className="h-10 text-center uppercase font-bold text-fin-text-primary text-xs border-fin-border/60 placeholder:opacity-40 rounded-xl"
               />
             </div>
+
+            <div className="flex gap-3 pt-1">
+              <Button variant="ghost" onClick={() => { setShowDeleteRangeModal(false); setDeleteConfirmText(''); }} className="flex-1 h-10 rounded-xl font-semibold text-xs text-fin-text-muted hover:bg-fin-page">
+                Batal
+              </Button>
+              <Button
+                onClick={handleDeleteRangeSubmit}
+                disabled={isDeletingRange || !deleteStartDate || !deleteEndDate || deleteConfirmText !== 'HAPUS'}
+                className="flex-1 h-10 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl transition-all"
+              >
+                {isDeletingRange ? <Loader2 className="animate-spin mr-1.5" size={13} /> : <Trash2 size={13} className="mr-1.5" />}
+                Hapus Permanen
+              </Button>
+            </div>
           </div>
-          <DialogFooter className="flex flex-col gap-2 sm:flex-col pt-4">
-            <Button
-              onClick={handleDeleteRangeSubmit}
-              disabled={isDeletingRange || !deleteStartDate || !deleteEndDate || deleteConfirmText !== 'HAPUS'}
-              className="w-full h-10 bg-fin-expense hover:opacity-90 text-white font-semibold text-sm rounded-lg"
-            >
-              {isDeletingRange ? <Loader2 className="animate-spin" size={16} /> : <><Trash2 size={14} className="mr-2" />Hapus Permanen</>}
-            </Button>
-            <Button variant="ghost" onClick={() => { setShowDeleteRangeModal(false); setDeleteConfirmText(''); }} className="w-full h-10 text-fin-text-muted font-semibold text-sm rounded-lg">
-              Batalkan
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

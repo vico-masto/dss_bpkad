@@ -4,6 +4,37 @@ const prisma = require('../prismaClient');
 /**
  * Mendapatkan Data BKU (Buku Kas Umum) secara Kronologis
  */
+// [FITUR] Pencarian nominal BKU: normalisasi input (1.500.000 / 1234,56 / 1000.50).
+// Konsisten dgn parseSearchNumber di reconciliationController & parseNumber frontend.
+const parseSearchNumber = (str) => {
+  if (!str) return null;
+  const s = String(str).trim();
+  if (!s) return null;
+  if (/[A-Za-z]/.test(s)) return null;
+  const cleaned = s.replace(/[^\d.,-]/g, '');
+  if (!cleaned) return null;
+
+  const hasComma = cleaned.includes(',');
+  const dotParts = cleaned.split('.');
+  const hasMultipleDots = dotParts.length > 2;
+
+  let val;
+  if (hasComma || hasMultipleDots) {
+    val = parseFloat(cleaned.replace(/\./g, '').replace(',', '.'));
+  } else if (cleaned.includes('.')) {
+    const afterDot = dotParts[1] || '';
+    if (afterDot.length === 3 && !cleaned.startsWith('0.')) {
+      val = parseFloat(cleaned.replace(/\./g, ''));
+    } else {
+      val = parseFloat(cleaned);
+    }
+  } else {
+    val = parseFloat(cleaned);
+  }
+
+  return Number.isFinite(val) ? val : null;
+};
+
 const getBKU = async (req, res) => {
   const startDate = req.query.startDate || req.query.tgl_awal || '1970-01-01';
   const endDate = req.query.endDate || req.query.tgl_akhir || '2099-12-31';
@@ -11,6 +42,8 @@ const getBKU = async (req, res) => {
   const { page = 1, limit = 50 } = req.query;
   const opd = req.query.opd ? req.query.opd.toString().trim() : '';
   const jenisTransaksi = req.query.jenis_transaksi || req.query.jenisTransaksi || '';
+  const search = (req.query.search || '').toString().trim();
+  const searchNum = parseSearchNumber(search);
   const hasOpd = opd.length > 0;
   const hasJenis = jenisTransaksi && jenisTransaksi !== '' && jenisTransaksi !== 'SEMUA';
   const opdPattern = `%${opd}%`;
@@ -87,22 +120,56 @@ const getBKU = async (req, res) => {
     // Hitung total data untuk pagination
     const opdFilter = hasOpd ? Prisma.sql`AND opd ILIKE ${opdPattern}` : Prisma.empty;
     const jenisFilter = hasJenis ? Prisma.sql`AND tipe = ${jenisTransaksi}` : Prisma.empty;
+    // [FITUR] Pencarian BKU: teks di uraian/bukti; bila numerik juga cocokkan penerimaan/pengeluaran.
+    const searchFilter = search
+      ? Prisma.sql`AND (
+           CAST(uraian AS VARCHAR) ILIKE ${`%${search}%`}
+           OR CAST(bukti AS VARCHAR) ILIKE ${`%${search}%`}
+           ${searchNum !== null
+             ? Prisma.sql`OR CAST(penerimaan AS DECIMAL) = ${searchNum}
+                          OR CAST(pengeluaran AS DECIMAL) = ${searchNum}`
+             : Prisma.empty}
+         )`
+      : Prisma.empty;
     const countQuery = Prisma.sql`
       SELECT COUNT(*) as total FROM (
-        SELECT id::TEXT, CAST('PENERIMAAN DAERAH' AS TEXT) as opd, CAST('PENDAPATAN' AS TEXT) as tipe FROM data_pendapatan WHERE tanggal BETWEEN ${startDateObj} AND ${endDateObj}
+        SELECT id::TEXT,
+          CAST(COALESCE(NULLIF(TRIM(p.nomor_bukti), ''), 'PND-' || p.id::VARCHAR) AS VARCHAR) as bukti,
+          CAST(p.uraian AS VARCHAR) as uraian,
+          CAST(COALESCE(p.nilai, 0) AS DECIMAL) as penerimaan, 0::DECIMAL as pengeluaran,
+          CAST('PENERIMAAN DAERAH' AS TEXT) as opd, CAST('PENDAPATAN' AS TEXT) as tipe FROM data_pendapatan p WHERE p.tanggal BETWEEN ${startDateObj} AND ${endDateObj}
         UNION ALL
-        SELECT d.id::TEXT, CAST(h.opd AS TEXT) as opd, CAST('PENGELUARAN' AS TEXT) as tipe FROM detail_sp2d d JOIN data_sp2d h ON d.id_sp2d = h.id WHERE COALESCE(h.tanggal_pencairan, h.tanggal) BETWEEN ${startDateObj} AND ${endDateObj}
+        SELECT d.id::TEXT,
+          CAST(h.nomor AS VARCHAR) as bukti,
+          CAST(h.uraian AS VARCHAR) as uraian,
+          0::DECIMAL as penerimaan,
+          CAST(COALESCE((CASE WHEN h.status_rekon = 'SUDAH_BRUTO' THEN d.nilai_bruto ELSE (d.nilai_bruto - (COALESCE((SELECT SUM(p.nilai) FROM data_sp2d_potongan p WHERE p.id_sp2d = h.id AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER')), CAST(h.nilai_potongan AS DECIMAL)) * (d.nilai_bruto / NULLIF(h.nilai_bruto, 0)))) END), 0) AS DECIMAL) as pengeluaran,
+          CAST(h.opd AS TEXT) as opd, CAST('PENGELUARAN' AS TEXT) as tipe FROM detail_sp2d d JOIN data_sp2d h ON d.id_sp2d = h.id WHERE COALESCE(h.tanggal_pencairan, h.tanggal) BETWEEN ${startDateObj} AND ${endDateObj}
         UNION ALL
-        SELECT p.id::TEXT, CAST(p.opd AS TEXT) as opd, CAST('POTONGAN' AS TEXT) as tipe FROM data_sp2d_potongan p LEFT JOIN data_sp2d s ON p.id_sp2d = s.id WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) BETWEEN ${startDateObj} AND ${endDateObj} AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER') AND (s.id IS NULL OR s.status_rekon != 'SUDAH_BRUTO')
+        SELECT p.id::TEXT,
+          CAST(COALESCE(NULLIF(TRIM(s.nomor), ''), NULLIF(TRIM(p.nomor_sp2d), ''), '(TANPA NOMOR)') AS VARCHAR) as bukti,
+          CAST(p.uraian AS VARCHAR) as uraian,
+          0::DECIMAL as penerimaan, CAST(COALESCE(p.nilai, 0) AS DECIMAL) as pengeluaran,
+          CAST(p.opd AS TEXT) as opd, CAST('POTONGAN' AS TEXT) as tipe FROM data_sp2d_potongan p LEFT JOIN data_sp2d s ON p.id_sp2d = s.id WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) BETWEEN ${startDateObj} AND ${endDateObj} AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER') AND (s.id IS NULL OR s.status_rekon != 'SUDAH_BRUTO')
         UNION ALL
-        SELECT id::TEXT, CAST('SETORAN PAJAK' AS TEXT) as opd, CAST('SETORAN' AS TEXT) as tipe FROM setoran_pajak WHERE tanggal BETWEEN ${startDateObj} AND ${endDateObj}
-        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = nomor_bukti)
+        SELECT s.id::TEXT,
+          CAST(COALESCE(NULLIF(TRIM(s.nomor_bukti), ''), 'STP-' || s.id::VARCHAR) AS VARCHAR) as bukti,
+          CAST(s.uraian AS VARCHAR) as uraian,
+          0::DECIMAL as penerimaan, CAST(COALESCE(s.nilai, 0) AS DECIMAL) as pengeluaran,
+          CAST('SETORAN PAJAK' AS TEXT) as opd, CAST('SETORAN' AS TEXT) as tipe FROM setoran_pajak s WHERE s.tanggal BETWEEN ${startDateObj} AND ${endDateObj}
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
         UNION ALL
-        SELECT id::TEXT, CAST('PENYESUAIAN KAS' AS TEXT) as opd, CAST('PENYESUAIAN' AS TEXT) as tipe FROM data_penyesuaian WHERE tanggal BETWEEN ${startDateObj} AND ${endDateObj}
+        SELECT id::TEXT,
+          CAST(('ADJ-' || id::VARCHAR) AS VARCHAR) as bukti,
+          CAST(uraian AS VARCHAR) as uraian,
+          CASE WHEN jenis = 'MASUK' THEN CAST(COALESCE(nilai, 0) AS DECIMAL) ELSE 0::DECIMAL END as penerimaan,
+          CASE WHEN jenis = 'KELUAR' THEN CAST(COALESCE(nilai, 0) AS DECIMAL) ELSE 0::DECIMAL END as pengeluaran,
+          CAST('PENYESUAIAN KAS' AS TEXT) as opd, CAST('PENYESUAIAN' AS TEXT) as tipe FROM data_penyesuaian WHERE tanggal BETWEEN ${startDateObj} AND ${endDateObj}
       ) c
       WHERE 1=1
       ${opdFilter}
       ${jenisFilter}
+      ${searchFilter}
     `;
     const countRes = await prisma.$queryRaw(countQuery);
     const totalData = Number(countRes[0].total || 0);
@@ -138,8 +205,9 @@ const getBKU = async (req, res) => {
       SELECT * FROM (
         SELECT 
           p.tanggal, 
-          CAST(('PND-' || p.id::VARCHAR) AS VARCHAR) as bukti, 
-          CAST(p.uraian AS VARCHAR) as uraian, 
+          CAST(COALESCE(NULLIF(TRIM(p.nomor_bukti), ''), 'PND-' || p.id::VARCHAR) AS VARCHAR) as bukti,
+          CAST(p.uraian AS VARCHAR) as uraian,
+          NULL::VARCHAR as uraian_induk,
           CAST('PENERIMAAN DAERAH' AS VARCHAR) as opd, 
           CAST(p.id_sumber_dana AS VARCHAR) as id_sumber_dana, 
           CAST(COALESCE(p.nilai, 0) AS DECIMAL) as penerimaan, 
@@ -147,7 +215,9 @@ const getBKU = async (req, res) => {
           CAST('PENDAPATAN' AS VARCHAR) as tipe, 
           p.created_at, 
           CAST(p.status_rekon AS VARCHAR) as status_rekon,
-          CAST(p.keterangan_rekon AS VARCHAR) as keterangan_rekon
+          CAST(p.keterangan_rekon AS VARCHAR) as keterangan_rekon,
+          NULL::VARCHAR as _grup_nomor,
+          0::INTEGER as _grup_seq
         FROM data_pendapatan p 
         WHERE p.tanggal BETWEEN ${startDateObj} AND ${endDateObj}
         
@@ -155,8 +225,9 @@ const getBKU = async (req, res) => {
         
         SELECT 
           COALESCE(h.tanggal_pencairan, h.tanggal) as tanggal, 
-          CAST(h.nomor AS VARCHAR) as bukti, 
-          CAST(h.uraian AS VARCHAR) as uraian, 
+          CAST(h.nomor AS VARCHAR) as bukti,
+          CAST(h.uraian AS VARCHAR) as uraian,
+          NULL::VARCHAR as uraian_induk,
           CAST(h.opd AS VARCHAR) as opd, 
           CAST(d.id_sumber_dana AS VARCHAR) as id_sumber_dana, 
           0::DECIMAL as penerimaan, 
@@ -164,7 +235,9 @@ const getBKU = async (req, res) => {
           CAST('PENGELUARAN' AS VARCHAR) as tipe, 
           h.created_at, 
           CAST(h.status_rekon AS VARCHAR) as status_rekon,
-          CAST(h.keterangan_rekon AS VARCHAR) as keterangan_rekon
+          CAST(h.keterangan_rekon AS VARCHAR) as keterangan_rekon,
+          CAST(h.nomor AS VARCHAR) as _grup_nomor,
+          0::INTEGER as _grup_seq
         FROM detail_sp2d d 
         JOIN data_sp2d h ON d.id_sp2d = h.id 
         WHERE COALESCE(h.tanggal_pencairan, h.tanggal) BETWEEN ${startDateObj} AND ${endDateObj}
@@ -173,8 +246,11 @@ const getBKU = async (req, res) => {
         
         SELECT 
           COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal, 
-          CAST(COALESCE(p.nomor_sp2d, 'BANK') AS VARCHAR) as bukti, 
-          CAST(p.uraian AS VARCHAR) as uraian, 
+          CAST(COALESCE(NULLIF(TRIM(s.nomor), ''), NULLIF(TRIM(p.nomor_sp2d), ''), '(TANPA NOMOR)') AS VARCHAR) as bukti,
+          CAST(p.uraian AS VARCHAR) as uraian,
+          CAST(CASE WHEN s.id IS NOT NULL AND COALESCE(TRIM(s.uraian), '') <> ''
+                    THEN TRIM(s.uraian)
+               END AS VARCHAR) as uraian_induk,
           CAST(p.opd AS VARCHAR) as opd, 
           CAST(p.id_sumber_dana AS VARCHAR) as id_sumber_dana, 
           0::DECIMAL as penerimaan, 
@@ -182,7 +258,9 @@ const getBKU = async (req, res) => {
           CAST('POTONGAN' AS VARCHAR) as tipe, 
           p.created_at, 
           CAST(p.status_rekon AS VARCHAR) as status_rekon,
-          CAST(p.keterangan_rekon AS VARCHAR) as keterangan_rekon
+          CAST(p.keterangan_rekon AS VARCHAR) as keterangan_rekon,
+          CAST(COALESCE(NULLIF(TRIM(s.nomor), ''), NULLIF(TRIM(p.nomor_sp2d), '')) AS VARCHAR) as _grup_nomor,
+          1::INTEGER as _grup_seq
         FROM data_sp2d_potongan p
         LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
         WHERE COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) BETWEEN ${startDateObj} AND ${endDateObj}
@@ -191,30 +269,38 @@ const getBKU = async (req, res) => {
 
         UNION ALL
 
-        SELECT 
-          tanggal, 
-          CAST(('STP-' || id::VARCHAR) AS VARCHAR) as bukti, 
-          CAST(uraian AS VARCHAR) as uraian, 
-          CAST('SETORAN PAJAK' AS VARCHAR) as opd, 
-          CAST(id_sumber_dana AS VARCHAR) as id_sumber_dana, 
-          0::DECIMAL as penerimaan, 
-          CAST(COALESCE(nilai, 0) AS DECIMAL) as pengeluaran, 
-          CAST('SETORAN' AS VARCHAR) as tipe, 
-          created_at, 
-          CAST(status_rekon AS VARCHAR) as status_rekon,
-          CAST(keterangan_rekon AS VARCHAR) as keterangan_rekon
-        FROM setoran_pajak
-        WHERE tanggal BETWEEN ${startDateObj} AND ${endDateObj}
+        SELECT
+          s.tanggal,
+          CAST(COALESCE(NULLIF(TRIM(s.nomor_bukti), ''), 'STP-' || s.id::VARCHAR) AS VARCHAR) as bukti,
+          CAST(s.uraian AS VARCHAR) as uraian,
+          CAST(CASE WHEN sh.id IS NOT NULL AND COALESCE(TRIM(sh.uraian), '') <> ''
+                    THEN TRIM(sh.uraian)
+               END AS VARCHAR) as uraian_induk,
+          CAST('SETORAN PAJAK' AS VARCHAR) as opd,
+          CAST(s.id_sumber_dana AS VARCHAR) as id_sumber_dana,
+          0::DECIMAL as penerimaan,
+          CAST(COALESCE(s.nilai, 0) AS DECIMAL) as pengeluaran,
+          CAST('SETORAN' AS VARCHAR) as tipe,
+          s.created_at,
+          CAST(s.status_rekon AS VARCHAR) as status_rekon,
+          CAST(s.keterangan_rekon AS VARCHAR) as keterangan_rekon,
+          NULL::VARCHAR as _grup_nomor,
+          0::INTEGER as _grup_seq
+        FROM setoran_pajak s
+        LEFT JOIN data_sp2d sh ON TRIM(sh.nomor) = TRIM(s.nomor_bukti)
+        WHERE s.tanggal BETWEEN ${startDateObj} AND ${endDateObj}
         AND NOT EXISTS (
-          SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = nomor_bukti
+          SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti
         )
+        AND sh.id IS NULL
 
         UNION ALL
 
         SELECT 
           tanggal, 
-          CAST(('ADJ-' || id::VARCHAR) AS VARCHAR) as bukti, 
-          CAST(uraian AS VARCHAR) as uraian, 
+          CAST(('ADJ-' || id::VARCHAR) AS VARCHAR) as bukti,
+          CAST(uraian AS VARCHAR) as uraian,
+          NULL::VARCHAR as uraian_induk,
           CAST('PENYESUAIAN KAS' AS VARCHAR) as opd, 
           CAST(id_sumber_dana AS VARCHAR) as id_sumber_dana, 
           CASE WHEN jenis = 'MASUK' THEN CAST(COALESCE(nilai, 0) AS DECIMAL) ELSE 0::DECIMAL END as penerimaan, 
@@ -222,7 +308,9 @@ const getBKU = async (req, res) => {
           CAST('PENYESUAIAN' AS VARCHAR) as tipe, 
           created_at, 
           CAST('N/A' AS VARCHAR) as status_rekon,
-          CAST(NULL AS VARCHAR) as keterangan_rekon
+          CAST(NULL AS VARCHAR) as keterangan_rekon,
+          NULL::VARCHAR as _grup_nomor,
+          0::INTEGER as _grup_seq
         FROM data_penyesuaian 
         WHERE tanggal BETWEEN ${startDateObj} AND ${endDateObj}
       ) combined
@@ -230,28 +318,68 @@ const getBKU = async (req, res) => {
       ${hasSumberDana ? Prisma.sql`AND id_sumber_dana::VARCHAR = ${sumberDana}` : Prisma.empty}
       ${opdFilter}
       ${jenisFilter}
-      ORDER BY tanggal ASC, created_at ASC
+      ${searchFilter}
+      ORDER BY 
+        tanggal ASC,
+        CASE WHEN _grup_nomor IS NOT NULL THEN 0 ELSE 1 END,
+        _grup_nomor::VARCHAR ASC,
+        _grup_seq ASC,
+        created_at ASC
       LIMIT ${parseInt(limit)} OFFSET ${offset}
     `;
 
     const pageTransactions = await prisma.$queryRaw(mainQuery);
 
+    const bankMatches = await prisma.$queryRaw`
+      SELECT s.nomor as sp2d_nomor, bs.deskripsi, bs.tanggal as bank_tanggal, bs.debet as bank_nilai
+      FROM bank_statement bs
+      JOIN data_sp2d s ON bs.ref_bku_id = s.id::text
+      WHERE bs.match_type = 'GROUP_POTONGAN'
+    `;
+    const bankByNomor = new Map(bankMatches.map(bm => [String(bm.sp2d_nomor).trim(), bm]));
+    for (const tx of pageTransactions) {
+      if (tx.tipe === 'POTONGAN') {
+        const bm = bankByNomor.get(String(tx.bukti).trim());
+        if (bm) {
+          tx.bank_deskripsi = bm.deskripsi;
+          tx.bank_tanggal = bm.bank_tanggal;
+          tx.bank_nilai = bm.bank_nilai;
+        }
+      }
+    }
+
     // Hitung total global (untuk summary di header) — dihitung sesuai filter aktif
     const summaryQuery = Prisma.sql`
       SELECT SUM(penerimaan) as total_p, SUM(pengeluaran) as total_k FROM (
-        SELECT nilai::NUMERIC as penerimaan, 0::NUMERIC as pengeluaran, CAST('PENERIMAAN DAERAH' AS TEXT) as opd, CAST('PENDAPATAN' AS TEXT) as tipe FROM data_pendapatan WHERE tanggal BETWEEN ${startDateObj} AND ${endDateObj}
+        SELECT nilai::NUMERIC as penerimaan, 0::NUMERIC as pengeluaran,
+          CAST(COALESCE(NULLIF(TRIM(p.nomor_bukti), ''), 'PND-' || p.id::VARCHAR) AS VARCHAR) as bukti,
+          CAST(p.uraian AS VARCHAR) as uraian,
+          CAST('PENERIMAAN DAERAH' AS TEXT) as opd, CAST('PENDAPATAN' AS TEXT) as tipe FROM data_pendapatan p WHERE p.tanggal BETWEEN ${startDateObj} AND ${endDateObj}
         UNION ALL
-        SELECT 0::NUMERIC as penerimaan, (CASE WHEN h.status_rekon = 'SUDAH_BRUTO' THEN d.nilai_bruto ELSE (d.nilai_bruto - (COALESCE((SELECT SUM(p.nilai) FROM data_sp2d_potongan p WHERE p.id_sp2d = h.id AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER')), CAST(h.nilai_potongan AS DECIMAL)) * (d.nilai_bruto / NULLIF(h.nilai_bruto, 0)))) END)::NUMERIC as pengeluaran, CAST(h.opd AS TEXT) as opd, CAST('PENGELUARAN' AS TEXT) as tipe FROM detail_sp2d d JOIN data_sp2d h ON d.id_sp2d = h.id WHERE COALESCE(h.tanggal_pencairan, h.tanggal) BETWEEN ${startDateObj} AND ${endDateObj}
+        SELECT 0::NUMERIC as penerimaan, (CASE WHEN h.status_rekon = 'SUDAH_BRUTO' THEN d.nilai_bruto ELSE (d.nilai_bruto - (COALESCE((SELECT SUM(p.nilai) FROM data_sp2d_potongan p WHERE p.id_sp2d = h.id AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER')), CAST(h.nilai_potongan AS DECIMAL)) * (d.nilai_bruto / NULLIF(h.nilai_bruto, 0)))) END)::NUMERIC as pengeluaran,
+          CAST(h.nomor AS VARCHAR) as bukti,
+          CAST(h.uraian AS VARCHAR) as uraian,
+          CAST(h.opd AS TEXT) as opd, CAST('PENGELUARAN' AS TEXT) as tipe FROM detail_sp2d d JOIN data_sp2d h ON d.id_sp2d = h.id WHERE COALESCE(h.tanggal_pencairan, h.tanggal) BETWEEN ${startDateObj} AND ${endDateObj}
         UNION ALL
-        SELECT 0::NUMERIC as penerimaan, p2.nilai::NUMERIC as pengeluaran, CAST(COALESCE(p2.opd, 'SETORAN PAJAK') AS TEXT) as opd, CAST('POTONGAN' AS TEXT) as tipe FROM data_sp2d_potongan p2 LEFT JOIN data_sp2d s2 ON p2.id_sp2d = s2.id WHERE COALESCE(p2.tanggal_pencairan, s2.tanggal_pencairan, s2.tanggal) BETWEEN ${startDateObj} AND ${endDateObj} AND (p2.keterangan IS NULL OR p2.keterangan != 'AUTO_HEADER') AND (s2.id IS NULL OR s2.status_rekon != 'SUDAH_BRUTO')
+        SELECT 0::NUMERIC as penerimaan, p2.nilai::NUMERIC as pengeluaran,
+          CAST(COALESCE(NULLIF(TRIM(s2.nomor), ''), NULLIF(TRIM(p2.nomor_sp2d), ''), '(TANPA NOMOR)') AS VARCHAR) as bukti,
+          CAST(p2.uraian AS VARCHAR) as uraian,
+          CAST(COALESCE(p2.opd, 'SETORAN PAJAK') AS TEXT) as opd, CAST('POTONGAN' AS TEXT) as tipe FROM data_sp2d_potongan p2 LEFT JOIN data_sp2d s2 ON p2.id_sp2d = s2.id WHERE COALESCE(p2.tanggal_pencairan, s2.tanggal_pencairan, s2.tanggal) BETWEEN ${startDateObj} AND ${endDateObj} AND (p2.keterangan IS NULL OR p2.keterangan != 'AUTO_HEADER') AND (s2.id IS NULL OR s2.status_rekon != 'SUDAH_BRUTO')
         UNION ALL
-        SELECT 0::NUMERIC as penerimaan, nilai::NUMERIC as pengeluaran, CAST('SETORAN PAJAK' AS TEXT) as opd, CAST('SETORAN' AS TEXT) as tipe FROM setoran_pajak WHERE tanggal BETWEEN ${startDateObj} AND ${endDateObj} AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = nomor_bukti)
+        SELECT 0::NUMERIC as penerimaan, s.nilai::NUMERIC as pengeluaran,
+          CAST(COALESCE(NULLIF(TRIM(s.nomor_bukti), ''), 'STP-' || s.id::VARCHAR) AS VARCHAR) as bukti,
+          CAST(s.uraian AS VARCHAR) as uraian,
+          CAST('SETORAN PAJAK' AS TEXT) as opd, CAST('SETORAN' AS TEXT) as tipe FROM setoran_pajak s WHERE s.tanggal BETWEEN ${startDateObj} AND ${endDateObj} AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
         UNION ALL
-        SELECT CASE WHEN jenis = 'MASUK' THEN nilai ELSE 0 END::NUMERIC as penerimaan, CASE WHEN jenis = 'KELUAR' THEN nilai ELSE 0 END::NUMERIC as pengeluaran, CAST('PENYESUAIAN KAS' AS TEXT) as opd, CAST('PENYESUAIAN' AS TEXT) as tipe FROM data_penyesuaian WHERE tanggal BETWEEN ${startDateObj} AND ${endDateObj}
+        SELECT CASE WHEN jenis = 'MASUK' THEN nilai ELSE 0 END::NUMERIC as penerimaan, CASE WHEN jenis = 'KELUAR' THEN nilai ELSE 0 END::NUMERIC as pengeluaran,
+          CAST(('ADJ-' || id::VARCHAR) AS VARCHAR) as bukti,
+          CAST(uraian AS VARCHAR) as uraian,
+          CAST('PENYESUAIAN KAS' AS TEXT) as opd, CAST('PENYESUAIAN' AS TEXT) as tipe FROM data_penyesuaian WHERE tanggal BETWEEN ${startDateObj} AND ${endDateObj}
       ) s
       WHERE 1=1
       ${opdFilter}
       ${jenisFilter}
+      ${searchFilter}
     `;
     const summaryRes = await prisma.$queryRaw(summaryQuery);
     const totalPenerimaan = Number(summaryRes[0]?.total_p || 0);
@@ -270,6 +398,16 @@ const getBKU = async (req, res) => {
       return { ...tx, uraian: cleanUraian.trim() || tx.uraian, penerimaan: p, pengeluaran: k, saldo: runningBalance };
     });
 
+    // [KANONIK-B] Koreksi potongan mengendap 'Lainnya' (logika Q7 terkunci, dibatasi tahun periode akhir)
+    const endYear = new Date(endDateObj).getFullYear();
+    const koreksiRes = await prisma.$queryRaw(Prisma.sql`
+      SELECT COALESCE(SUM(CAST(p.nilai AS DECIMAL)),0)::float8 AS t
+      FROM data_sp2d_potongan p LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+      WHERE (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL)
+        AND EXTRACT(YEAR FROM COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)) = ${endYear}
+        AND (LOWER(p.uraian) LIKE '%lainnya%' OR LOWER(p.keterangan) LIKE '%lainnya%')`);
+    const koreksiMengendap = Number(koreksiRes[0]?.t || 0);
+
     res.json({
       data: offset === 0 ? [{
         tanggal: startDate,
@@ -282,7 +420,7 @@ const getBKU = async (req, res) => {
         saldo: saldoAwalValue,
         tipe: 'SALDO_AWAL'
       }, ...processedTransactions] : processedTransactions,
-      summary: { saldoAwal: saldoAwalValue, totalPenerimaan, totalPengeluaran, saldoAkhir: saldoAwalValue + totalPenerimaan - totalPengeluaran },
+      summary: { saldoAwal: saldoAwalValue, totalPenerimaan, totalPengeluaran, saldoAkhir: saldoAwalValue + totalPenerimaan - totalPengeluaran, koreksiMengendap, saldoAkhirRekonsiliasi: saldoAwalValue + totalPenerimaan - totalPengeluaran + koreksiMengendap },
       pagination: { totalData, page: parseInt(page), limit: parseInt(limit), totalPages: Math.ceil(totalData / parseInt(limit)) }
     });
 
@@ -867,12 +1005,20 @@ const getBKURister = async (req, res) => {
         SELECT p.id::VARCHAR as id, p.tanggal_pencairan::DATE as tanggal, COALESCE(NULLIF(p.nomor_sp2d, ''), NULLIF(s.nomor, ''), 'NON-SP2D')::VARCHAR as bukti,
                COALESCE(NULLIF(p.opd, ''), NULLIF(s.opd, ''), 'TANPA OPD')::VARCHAR as opd, COALESCE(p.uraian, p.keterangan, s.uraian)::TEXT as uraian,
                p.nilai::NUMERIC as nilai, 'POTONGAN_BANK'::VARCHAR as tipe, p.id_sumber_dana::VARCHAR as id_sumber_dana,
-               p.id_sp2d::VARCHAR as id_sp2d, p.jenis_potongan::VARCHAR as jenis_pajak
+               p.id_sp2d::VARCHAR as id_sp2d, p.jenis_potongan::VARCHAR as jenis_pajak,
+               CASE WHEN s.id IS NOT NULL AND COALESCE(TRIM(s.uraian), '') <> ''
+                    THEN TRIM(s.uraian)
+               END::TEXT as uraian_induk
         FROM data_sp2d_potongan p LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
         UNION ALL
-        SELECT id::VARCHAR as id, tanggal::DATE as tanggal, nomor_bukti::VARCHAR as bukti, opd::VARCHAR as opd, uraian::TEXT as uraian,
-               nilai::NUMERIC as nilai, 'INPUT_MANUAL'::VARCHAR as tipe, id_sumber_dana::VARCHAR as id_sumber_dana,
-               NULL::VARCHAR as id_sp2d, jenis_pajak::VARCHAR as jenis_pajak FROM setoran_pajak
+        SELECT sp2.id::VARCHAR as id, sp2.tanggal::DATE as tanggal, sp2.nomor_bukti::VARCHAR as bukti, sp2.opd::VARCHAR as opd, sp2.uraian::TEXT as uraian,
+               sp2.nilai::NUMERIC as nilai, 'INPUT_MANUAL'::VARCHAR as tipe, sp2.id_sumber_dana::VARCHAR as id_sumber_dana,
+               NULL::VARCHAR as id_sp2d, sp2.jenis_pajak::VARCHAR as jenis_pajak,
+               CASE WHEN sh.id IS NOT NULL AND COALESCE(TRIM(sh.uraian), '') <> ''
+                    THEN TRIM(sh.uraian)
+               END::TEXT as uraian_induk
+        FROM setoran_pajak sp2
+        LEFT JOIN data_sp2d sh ON TRIM(sh.nomor) = TRIM(sp2.nomor_bukti)
       ) combined
       WHERE 1=1
       ${targetBulan ? Prisma.sql`AND EXTRACT(MONTH FROM tanggal) = ${targetBulan}` : Prisma.empty}

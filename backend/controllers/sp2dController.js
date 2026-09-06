@@ -1,10 +1,14 @@
 const { Prisma } = require('@prisma/client');
 const prisma = require('../prismaClient');
+const { reMaterializePlaceholders } = require('../services/potonganSyncService');
 const dssService = require('../services/dssService');
 const auditService = require('../services/auditService');
 const accountingEngine = require('../utils/accountingEngine');
 const { parseDateSafe, parseNilaiExcel } = require('../utils/dateUtils');
 const { tanggalCairAman } = require('../utils/kritisGuard');
+const XLSX = require('xlsx');
+const fs = require('fs');
+const path = require('path');
 
 /**
  * Membuat SP2D Baru dengan Integrasi DSS
@@ -587,18 +591,86 @@ const deleteSp2d = async (req, res) => {
     const sp2d = await prisma.data_sp2d.findUnique({ where: { id } });
     if (!sp2d) return res.status(404).json({ message: 'Data tidak ditemukan' });
 
+    // Kumpulkan ID potongan anak sebelum transaksi (untuk reset bank + hapus jurnal)
+    const potRows = await prisma.data_sp2d_potongan.findMany({
+      where: { id_sp2d: id }, select: { id: true }
+    });
+    const potIds = potRows.map(p => p.id);
+
+    // Reset tautan bank_statement yang menunjuk ke SP2D atau potongannya
+    const allRefs = [id, ...potIds];
+    if (allRefs.length > 0) {
+      await prisma.bank_statement.updateMany({
+        where: { is_matched: true, ref_bku_id: { in: allRefs } },
+        data: { is_matched: false, ref_bku_id: null, match_type: null, catatan_selisih: null, selisih_nilai: 0 }
+      });
+    }
+
     await prisma.$transaction(async (tx) => {
       await tx.jurnal_talangan.deleteMany({ where: { no_referensi: sp2d.nomor } });
-      await tx.jurnal_umum.deleteMany({ where: { ref_id: sp2d.nomor } });
+      await tx.jurnal_umum.deleteMany({ where: { ref_id: { in: [sp2d.nomor, ...potIds.map(String)] } } });
+      await tx.data_sp2d_potongan.deleteMany({ where: { id_sp2d: id } });
       await tx.detail_sp2d.deleteMany({ where: { id_sp2d: id } });
       await tx.data_sp2d.delete({ where: { id } });
-    });
+    }, { timeout: 60000 });
     
-    await auditService.logActivity(req, 'HAPUS', 'SP2D', `ID: ${id}, Nomor: ${sp2d.nomor}`);
-    res.json({ message: 'Data SP2D dan riwayat talangan berhasil dihapus secara permanen' });
+    await auditService.logActivity(req, 'HAPUS', 'SP2D', `ID: ${id}, Nomor: ${sp2d.nomor}, Potongan: ${potIds.length} record dihapus`);
+    res.json({ message: 'Data SP2D dan seluruh data turunan berhasil dihapus secara permanen' });
   } catch (err) {
     console.error('DELETE SP2D ERROR:', err.message);
     res.status(500).json({ message: 'Error deleting SP2D', error: err.message });
+  }
+};
+
+/**
+ * [KELOLA] Hapus seluruh SP2D satu bulan (kascade penuh: jurnal, rincian anak,
+ * detail, header) + reset tautan bank yang menunjuk ke data bulan tersebut.
+ */
+const deleteSp2dByBulan = async (req, res) => {
+  const tahun = parseInt(req.query.tahun);
+  const bulan = parseInt(req.query.bulan);
+  if (!tahun || !bulan || bulan < 1 || bulan > 12) {
+    return res.status(400).json({ message: 'Tahun & Bulan wajib valid' });
+  }
+  try {
+    const headers = await prisma.$queryRaw`
+      SELECT id::text AS id, nomor FROM data_sp2d
+      WHERE tahun=${tahun} AND EXTRACT(MONTH FROM COALESCE(tanggal_pencairan,tanggal))=${bulan}`;
+    if (headers.length === 0) return res.json({ message: 'Tidak ada data pada periode ini', headerDeleted: 0, bankReset: 0 });
+
+    const ids = headers.map(h => h.id);
+    const nomors = headers.map(h => h.nomor).filter(Boolean);
+    const potIds = (await prisma.$queryRaw`
+      SELECT id::text AS pid FROM data_sp2d_potongan WHERE id_sp2d::text IN (${Prisma.join(ids)})`).map(r => r.pid);
+
+    let bankReset = 0;
+    const allRefs = [...ids, ...potIds];
+    if (allRefs.length > 0) {
+      const br = await prisma.bank_statement.updateMany({
+        where: { is_matched: true, ref_bku_id: { in: allRefs } },
+        data: { is_matched: false, ref_bku_id: null, match_type: null, catatan_selisih: null, selisih_nilai: 0 }
+      });
+      bankReset = br.count;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const jurnalRefIds = [...nomors, ...potIds.map(String)];
+      if (jurnalRefIds.length > 0) {
+        await tx.jurnal_talangan.deleteMany({ where: { no_referensi: { in: nomors } } });
+        await tx.jurnal_umum.deleteMany({ where: { ref_id: { in: jurnalRefIds } } });
+      }
+      await tx.data_sp2d_potongan.deleteMany({ where: { id_sp2d: { in: ids } } });
+      await tx.detail_sp2d.deleteMany({ where: { id_sp2d: { in: ids } } });
+      await tx.data_sp2d.deleteMany({ where: { id: { in: ids } } });
+    }, { timeout: 60000 });
+
+    await auditService.logActivity(req, 'RESET_BULAN', 'SP2D',
+      `Hapus ${ids.length} SP2D bulan ${bulan}/${tahun} (kascade penuh), reset ${bankReset} tautan bank`);
+
+    res.json({ message: `Berhasil menghapus ${ids.length} SP2D bulan ${bulan}/${tahun}`, headerDeleted: ids.length, bankReset });
+  } catch (err) {
+    console.error('DELETE SP2D BY BULAN ERROR:', err.message);
+    res.status(500).json({ message: 'Gagal menghapus SP2D bulanan', error: err.message });
   }
 };
 
@@ -685,6 +757,8 @@ const importPotonganManual = async (req, res) => {
 
   console.log(`[IMPORT-MANUAL v3-iwp-fix] Menerima ${data?.length || 0} baris — jenis detection IURAN WAJIB aktif`);
 
+  let skippedNoParent = 0; // GUARD ANAK YATIM: hitung baris yang dilewati karena SP2D tak dikenal
+
   // ── PRE-SCAN: Bangun map nilai Taspen per SP2D ──────────────────────────────
   // Sama dengan importExcelPajak: SIPD mengekspor "Taspen" sebagai baris terpisah
   // padahal di rekening koran bank dibayar sekaligus dengan "Iuran Wajib Pegawai 8%".
@@ -737,6 +811,16 @@ const importPotonganManual = async (req, res) => {
           }
         }
 
+        // ═══ GUARD ANAK YATIM (Agustus 2026) ═══
+        // Baris dgn SP2D tak dikenal DB TIDAK BOLEH disimpan: tanpa induk → tak ada tanggal/opd sah,
+        // tak terlihat mesin match (window tanggal), DELETE impor berbasis bulan tak menyentuhnya,
+        // sehingga nyangkut abadi di anomali (kasus 53 baris lahir 22/08/2026). Skip + laporkan.
+        if (!sp2dId) {
+          skippedNoParent++;
+          console.log(`[IMPORT-MANUAL] SKIP tanpa induk SP2D: ${nomorSp2d || '(tanpa nomor)'} | ${rincian.URAIAN || '-'}`);
+          continue;
+        }
+
         let jenis = 'PAJAK';
         const u = (rincian.URAIAN || '').toUpperCase();
         if (u.includes('PPN')) jenis = 'PPN';
@@ -752,9 +836,19 @@ const importPotonganManual = async (req, res) => {
         else if (u.includes('ZAKAT')) jenis = 'Zakat';
         else if (u.includes('IWP')) jenis = 'IWP';
         else if (u.includes('BPJS')) jenis = 'BPJS';
+        else if (u.includes('LAINNYA')) jenis = 'Taspen Lainnya';
 
         const finalSumberDana = await dssService.getSumberDanaIdByName(rincian.SUMBER_DANA || sp2dSumberDana);
-        const importOpdId = await dssService.getOpdIdByName(opdFinal);
+        // ═══ GUARD DATA BUSUK (Agustus 2026) ═══
+        // Dulu: getOpdIdByName menyimpan teks mentah Excel bila tak cocok master_opd
+        // → kolom opd tercemar 'TERLAMPIR' / nama penerima (258 baris ditemukan).
+        // Kini: hanya nama yang terverifikasi di master_opd yang disimpan; sisanya NULL ('-').
+        const importOpdId = opdFinal
+          ? ((await prisma.master_opd.findFirst({
+              where: { nama: { contains: opdFinal, mode: 'insensitive' } },
+              select: { nama: true }
+            }))?.nama ?? null)
+          : null;
 
         // ── MERGE TASPEN → IWP 8% ────────────────────────────────────────────
         // Jika baris ini IWP 8% dan SP2D-nya punya Taspen di pre-scan,
@@ -771,7 +865,16 @@ const importPotonganManual = async (req, res) => {
         }
         // ─────────────────────────────────────────────────────────────────────
 
-        const tglPencairan = rincian.TANGGAL_PENCAIRAN ? parseDateSafe(rincian.TANGGAL_PENCAIRAN) : parseDateSafe();
+        // ═══ GUARD TANGGAL (Agustus 2026) ═══
+        // Dulu: fallback parseDateSafe() = HARI INI, dan placeholder SIPD (mis. 31/12/2026) lolos mentah
+        // → 196 baris bertanggal palsu. Kini: tanpa tanggal → NULL; tanggal masa depan (> +7 hari)
+        // dianggap placeholder → NULL. Trigger proteksi hanya melarang NULL-kan nilai lama via update,
+        // sehingga jalur update di bawah hanya menimpa bila nilai baru valid (non-null).
+        let tglPencairan = rincian.TANGGAL_PENCAIRAN ? parseDateSafe(rincian.TANGGAL_PENCAIRAN) : null;
+        if (tglPencairan && tglPencairan.getTime() > Date.now() + 7 * 24 * 3600 * 1000) {
+          console.log(`[IMPORT-MANUAL] Tanggal pencairan placeholder/masa depan ditolak (${tglPencairan.toISOString().slice(0,10)}) → NULL | ${nomorSp2d}`);
+          tglPencairan = null;
+        }
         const uraianPotongan = rincian.URAIAN;
         const keteranganFinal = taspenAddon > 0
           ? `${uraianPotongan ? uraianPotongan + ' | ' : ''}Termasuk Taspen: ${taspenAddon}`
@@ -791,7 +894,10 @@ const importPotonganManual = async (req, res) => {
             await tx.data_sp2d_potongan.update({
               where: { id: existingManual.id },
               data: {
-                tanggal_pencairan: tglPencairan,
+                // Trigger trg_protect_tanggal_pencairan_potongan melarang NOT NULL→NULL:
+                // hanya timpa tanggal bila nilai baru valid (non-null).
+                ...(tglPencairan && { tanggal_pencairan: tglPencairan }),
+                ...(importOpdId && { opd: importOpdId }),
                 id_sp2d: sp2dId || existingManual.id_sp2d,
                 nilai: nilaiPotongan,
                 keterangan: keteranganFinal
@@ -819,7 +925,13 @@ const importPotonganManual = async (req, res) => {
       }
     });
 
-    res.json({ message: 'Proses impor rincian selesai', summary: { total: data.length }, _v: 'taspen-merge-v2' });
+    res.json({
+      message: skippedNoParent > 0
+        ? `Impor rincian selesai — ${skippedNoParent} baris DILEWATI karena nomor SP2D tidak dikenal di database (guard anak yatim)`
+        : 'Proses impor rincian selesai',
+      summary: { total: data.length, dilewati_tanpa_induk: skippedNoParent },
+      _v: 'taspen-merge-v3-yatim-guard'
+    });
   } catch (err) {
     console.error('ERROR IMPORT POTONGAN:', err.message);
     res.status(500).json({ message: 'Server Error during import', error: err.message });
@@ -909,13 +1021,184 @@ const importExcelPajak = async (req, res) => {
     }
     // ─────────────────────────────────────────────────────────────────────────────
 
+    // ════════════════════════════════════════════════════════════════════════════
+    // BATCH PHASE 1: Build in-memory lookup maps BEFORE entering the transaction.
+    // This replaces the N+1 findFirst-per-row pattern with batch queries.
+    // ════════════════════════════════════════════════════════════════════════════
+
+    // 1a. Collect all unique nomor_sp2d from Excel (after first-pass merge & validation)
+    const rawSp2dNomors = new Set();
+    {
+      let _ln = '';
+      for (const _row of rawData) {
+        let _n = (_row[colIdx.sp2d] || '').toString().trim();
+        if (!_n && _ln) _n = _ln;
+        if (_n && !_n.startsWith('(') && _n.length > 5 && _n.toUpperCase() !== 'NOMOR') _ln = _n;
+        if (_n && _n.length > 5) rawSp2dNomors.add(_n.replace(/\s+/g, ''));
+      }
+    }
+    console.log(`[SIPD-IMPORT] Batch pre-load: ${rawSp2dNomors.size} nomor SP2D unik dari Excel`);
+
+    // 1b. Batch load all matching SP2D records (single query, no N+1)
+    const sp2dList = await prisma.data_sp2d.findMany({
+      where: {
+        OR: [...rawSp2dNomors].map(nomor => ({ nomor: { contains: nomor, mode: 'insensitive' } }))
+      }
+    });
+    console.log(`[SIPD-IMPORT] Batch pre-load: ${sp2dList.length} SP2D ditemukan di database`);
+
+    // Helper: find SP2D by Excel nomor — 2-pass (exact first, then contains)
+    // Preserves original findFirst(contains) behavior while avoiding N+1 queries.
+    const sp2dNormalizedList = sp2dList.map(s => ({ sp2d: s, norm: s.nomor.replace(/\s+/g, '').toUpperCase() }));
+    const findSp2dMatch = (excelNomorNorm) => {
+      for (const item of sp2dNormalizedList) {
+        if (item.norm === excelNomorNorm) return item.sp2d;
+      }
+      let best = null;
+      for (const item of sp2dNormalizedList) {
+        if (item.norm.includes(excelNomorNorm)) {
+          if (!best || item.sp2d.nomor.length < best.nomor.length) best = item.sp2d;
+        }
+      }
+      return best;
+    };
+
+    // 1c. Batch load detail_sp2d for all matched SP2D (single query)
+    const sp2dIds = sp2dList.map(s => s.id);
+    const detailList = sp2dIds.length > 0 ? await prisma.detail_sp2d.findMany({
+      where: { id_sp2d: { in: sp2dIds } }
+    }) : [];
+    const detailMap = new Map(); // id_sp2d → detail
+    for (const d of detailList) {
+      detailMap.set(d.id_sp2d, d);
+    }
+
     let successCount = 0;
     let failCount = 0;
+    let skippedNoParent = 0;
     let lastNomorSp2d = '';
     let lastOpdName = '';
 
+    // ════════════════════════════════════════════════════════════════════════════
+    // BATCH PHASE 2: Row processing — build arrays for bulk DB operations.
+    // No DB queries inside this loop; everything uses in-memory maps.
+    // ════════════════════════════════════════════════════════════════════════════
+    const toCreate = [];    // rows to INSERT via createMany
+    const autoHeaderSp2dIds = new Set(); // SP2D IDs needing AUTO_HEADER cleanup
+    const batchKeys = new Set();
+
+    for (const row of rawData) {
+      try {
+        let nomorSp2d = (row[colIdx.sp2d] || '').toString().trim();
+        const taxName = (row[colIdx.pNama] || '').toString().trim();
+        const taxValue = parseNilaiExcel(row[colIdx.pNilai] || '0');
+        const billingCode = row[colIdx.billing];
+        const ntpn = row[colIdx.ntpn];
+        let opdNameRaw = (row[colIdx.opd] || '').toString().trim();
+
+        if (!nomorSp2d && lastNomorSp2d && taxValue > 0) nomorSp2d = lastNomorSp2d;
+        if (nomorSp2d && !nomorSp2d.startsWith('(') && nomorSp2d.length > 5 && nomorSp2d.toUpperCase() !== 'NOMOR') lastNomorSp2d = nomorSp2d;
+        if (!opdNameRaw && lastOpdName && taxValue > 0) opdNameRaw = lastOpdName;
+        if (opdNameRaw && !opdNameRaw.startsWith('(') && opdNameRaw.toUpperCase() !== 'UNIT SKPD') lastOpdName = opdNameRaw;
+
+        if (!nomorSp2d || isNaN(taxValue) || taxValue <= 0 || taxName.toUpperCase() === 'NAMA' || nomorSp2d.toUpperCase() === 'NOMOR') continue;
+        if (taxName.toUpperCase().includes('TASPEN')) continue;
+
+        const normalizedNomor = nomorSp2d.replace(/\s+/g, '');
+        const sp2dMatch = findSp2dMatch(normalizedNomor.toUpperCase());
+
+        if (!sp2dMatch) {
+          skippedNoParent++;
+          continue;
+        }
+
+        let excelDate = row[colIdx.tanggal] ? parseDateSafe(row[colIdx.tanggal]) : null;
+        let finalDate = null;
+        let finalOpd = null;
+        let sp2dSumberDana = null;
+
+        sp2dSumberDana = detailMap.get(sp2dMatch.id)?.id_sumber_dana || null;
+
+        let tglCair = sp2dMatch.tanggal_pencairan;
+        if (!tglCair || tglCair.getFullYear() < 1900) tglCair = sp2dMatch.tanggal;
+        finalDate = tglCair;
+        finalOpd = sp2dMatch.opd;
+
+        if (!finalDate) {
+          finalDate = new Date(tahun, (bulan > 0 ? bulan : 1) - 1, 28);
+        } else {
+          const d = new Date(finalDate);
+          if (d.getFullYear() !== tahun) finalDate = new Date(tahun, d.getMonth(), d.getDate());
+          if (bulan > 0 && (d.getMonth() + 1 !== bulan)) {
+            finalDate = new Date(tahun, bulan - 1, Math.min(d.getDate(), 28));
+          }
+        }
+        finalDate = parseDateSafe(finalDate);
+
+        let jenis = 'PAJAK';
+        const u = taxName.toUpperCase();
+        if (u.includes('PPN')) jenis = 'PPN';
+        else if (u.includes('PPH 21')) jenis = 'PPh 21';
+        else if (u.includes('PPH 4(2)') || u.includes('PASAL 4')) jenis = 'PPh 4(2)';
+        else if (u.includes('PPH 22')) jenis = 'PPh 22';
+        else if (u.includes('PPH 23')) jenis = 'PPh 23';
+        else if (u.includes('IWP 8') || (u.includes('IURAN WAJIB') && u.includes('8%'))) jenis = 'IWP 8%';
+        else if (u.includes('IWP 1') || (u.includes('IURAN WAJIB') && u.includes('1%'))) jenis = 'IWP 1%';
+        else if (u.includes('KESEHATAN 4') || u.includes('BPJS 4')) jenis = 'JKES 4%';
+        else if (u.includes('KECELAKAAN')) jenis = 'JKK';
+        else if (u.includes('KEMATIAN')) jenis = 'JKM';
+        else if (u.includes('TAPERUM')) jenis = 'Taperum';
+        else if (u.includes('ZAKAT')) jenis = 'Zakat';
+        else if (u.includes('BERAS')) jenis = 'BULOG';
+        else if (u.includes('LAINNYA')) jenis = 'Taspen Lainnya';
+
+        if (sp2dMatch.id) autoHeaderSp2dIds.add(sp2dMatch.id);
+
+        const normSp2d = nomorSp2d.trim().toUpperCase();
+        const normName = (taxName || 'Rincian SIPD').trim().toUpperCase();
+
+        let mergedTaxValue = taxValue;
+        let taspenAddon = 0;
+        if (jenis === 'IWP 8%' && taspenMergeMap.has(normSp2d)) {
+          taspenAddon = taspenMergeMap.get(normSp2d);
+          mergedTaxValue = taxValue + taspenAddon;
+          console.log(`[SIPD-IMPORT] Merge Taspen: IWP8 ${taxValue} + Taspen ${taspenAddon} = ${mergedTaxValue} (${nomorSp2d})`);
+        }
+
+        const key = `${normSp2d}|${mergedTaxValue}|${normName}`;
+        if (batchKeys.has(key)) continue;
+        batchKeys.add(key);
+
+        const keterangan = ntpn
+          ? `NTPN: ${String(ntpn).substring(0, 50)}${taspenAddon > 0 ? ` | Termasuk Taspen: ${taspenAddon}` : ''}`
+          : taspenAddon > 0 ? `Termasuk Taspen: ${taspenAddon}` : null;
+
+        toCreate.push({
+          id_sp2d: sp2dMatch.id || null,
+          nomor_sp2d: nomorSp2d.substring(0, 100),
+          opd: String(finalOpd).substring(0, 255),
+          jenis_potongan: jenis,
+          nilai: mergedTaxValue,
+          uraian: taxName || 'Rincian SIPD',
+          id_billing: billingCode ? String(billingCode).substring(0, 50) : null,
+          keterangan,
+          tanggal_pencairan: finalDate,
+          id_sumber_dana: sp2dSumberDana
+        });
+        successCount++;
+      } catch (rowErr) {
+        console.error(`[SIPD-IMPORT] Gagal proses baris:`, rowErr.message);
+        failCount++;
+      }
+    }
+
+    console.log(`[SIPD-IMPORT] Batch selesai: ${successCount} siap insert, ${failCount} gagal, ${skippedNoParent} dilewati (tanpa induk)`);
+
+    // ════════════════════════════════════════════════════════════════════════════
+    // BATCH PHASE 3: Execute all DB writes in a single short transaction.
+    // ════════════════════════════════════════════════════════════════════════════
     await prisma.$transaction(async (tx) => {
-      // Tahap 1: Pembersihan Data
+      // ── Tahap 1: Hapus data lama periode ini ──
       if (bulan > 0) {
         console.log(`[SIPD-IMPORT] Membersihkan data lama untuk periode ${bulan}/${tahun}`);
         await tx.$executeRaw`
@@ -924,240 +1207,90 @@ const importExcelPajak = async (req, res) => {
         `;
       }
 
-      // Tahap 2: Iterasi Data
-      const potonganEntries = [];
-      const autoHeaderDeletedIds = new Set(); // Tracking per-import agar tidak delete berulang
-      const batchKeys = new Set();
-      for (const row of rawData) {
-        try {
-          let nomorSp2d = (row[colIdx.sp2d] || '').toString().trim();
-          const taxName = (row[colIdx.pNama] || '').toString().trim();
-          
-          const taxValue = parseNilaiExcel(row[colIdx.pNilai] || '0');
-
-          const billingCode = row[colIdx.billing];
-          const ntpn = row[colIdx.ntpn];
-          let opdNameRaw = (row[colIdx.opd] || '').toString().trim();
-
-          // Handle Grouped Rows (Merged Cells) untuk Nomor SP2D
-          if (!nomorSp2d && lastNomorSp2d && taxValue > 0) {
-            nomorSp2d = lastNomorSp2d;
-          }
-          if (nomorSp2d && !nomorSp2d.startsWith('(') && nomorSp2d.length > 5 && nomorSp2d.toUpperCase() !== 'NOMOR') {
-            lastNomorSp2d = nomorSp2d;
-          }
-
-          // Handle Grouped Rows (Merged Cells) untuk OPD
-          if (!opdNameRaw && lastOpdName && taxValue > 0) {
-            opdNameRaw = lastOpdName;
-          }
-          if (opdNameRaw && !opdNameRaw.startsWith('(') && opdNameRaw.toUpperCase() !== 'UNIT SKPD') {
-            lastOpdName = opdNameRaw;
-          }
-
-          // Validasi Baris
-          if (!nomorSp2d || isNaN(taxValue) || taxValue <= 0 || taxName.toUpperCase() === 'NAMA' || nomorSp2d.toUpperCase() === 'NOMOR') {
-            continue;
-          }
-
-          // Skip baris Taspen — nilainya akan digabung ke IWP 8% SP2D yang sama (fix bug SIPD-RI)
-          if (taxName.toUpperCase().includes('TASPEN')) {
-            continue;
-          }
-
-          // Tahap 3: Pencocokan SP2D (Data Utama)
-          // Normalisasi nomor untuk pencarian (hapus spasi berlebih)
-          const normalizedNomor = nomorSp2d.replace(/\s+/g, '');
-
-          const sp2dMatch = await tx.data_sp2d.findFirst({
-            where: { 
-              nomor: { 
-                contains: normalizedNomor, 
-                mode: 'insensitive' 
-              } 
-            }
-          });
-
-          let excelDate = row[colIdx.tanggal] ? parseDateSafe(row[colIdx.tanggal]) : null;
-          let finalDate = null;
-          let finalOpd = null;
-          let sp2dSumberDana = null;
-          let sp2dId = null;
-
-          if (sp2dMatch) {
-            sp2dId = sp2dMatch.id;
-            // PRIORITAS 1: Gunakan Tanggal Pencairan Database
-            // Jika tanggal_pencairan tidak ada atau nilainya tidak valid (misal: Tahun 1), gunakan tanggal SP2D
-            let tglCair = sp2dMatch.tanggal_pencairan;
-            if (!tglCair || tglCair.getFullYear() < 1900) {
-              tglCair = sp2dMatch.tanggal;
-            }
-            finalDate = tglCair;
-            
-            finalOpd = sp2dMatch.opd;
-            const sdMatch = await tx.detail_sp2d.findFirst({ where: { id_sp2d: sp2dMatch.id } });
-            sp2dSumberDana = sdMatch?.id_sumber_dana;
-          } else {
-            finalOpd = opdNameRaw ? await dssService.getOpdIdByName(opdNameRaw) : 'TANPA OPD';
-            
-            // PRIORITAS 2: Gunakan Tanggal dari Excel
-            if (excelDate) {
-              finalDate = excelDate;
-            } else {
-              // PRIORITAS 3: Parsing dari nomor
-              const parts = nomorSp2d.split('/');
-              if (parts.length >= 3) {
-                const pMonth = parseInt(parts[parts.length - 2]);
-                const pYear = parseInt(parts[parts.length - 1]);
-                if (!isNaN(pMonth) && !isNaN(pYear)) {
-                  finalDate = new Date(pYear, pMonth - 1, 15);
-                }
-              }
-            }
-          }
-
-          if (!finalDate) {
-            finalDate = new Date(tahun, (bulan > 0 ? bulan : 1) - 1, 28);
-          } else {
-            // Koreksi Tahun jika tidak sesuai dengan konteks upload
-            const d = new Date(finalDate);
-            if (d.getFullYear() !== tahun) {
-              finalDate = new Date(tahun, d.getMonth(), d.getDate());
-            }
-            
-            // CATATAN: Jika SP2D Match (Punya sp2dId), kita TIDAK paksa bulannya ke 'bulan' pilihan user
-            // agar tetap akurat untuk rekon bank (sesuai request user).
-            // Namun jika TIDAK Match, kita bisa arahkan ke bulan pilihan user sebagai fallback.
-            if (!sp2dId && bulan > 0 && (d.getMonth() + 1 !== bulan)) {
-              finalDate = new Date(tahun, bulan - 1, Math.min(d.getDate(), 28));
-            }
-          }
-          finalDate = parseDateSafe(finalDate);
-
-          let jenis = 'PAJAK';
-          const u = taxName.toUpperCase();
-          if (u.includes('PPN')) jenis = 'PPN';
-          else if (u.includes('PPH 21')) jenis = 'PPh 21';
-          else if (u.includes('PPH 4(2)') || u.includes('PASAL 4')) jenis = 'PPh 4(2)';
-          else if (u.includes('PPH 22')) jenis = 'PPh 22';
-          else if (u.includes('PPH 23')) jenis = 'PPh 23';
-          else if (u.includes('IWP 8') || (u.includes('IURAN WAJIB') && u.includes('8%'))) jenis = 'IWP 8%';
-          else if (u.includes('IWP 1') || (u.includes('IURAN WAJIB') && u.includes('1%'))) jenis = 'IWP 1%';
-          else if (u.includes('KESEHATAN 4') || u.includes('BPJS 4')) jenis = 'JKES 4%';
-          else if (u.includes('KECELAKAAN')) jenis = 'JKK';
-          else if (u.includes('KEMATIAN')) jenis = 'JKM';
-          else if (u.includes('TAPERUM')) jenis = 'Taperum';
-          else if (u.includes('ZAKAT')) jenis = 'Zakat';
-          else if (u.includes('BERAS')) jenis = 'BULOG';
-
-          // Hapus AUTO_HEADER saat pertama kali ada rincian manual untuk SP2D ini.
-          // AUTO_HEADER adalah placeholder gelondongan; kehadiran rincian manual membuatnya redundant.
-          if (sp2dMatch?.id && !autoHeaderDeletedIds.has(sp2dMatch.id)) {
-            await tx.data_sp2d_potongan.deleteMany({
-              where: { id_sp2d: sp2dMatch.id, keterangan: 'AUTO_HEADER' }
-            });
-            autoHeaderDeletedIds.add(sp2dMatch.id);
-          }
-
-          // ── DEDUPLICATION CHECK (No.SP2D + Uraian + Nilai, tanpa tanggal) ──
-          // PENTING: jangan masukkan tanggal_pencairan ke key — tanggal bisa berubah
-          // saat SP2D di-update (Jan→Mei), sehingga dedup berbasis tanggal akan gagal
-          // dan menghasilkan record ganda (bug yang ditemukan Juni 2026).
-          const normSp2d = nomorSp2d.trim().toUpperCase();
-          const normName = (taxName || 'Rincian SIPD').trim().toUpperCase();
-
-          // ── MERGE TASPEN → IWP 8% (fix bug SIPD-RI) ────────────────────────
-          // Jika baris ini adalah IWP 8% dan SP2D-nya punya Taspen di pre-scan,
-          // tambahkan nilai Taspen ke nilai IWP 8% agar cocok dengan bank.
-          // LOCKED: Juni 2026 — jangan ubah tanpa konfirmasi pengguna.
-          let mergedTaxValue = taxValue;
-          let taspenAddon = 0;
-          if (jenis === 'IWP 8%' && taspenMergeMap.has(normSp2d)) {
-            taspenAddon = taspenMergeMap.get(normSp2d);
-            mergedTaxValue = taxValue + taspenAddon;
-            console.log(`[SIPD-IMPORT] Merge Taspen: IWP8 ${taxValue} + Taspen ${taspenAddon} = ${mergedTaxValue} (${nomorSp2d})`);
-          }
-          // ─────────────────────────────────────────────────────────────────────
-
-          const key = `${normSp2d}|${mergedTaxValue}|${normName}`;
-
-          if (batchKeys.has(key)) {
-            console.log(`[SIPD-IMPORT] Skip duplicate row in Excel batch: ${key}`);
-            continue;
-          }
-          batchKeys.add(key);
-
-          // Cek DB: cukup cocokkan nomor_sp2d + uraian + nilai (tanpa tanggal_pencairan).
-          const existingPotongan = await tx.data_sp2d_potongan.findFirst({
-            where: {
-              nomor_sp2d: { equals: nomorSp2d, mode: 'insensitive' },
-              nilai: mergedTaxValue,
-              uraian: { equals: taxName || 'Rincian SIPD', mode: 'insensitive' }
-            }
-          });
-
-          if (existingPotongan) {
-            // Jika record belum direkonsiliasi, perbarui tanggal_pencairan saja (bukan buat baru).
-            // Jika sudah SUDAH/SUDAH_BRUTO, biarkan — jangan timpa data yang sudah clean.
-            if (!existingPotongan.status_rekon || existingPotongan.status_rekon === 'BELUM') {
-              await tx.data_sp2d_potongan.update({
-                where: { id: existingPotongan.id },
-                data: {
-                  tanggal_pencairan: finalDate,
-                  id_sp2d: sp2dMatch?.id || existingPotongan.id_sp2d,
-                  id_billing: billingCode ? String(billingCode).substring(0, 50) : existingPotongan.id_billing,
-                  keterangan: ntpn ? `NTPN: ${String(ntpn).substring(0, 50)}` : existingPotongan.keterangan,
-                }
-              });
-              console.log(`[SIPD-IMPORT] Update tanggal record BELUM (nomor=${nomorSp2d}, uraian=${taxName})`);
-            } else {
-              console.log(`[SIPD-IMPORT] Skip duplicate SUDAH/SUDAH_BRUTO: ${key}`);
-            }
-            continue;
-          }
-
-          const newPotongan = await tx.data_sp2d_potongan.create({
-            data: {
-              id_sp2d: sp2dMatch?.id || null,
-              nomor_sp2d: nomorSp2d.substring(0, 100),
-              opd: String(finalOpd).substring(0, 255),
-              jenis_potongan: jenis,
-              nilai: mergedTaxValue,
-              uraian: taxName || 'Rincian SIPD',
-              id_billing: billingCode ? String(billingCode).substring(0, 50) : null,
-              keterangan: ntpn
-                ? `NTPN: ${String(ntpn).substring(0, 50)}${taspenAddon > 0 ? ` | Termasuk Taspen: ${taspenAddon}` : ''}`
-                : taspenAddon > 0 ? `Termasuk Taspen: ${taspenAddon}` : null,
-              tanggal_pencairan: finalDate,
-              id_sumber_dana: sp2dSumberDana
-            }
-          });
-
-          potonganEntries.push(newPotongan);
-          successCount++;
-        } catch (rowErr) {
-          console.error(`[SIPD-IMPORT] Gagal simpan baris:`, rowErr.message);
-          failCount++;
-        }
+      // ── Tahap 2: Hapus AUTO_HEADER untuk SP2D yang punya rincian baru ──
+      if (autoHeaderSp2dIds.size > 0) {
+        const ids = [...autoHeaderSp2dIds];
+        await tx.data_sp2d_potongan.deleteMany({
+          where: { id_sp2d: { in: ids }, keterangan: 'AUTO_HEADER' }
+        });
       }
 
-      // 4. Lakukan Penjurnalan Otomatis ke BKU
-      if (potonganEntries.length > 0) {
-        await accountingEngine.processPotonganJournalBulk(potonganEntries, tx);
+      // ── Tahap 3: Dedup — cek existing BELUM records dari periode lain ──
+      const allNomors = [...new Set(toCreate.map(r => r.nomor_sp2d))];
+      const existingRecords = allNomors.length > 0 ? await tx.data_sp2d_potongan.findMany({
+        where: { nomor_sp2d: { in: allNomors } },
+        select: { id: true, nomor_sp2d: true, uraian: true, nilai: true, status_rekon: true }
+      }) : [];
+      const existingMap = new Map();
+      for (const er of existingRecords) {
+        const ek = `${(er.nomor_sp2d || '').trim().toUpperCase()}|${er.nilai}|${(er.uraian || '').trim().toUpperCase()}`;
+        existingMap.set(ek, er);
+      }
+
+      const toCreateFinal = [];
+      const toUpdateLocal = [];
+      let updateCount = 0;
+
+      for (const row of toCreate) {
+        const dk = `${(row.nomor_sp2d || '').trim().toUpperCase()}|${row.nilai}|${(row.uraian || '').trim().toUpperCase()}`;
+        const existing = existingMap.get(dk);
+
+        if (existing) {
+          if (!existing.status_rekon || existing.status_rekon === 'BELUM') {
+            toUpdateLocal.push({ id: existing.id, data: {
+              tanggal_pencairan: row.tanggal_pencairan,
+              id_sp2d: row.id_sp2d || existing.id_sp2d,
+              id_billing: row.id_billing || existing.id_billing,
+              keterangan: row.keterangan || existing.keterangan,
+            }});
+            updateCount++;
+          }
+          continue;
+        }
+        toCreateFinal.push(row);
+      }
+
+      // ── Tahap 4: Bulk insert + update ──
+      if (toCreateFinal.length > 0) {
+        await tx.data_sp2d_potongan.createMany({ data: toCreateFinal, skipDuplicates: true });
+      }
+      for (const u of toUpdateLocal) {
+        await tx.data_sp2d_potongan.update({ where: { id: u.id }, data: u.data });
+      }
+      console.log(`[SIPD-IMPORT] DB write: ${toCreateFinal.length} baru, ${updateCount} diupdate`);
+
+      // ── Tahap 5: Penjurnalan — gunakan data yang sudah ada di memori ──
+      // processPotonganJournalBulk butuh: id, jenis_potongan, nilai, id_billing, keterangan,
+      // tanggal_pencairan, id_sumber_dana. id hanya dipakai sebagai ref_id fallback;
+      // jika id_billing ada, id tidak diperlukan. Kita map toCreateFinal → shaped objects.
+      if (toCreateFinal.length > 0) {
+        const journalInput = toCreateFinal.map(r => ({
+          id: null, // createMany tidak mengembalikan id; id_billing diprioritaskan sebagai ref_id
+          jenis_potongan: r.jenis_potongan,
+          nilai: r.nilai,
+          id_billing: r.id_billing,
+          keterangan: r.keterangan,
+          tanggal_pencairan: r.tanggal_pencairan,
+          id_sumber_dana: r.id_sumber_dana
+        }));
+        await accountingEngine.processPotonganJournalBulk(journalInput, tx);
       }
     }, {
-      timeout: 300000 // 5 Minutes
+      timeout: 600000
     });
 
     try { if (fs.existsSync(absolutePath)) fs.unlinkSync(absolutePath); } catch (e) {}
 
-    res.json({ 
-      message: 'Impor Data SIPD Berhasil', 
-      summary: { 
-        total_diproses: rawData.length, 
-        berhasil: successCount, 
-        gagal: failCount 
-      } 
+    res.json({
+      message: skippedNoParent > 0
+        ? `Impor Data SIPD Berhasil — ${skippedNoParent} baris DILEWATI karena nomor SP2D tidak dikenal di database (guard anak yatim)`
+        : 'Impor Data SIPD Berhasil',
+      summary: {
+        total_diproses: rawData.length,
+        berhasil: successCount,
+        gagal: failCount,
+        dilewati_tanpa_induk: skippedNoParent
+      }
     });
 
   } catch (err) {
@@ -1210,7 +1343,12 @@ const updatePotongan = async (req, res) => {
 const deletePotongan = async (req, res) => {
   const { id } = req.params;
   try {
+    const pot = await prisma.data_sp2d_potongan.findUnique({ where: { id }, select: { id_sp2d: true } });
     await prisma.data_sp2d_potongan.delete({ where: { id: id } });
+    // [INVARIANT] Header ber-potongan tanpa sisa rincian → placeholder dirematerialisasi
+    if (pot?.id_sp2d) {
+      await reMaterializePlaceholders(prisma, [pot.id_sp2d], req.user?.username || 'SYSTEM');
+    }
     res.json({ message: 'Potongan berhasil dihapus' });
   } catch (err) {
     res.status(500).json({ message: 'Error deleting potongan', error: err.message });
@@ -1229,11 +1367,14 @@ const deletePotonganByMonth = async (req, res) => {
     await prisma.$transaction(async (tx) => {
       // 1. Dapatkan daftar ID & ID Billing dari data_sp2d_potongan yang akan dihapus
       const potonganList = await tx.$queryRaw`
-        SELECT id::text, id_billing 
-        FROM data_sp2d_potongan 
-        WHERE EXTRACT(MONTH FROM tanggal_pencairan) = ${b} 
+        SELECT id::text, id_billing, id_sp2d::text as id_sp2d
+        FROM data_sp2d_potongan
+        WHERE EXTRACT(MONTH FROM tanggal_pencairan) = ${b}
           AND EXTRACT(YEAR FROM tanggal_pencairan) = ${t}
       `;
+
+      // [INVARIANT] Kumpulkan header yang terdampak untuk re-materialisasi placeholder
+      const affectedHeaders = [...new Set(potonganList.map(p => p.id_sp2d).filter(Boolean))];
 
       // 2. Dapatkan daftar ID & Nomor Bukti dari setoran_pajak yang akan dihapus
       const setoranList = await tx.$queryRaw`
@@ -1279,8 +1420,11 @@ const deletePotonganByMonth = async (req, res) => {
           AND EXTRACT(YEAR FROM tanggal) = ${t}
       `;
 
+      // [INVARIANT] Placeholder AUTO_HEADER kembali utk header ber-potongan yg kosong rincian
+      await reMaterializePlaceholders(tx, affectedHeaders, req.user?.username || 'SYSTEM');
+
       deletedCount = delPot + delSet;
-    });
+    }, { timeout: 60000 });
 
     res.json({ 
       message: `Berhasil menghapus rincian dan setoran pajak periode ${b}/${t}`, 
@@ -1322,8 +1466,11 @@ const deletePotonganByRange = async (req, res) => {
             lte: end
           }
         },
-        select: { id: true, id_billing: true }
+        select: { id: true, id_billing: true, id_sp2d: true }
       });
+
+      // [INVARIANT] Header terdampak utk re-materialisasi placeholder
+      const affectedHeadersRange = [...new Set(potonganList.map(p => p.id_sp2d).filter(Boolean))];
 
       // 2. Dapatkan daftar ID & Nomor Bukti dari setoran_pajak yang akan dihapus
       const setoranList = await tx.setoran_pajak.findMany({
@@ -1380,6 +1527,9 @@ const deletePotonganByRange = async (req, res) => {
 
       deletedCount = delPot.count + delSet.count;
 
+      // [INVARIANT] Placeholder AUTO_HEADER kembali utk header ber-potongan yg kosong rincian
+      await reMaterializePlaceholders(tx, affectedHeadersRange, req.user?.username || 'SYSTEM');
+
       await tx.log_aktivitas.create({
         data: {
           user_pelaksana: req.user?.username || 'SYSTEM',
@@ -1387,7 +1537,7 @@ const deletePotonganByRange = async (req, res) => {
           detail: `Dihapus ${deletedCount} record rincian potongan & setoran pajak periode ${startDate} s.d ${endDate}`
         }
       }).catch(() => {});
-    });
+    }, { timeout: 60000 });
 
     res.json({ 
       message: `Berhasil menghapus rincian dan setoran pajak periode ${startDate} s.d ${endDate}`, 
@@ -1423,12 +1573,24 @@ const bulkDeletePotongan = async (req, res) => {
       const bankIds = items.filter(i => i.source === 'bank').map(i => i.id);
       const manualIds = items.filter(i => i.source === 'manual').map(i => i.id);
 
+      // [INVARIANT] Header terdampak sebelum dihapus
+      const affectedHeadersBulk = bankIds.length > 0
+        ? await tx.data_sp2d_potongan.findMany({ where: { id: { in: bankIds } }, select: { id_sp2d: true } })
+        : [];
+
       if (bankIds.length > 0) {
         await tx.data_sp2d_potongan.deleteMany({ where: { id: { in: bankIds } } });
       }
       if (manualIds.length > 0) {
         await tx.setoran_pajak.deleteMany({ where: { id: { in: manualIds } } });
       }
+
+      // [INVARIANT] Placeholder kembali utk header ber-potongan yg kosong rincian
+      await reMaterializePlaceholders(
+        tx,
+        affectedHeadersBulk.map(a => a.id_sp2d),
+        req.user?.username || 'SYSTEM'
+      );
     });
 
     await auditService.logActivity(req, 'HAPUS_BULK', 'POTONGAN_PAJAK', `Jumlah: ${items.length}`);
@@ -2184,6 +2346,131 @@ const updateSumberDanaInline = async (req, res) => {
   }
 };
 
+// ─── Export Template untuk Update Massal Uraian SP2D ────────────────────────
+const exportTemplateUpdateSp2d = async (req, res) => {
+  try {
+    const { tahun, tgl_awal, tgl_akhir, id_sumber_dana } = req.query;
+
+    const where = {};
+    if (tahun) where.tahun = parseInt(tahun);
+    if (tgl_awal || tgl_akhir) {
+      where.tanggal = {};
+      if (tgl_awal) where.tanggal.gte = new Date(tgl_awal);
+      if (tgl_akhir) where.tanggal.lte = new Date(tgl_akhir);
+    }
+
+    const data = await prisma.data_sp2d.findMany({
+      where,
+      orderBy: [{ tanggal: 'asc' }, { nomor: 'asc' }],
+      select: { nomor: true, tanggal: true, opd: true, uraian: true, nilai_bruto: true }
+    });
+
+    const wsData = [
+      ['Nomor SP2D', 'Tanggal', 'OPD', 'Uraian (Saat Ini)', 'Uraian Baru'],
+      ...data.map(d => [
+        d.nomor,
+        d.tanggal.toISOString().split('T')[0],
+        d.opd || '',
+        d.uraian || '',
+        ''
+      ])
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Update Uraian');
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="Template_Update_SP2D_${Date.now()}.xlsx"`);
+    res.send(buf);
+  } catch (err) {
+    console.error('exportTemplateUpdateSp2d error:', err);
+    res.status(500).json({ message: 'Gagal mengekspor template', error: err.message });
+  }
+};
+
+// ─── Import Update Massal Uraian SP2D ───────────────────────────────────────
+const importUpdateSp2d = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'File Excel tidak ditemukan' });
+  }
+  try {
+    const absolutePath = path.resolve(req.file.path);
+    if (!fs.existsSync(absolutePath)) {
+      throw new Error(`File tidak ditemukan di path: ${absolutePath}`);
+    }
+
+    const workbook = XLSX.readFile(absolutePath);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(worksheet);
+
+    if (rows.length === 0) {
+      throw new Error('File Excel kosong atau tidak terbaca');
+    }
+
+    // Mapping nama kolom (case-insensitive)
+    const getVal = (item, keyTarget) => {
+      const found = Object.keys(item).find(k => {
+        const cleanKey = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanTarget = keyTarget.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return cleanKey === cleanTarget;
+      });
+      return found ? item[found] : '';
+    };
+
+    let updated = 0;
+    let skipped = 0;
+    const errors = [];
+
+    for (const row of rows) {
+      const nomorSP2D = (getVal(row, 'Nomor SP2D') || '').toString().trim();
+      const uraianBaru = (getVal(row, 'Uraian Baru') || '').toString().trim();
+
+      if (!nomorSP2D) {
+        skipped++;
+        continue;
+      }
+      if (!uraianBaru) {
+        skipped++;
+        continue;
+      }
+
+      // Cari SP2D by nomor
+      const existing = await prisma.data_sp2d.findFirst({
+        where: { nomor: nomorSP2D }
+      });
+      if (!existing) {
+        errors.push(`Nomor SP2D '${nomorSP2D}' tidak ditemukan di database`);
+        continue;
+      }
+
+      await prisma.data_sp2d.update({
+        where: { id: existing.id },
+        data: { uraian: uraianBaru, updated_at: new Date() }
+      });
+      updated++;
+    }
+
+    // Hapus file temporary
+    try { if (fs.existsSync(absolutePath)) fs.unlinkSync(absolutePath); } catch (e) { /* ok */ }
+
+    res.json({
+      message: `Selesai: ${updated} SP2D diupdate, ${skipped} dilewati`,
+      updated,
+      skipped,
+      errors: errors.slice(0, 50)
+    });
+  } catch (err) {
+    console.error('importUpdateSp2d error:', err);
+    if (req.file && req.file.path) {
+      try { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch (e) { /* ok */ }
+    }
+    res.status(500).json({ message: 'Gagal memproses file update', error: err.message });
+  }
+};
+
 module.exports = {
   createSp2d,
   getSp2dList,
@@ -2192,6 +2479,7 @@ module.exports = {
   updateSp2dRekon,
   updateSp2d,
   deleteSp2d,
+  deleteSp2dByBulan,
   getOpdList,
   getDistinctOpd,
   getJenisList,
@@ -2216,4 +2504,6 @@ module.exports = {
   bulkUpdateJenisPotongan,
   bulkUpdateSumberDana,
   updateSumberDanaInline,
+  exportTemplateUpdateSp2d,
+  importUpdateSp2d
 };

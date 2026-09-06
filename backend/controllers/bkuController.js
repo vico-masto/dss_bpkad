@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const { Prisma } = require('@prisma/client');
 
 /**
  * Controller untuk Buku Kas Umum (BKU)
@@ -12,8 +13,8 @@ const getBku = async (req, res) => {
 
   try {
     // 1. Hitung Saldo Awal (Sebelum startDate)
-    const sdFilter = sumberDana ? prisma.sql`AND id_sumber_dana = ${sumberDana}` : prisma.empty;
-    const sdFilterSp2d = sumberDana ? prisma.sql`AND d.id_sumber_dana = ${sumberDana}` : prisma.empty;
+    const sdFilter = sumberDana ? Prisma.sql`AND id_sumber_dana = ${sumberDana}` : Prisma.empty;
+    const sdFilterSp2d = sumberDana ? Prisma.sql`AND d.id_sumber_dana = ${sumberDana}` : Prisma.empty;
 
     const [pInc, pExp, pPot, pAdjIn, pAdjOut, pSa, pSjk] = await Promise.all([
       prisma.$queryRaw`SELECT SUM(nilai) as total FROM data_pendapatan WHERE tanggal < ${new Date(sDate)} ${sdFilter}`,
@@ -31,6 +32,7 @@ const getBku = async (req, res) => {
         SELECT SUM(s.nilai) as total FROM setoran_pajak s
         WHERE s.tanggal < ${new Date(sDate)}
         AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d hx WHERE TRIM(hx.nomor) = TRIM(s.nomor_bukti))
         ${sdFilter}
       `
     ]);
@@ -49,7 +51,8 @@ const getBku = async (req, res) => {
       SELECT * FROM (
         -- PENDAPATAN
         SELECT 
-          tanggal, 'PND-' || id as bukti, uraian, 'PENERIMAAN DAERAH' as opd, 
+          tanggal, COALESCE(NULLIF(TRIM(nomor_bukti), ''), 'PND-' || id) as bukti, uraian, 'PENERIMAAN DAERAH' as opd,
+          NULL::VARCHAR as uraian_induk,
           id_sumber_dana, nilai as penerimaan, 0 as pengeluaran, 'PENDAPATAN' as tipe,
           status_rekon
         FROM data_pendapatan
@@ -59,7 +62,9 @@ const getBku = async (req, res) => {
 
         -- SP2D (NETO DINAMIS - Memastikan Saldo Tetap Bruto)
         SELECT 
-          COALESCE(h.tanggal_pencairan, h.tanggal) as tanggal, h.nomor as bukti, h.uraian, h.opd, d.id_sumber_dana,
+          COALESCE(h.tanggal_pencairan, h.tanggal) as tanggal, h.nomor as bukti, h.uraian, h.opd,
+          NULL::VARCHAR as uraian_induk,
+          d.id_sumber_dana,
           0 as penerimaan,
           (CASE WHEN h.status_rekon = 'SUDAH_BRUTO' THEN d.nilai_bruto ELSE (d.nilai_bruto - (COALESCE((SELECT SUM(p.nilai) FROM data_sp2d_potongan p WHERE p.id_sp2d = h.id AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER')), CAST(h.nilai_potongan AS DECIMAL)) * (d.nilai_bruto / NULLIF(h.nilai_bruto, 0)))) END) as pengeluaran,
           'SP2D_NETO' as tipe,
@@ -72,7 +77,12 @@ const getBku = async (req, res) => {
 
         -- RINCIAN POTONGAN (Sesuai Memory Point 5)
         SELECT
-          p.tanggal_pencairan as tanggal, p.nomor_sp2d as bukti, p.uraian, 'POTONGAN SP2D' as opd,
+          p.tanggal_pencairan as tanggal,
+          COALESCE(NULLIF(TRIM(s.nomor), ''), NULLIF(TRIM(p.nomor_sp2d), ''), '(TANPA NOMOR)') as bukti,
+          p.uraian, 'POTONGAN SP2D' as opd,
+          CASE WHEN s.id IS NOT NULL AND COALESCE(TRIM(s.uraian), '') <> ''
+               THEN TRIM(s.uraian)
+          END as uraian_induk,
           p.id_sumber_dana, 0 as penerimaan, p.nilai as pengeluaran, 'POTONGAN' as tipe,
           p.status_rekon
         FROM data_sp2d_potongan p
@@ -86,26 +96,32 @@ const getBku = async (req, res) => {
         -- SETORAN PAJAK (Abaikan jika rincian sudah ada - Point 6)
         SELECT 
           s.tanggal, s.nomor_bukti as bukti, s.uraian, 'SETORAN PAJAK' as opd,
+          CASE WHEN sh.id IS NOT NULL AND COALESCE(TRIM(sh.uraian), '') <> ''
+               THEN TRIM(sh.uraian)
+          END as uraian_induk,
           s.id_sumber_dana, 0 as penerimaan, s.nilai as pengeluaran, 'SETORAN' as tipe,
           s.status_rekon
         FROM setoran_pajak s
+        LEFT JOIN data_sp2d sh ON TRIM(sh.nomor) = TRIM(s.nomor_bukti)
         WHERE s.tanggal BETWEEN ${new Date(sDate)} AND ${new Date(eDate)}
         AND NOT EXISTS (
           SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti
         )
+        AND sh.id IS NULL
 
         UNION ALL
 
         -- PENYESUAIAN
         SELECT 
-          tanggal, 'ADJ-' || id as bukti, uraian, 'PENYESUAIAN KAS' as opd, 
+          tanggal, 'ADJ-' || id as bukti, uraian, 'PENYESUAIAN KAS' as opd,
+          NULL::VARCHAR as uraian_induk,
           id_sumber_dana, CASE WHEN jenis = 'MASUK' THEN nilai ELSE 0 END as penerimaan, 
           CASE WHEN jenis = 'KELUAR' THEN nilai ELSE 0 END as pengeluaran, 'PENYESUAIAN' as tipe,
           'SUDAH' as status_rekon
         FROM data_penyesuaian
         WHERE tanggal BETWEEN ${new Date(sDate)} AND ${new Date(eDate)}
       ) combined
-      WHERE 1=1 ${sumberDana ? prisma.sql`AND id_sumber_dana = ${sumberDana}` : prisma.empty}
+      WHERE 1=1 ${sumberDana ? Prisma.sql`AND id_sumber_dana = ${sumberDana}` : Prisma.empty}
       ORDER BY tanggal ASC, bukti ASC
     `;
 
@@ -138,9 +154,18 @@ const getBku = async (req, res) => {
     const fullData = [...bkuDataInitial, ...processedTransactions];
     const paginatedData = fullData.slice(offset, offset + parseInt(limit));
 
+    // [KANONIK-B] Koreksi potongan mengendap 'Lainnya' (logika Q7 terkunci, dibatasi tahun periode)
+    const koreksiRes = await prisma.$queryRaw`
+      SELECT COALESCE(SUM(CAST(p.nilai AS DECIMAL)),0)::float8 AS t
+      FROM data_sp2d_potongan p LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+      WHERE (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL)
+        AND EXTRACT(YEAR FROM COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)) = EXTRACT(YEAR FROM CAST(${eDate} AS DATE))
+        AND (LOWER(p.uraian) LIKE '%lainnya%' OR LOWER(p.keterangan) LIKE '%lainnya%')`;
+    const koreksiMengendap = Number(koreksiRes[0]?.t || 0);
+
     res.json({
       data: paginatedData,
-      summary: { saldoAwal: saldoAwalValue, totalPenerimaan, totalPengeluaran, saldoAkhir: runningBalance },
+      summary: { saldoAwal: saldoAwalValue, totalPenerimaan, totalPengeluaran, saldoAkhir: runningBalance, koreksiMengendap, saldoAkhirRekonsiliasi: runningBalance + koreksiMengendap },
       pagination: { totalData: fullData.length, page: parseInt(page), totalPages: Math.ceil(fullData.length / parseInt(limit)) }
     });
 

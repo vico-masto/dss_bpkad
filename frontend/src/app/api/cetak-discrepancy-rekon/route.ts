@@ -28,8 +28,13 @@ export async function POST(req: NextRequest) {
       previewThn,
       terbilangTgl,
       terbilangThn,
-      anomalyRows
+      anomalyRows,
+      closedRows: closedRowsRaw,
+      mengendapRows: mengendapRowsRaw
     } = data;
+
+    const mengendapRows = Array.isArray(mengendapRowsRaw) ? mengendapRowsRaw : [];
+    const closedRows = Array.isArray(closedRowsRaw) ? closedRowsRaw : [];
 
     const htmlContent = `<!DOCTYPE html>
 <html>
@@ -92,6 +97,15 @@ export async function POST(req: NextRequest) {
   .signature-row { display: flex; width: 100%; margin-top: 30px; align-items: stretch; }
   .sig-col { width: 50%; text-align: center; display: flex; flex-direction: column; }
   .sig-space { flex: 1; min-height: 45px; }
+
+  /* LAMPIRAN potongan mengendap — dicetak di halaman paling akhir setelah tanda tangan,
+     dengan font lebih kecil agar memakai lebih sedikit halaman. Scoped HANYA untuk
+     lampiran ini, tidak memengaruhi bagian BAR lain. */
+  .lampiran { page-break-before: always; page-break-inside: avoid; }
+  .lampiran .section-title { font-size: 9pt; margin: 12px 0 6px; }
+  .lampiran table { font-size: 7.5pt; }
+  .lampiran th, .lampiran td { padding: 3px 5px; }
+  .lampiran .note { font-size: 7.5pt; color: #666; font-style: italic; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -176,8 +190,8 @@ export async function POST(req: NextRequest) {
   <table style="table-layout: fixed; width: 100%;">
     <thead>
       <tr>
-        <th style="width: 5%;">NO</th>
-        <th style="text-align: left; width: 65%;">URAIAN</th>
+        <th style="width: 8%; white-space: nowrap;">NO</th>
+        <th style="text-align: left; width: 62%;">URAIAN</th>
         <th style="width: 30%; text-align: right;">JUMLAH (RP)</th>
       </tr>
     </thead>
@@ -220,9 +234,9 @@ export async function POST(req: NextRequest) {
   <table style="table-layout: fixed; width: 100%;">
     <thead>
       <tr>
-        <th style="width: 5%;">NO</th>
+        <th style="width: 8%; white-space: nowrap;">NO</th>
         <th style="text-align: left; width: 22%;">REFERENSI / TIPE</th>
-        <th style="text-align: left; width: 48%;">KETERANGAN TRANSAKSI</th>
+        <th style="text-align: left; width: 45%;">KETERANGAN TRANSAKSI</th>
         <th style="width: 25%; text-align: right;">NILAI (RP)</th>
       </tr>
     </thead>
@@ -244,6 +258,34 @@ export async function POST(req: NextRequest) {
       }
     </tbody>
   </table>
+
+  ${closedRows.length > 0 ? `
+  <div class="section-title" style="margin-top: 4px;">C.2 POS SELISIH YANG TELAH DITUTUP S.D. PERIODE INI</div>
+  <table style="table-layout: fixed; width: 100%;">
+    <thead>
+      <tr>
+        <th style="width: 8%; white-space: nowrap;">NO</th>
+        <th style="text-align: left; width: 20%;">REFERENSI / TIPE</th>
+        <th style="text-align: left; width: 30%;">KETERANGAN TRANSAKSI</th>
+        <th style="width: 12%; text-align: right;">NILAI (RP)</th>
+        <th style="width: 14%; text-align: center;">TGL MUTASI PERBAIKAN</th>
+        <th style="width: 16%; text-align: center;">SURAT KOREKSI</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${closedRows.map((r: any, idx: number) => `
+        <tr>
+          <td class="text-center">${idx + 1}</td>
+          <td class="uppercase">${r.tipe}<br><small style="color: #666; font-family: monospace;">${r.bukti || ''}</small><br><small style="color: #666; font-family: monospace;">${r.tanggal || '-'}</small></td>
+          <td>${r.keterangan || ''}<br><small style="color: #888; font-style: italic;">${r.opd || ''}</small></td>
+          <td class="text-right mono">${formatNum(r.nilai)}</td>
+          <td class="text-center mono">${r.perbaikanTanggal || '-'}</td>
+          <td class="text-center">${r.nomorSurat || '-'}</td>
+        </tr>
+      `).join('')}
+    </tbody>
+  </table>
+  ` : ''}
 
   <!-- D. KESIMPULAN -->
   <div class="text-justify" style="margin-bottom: 24px; page-break-inside: avoid;">
@@ -288,12 +330,53 @@ export async function POST(req: NextRequest) {
     </div>
   </div>
 
+  ${mengendapRows.length > 0 ? `
+  <!-- LAMPIRAN — RINCIAN POTONGAN MENGENDAP (halaman terakhir, setelah tanda tangan) -->
+  <div class="lampiran">
+    <div class="section-title">LAMPIRAN — RINCIAN POTONGAN MENGENDAP BULAN ${(previewBlnRekonName || '').toUpperCase()}</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 6%; white-space: nowrap;">NO</th>
+          <th style="text-align: left; width: 12%;">NO. SP2D</th>
+          <th style="width: 9%; text-align: center;">TANGGAL</th>
+          <th style="text-align: left; width: 10%;">OPD</th>
+          <th style="text-align: left;">URAIAN SP2D</th>
+          <th style="text-align: left; width: 10%;">JENIS</th>
+          <th style="width: 16%; text-align: right;">NILAI (RP)</th>
+          <th style="width: 8%; text-align: center;">STATUS</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${mengendapRows.map((r: any, i: number) => `
+          <tr>
+            <td class="text-center">${i + 1}</td>
+            <td style="font-family: monospace;">${r.no_sp2d || ''}</td>
+            <td style="text-align: center;">${r.tanggal ? (() => { try { const d = new Date(r.tanggal); return d.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }); } catch { return '-'; } })() : '-'}</td>
+            <td>${r.opd || ''}</td>
+            <td>${r.uraian_sp2d || '-'}</td>
+            <td>${r.jenis_potongan || '-'}</td>
+            <td class="text-right mono">${formatNum(r.nilai)}</td>
+            <td class="text-center uppercase">${r.status_mengendap === 'DISETOR' ? 'Disetor' : r.status_mengendap === 'JADI_PADAN' ? 'Jadi PAD' : 'Mengendap'}</td>
+          </tr>
+        `).join('')}
+        <tr class="total-row">
+          <td colspan="6" style="text-align: right;">TOTAL MENGENDAP</td>
+          <td class="text-right mono">${formatNum(mengendapRows.reduce((a: number, r: any) => a + (r.nilai || 0), 0))}</td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="note">Potongan &quot;Lainnya&quot; tidak memiliki pos pembayaran di rekening koran — kas fisik masih berada di RKUD.</p>
+  </div>` : ''}
+
 </body>
 </html>`;
 
     const browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
     });
 
     const page = await browser.newPage();

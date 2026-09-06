@@ -20,6 +20,8 @@ const reportRoutes = require('./routes/reportRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const bkuRoutes = require('./routes/bkuRoutes');
 const bridgeRoutes = require('./routes/bridgeRoutes');
+const koreksiBankRoutes = require('./routes/koreksiBankRoutes');
+const verificationRoutes = require('./routes/verificationRoutes');
 
 const path = require('path');
 
@@ -47,6 +49,8 @@ app.use('/api/dss', dssRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/bku', bkuRoutes);
 app.use('/api/bridge', bridgeRoutes);
+app.use('/api/koreksi-bank', koreksiBankRoutes);
+app.use('/api/verifikasi', verificationRoutes);
 
 // Health Check
 app.get('/', (req, res) => {
@@ -81,8 +85,8 @@ app.use((err, req, res, next) => {
   });
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`[SUCCESS] Server is running on http://127.0.0.1:${PORT}`);
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`[SUCCESS] Server is running on http://0.0.0.0:${PORT}`);
 });
 
 // Auto-cleanup data sampah setiap 24 jam

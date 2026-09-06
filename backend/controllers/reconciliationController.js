@@ -1,5 +1,22 @@
 const prisma = require('../prismaClient');
+const { Prisma } = require('@prisma/client');
 const { parseDateSafe, toNativeDate, fmtDate } = require('../utils/dateUtils');
+const XLSX = require('xlsx');
+
+// Baris koreksi/pemindahbukuan internal bank (BO0*/PB/KOREKSI/KKURANGAN/KSALHN) TIDAK BOLEH
+// jadi kandidat auto-match — mereka harus lewat menu Koreksi Bank, bukan match rekon biasa.
+const BANK_KOREKSI_EXCLUDE = {
+  NOT: {
+    OR: [
+      { nomor_bukti: { startsWith: 'BO0', mode: 'insensitive' } },
+      { deskripsi: { contains: 'PB ', mode: 'insensitive' } },
+      { deskripsi: { contains: 'KOREKSI', mode: 'insensitive' } },
+      { deskripsi: { contains: 'KOREK', mode: 'insensitive' } },
+      { deskripsi: { contains: 'KKURANGAN', mode: 'insensitive' } },
+      { deskripsi: { contains: 'KSALHN', mode: 'insensitive' } },
+    ],
+  },
+};
 
 const fmtIDR = (n) =>
   new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(Number(n) || 0);
@@ -514,6 +531,7 @@ const getReconciliationData = async (req, res) => {
         FROM setoran_pajak s
         WHERE s.tanggal::DATE BETWEEN '${sDate}' AND '${eDate}'
         AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d hx WHERE TRIM(hx.nomor) = TRIM(s.nomor_bukti))
       ) as global_bku
     `);
 
@@ -620,7 +638,8 @@ const getReconciliationData = async (req, res) => {
  * Intelligent Matching Engine
  */
 const runMagicMatch = async (req, res) => {
-  const { startDate, endDate } = req.body;
+  const { startDate, endDate, extendDate } = req.body;
+  const useExtendedDate = !!extendDate;
   // Kunci Tanggal: string asli → Date UTC eksplisit (parseDateSafe menghasilkan UTC-noon yang memotong data)
   const sDate = startDate || '1970-01-01';
   const eDate = endDate   || '2099-12-31';
@@ -636,7 +655,8 @@ const runMagicMatch = async (req, res) => {
         tanggal: {
           gte: sDateObj,
           lte: eDateObj
-        }
+        },
+        ...BANK_KOREKSI_EXCLUDE
       },
       take: 5000,
       orderBy: { tanggal: 'asc' }
@@ -660,6 +680,7 @@ const runMagicMatch = async (req, res) => {
         LEFT JOIN bank_statement b ON TRIM(CAST(s.id AS VARCHAR)) = TRIM(b.ref_bku_id)
         WHERE COALESCE(UPPER(TRIM(s.status_rekon)), '') NOT LIKE '%SUDAH%' AND b.id IS NULL
           AND CAST(COALESCE(s.tanggal_pencairan, s.tanggal) AS DATE) BETWEEN CAST(${parseDateSafe(sDate)} AS DATE) AND CAST(${parseDateSafe(eDate)} AS DATE)
+          AND NOT EXISTS (SELECT 1 FROM data_sp2d hx WHERE TRIM(hx.nomor) = TRIM(s.nomor_bukti))
           AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
 
        UNION ALL
@@ -680,6 +701,8 @@ const runMagicMatch = async (req, res) => {
        LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
        LEFT JOIN bank_statement b ON TRIM(CAST(p.id AS VARCHAR)) = TRIM(b.ref_bku_id)
        WHERE COALESCE(UPPER(TRIM(p.status_rekon)), '') NOT LIKE '%SUDAH%' AND b.id IS NULL
+         -- [LAINNYA-EXCLUDE] mengendap tidak di-match otomatis
+         AND NOT (LOWER(COALESCE(p.uraian, '')) LIKE '%lainnya%' OR LOWER(COALESCE(p.keterangan, '')) LIKE '%lainnya%')
          AND CAST(COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) AS DATE) BETWEEN CAST(${parseDateSafe(sDate)} AS DATE) AND CAST(${parseDateSafe(eDate)} AS DATE)
     `;
     
@@ -726,9 +749,9 @@ const runMagicMatch = async (req, res) => {
           const bkuDate = toNativeDate(bkuDateStr);
 
           const diffDays = (bankDate.getTime() - bkuDate.getTime()) / (1000 * 3600 * 24);
-          // Aturan Emas Jendela Waktu: Penerimaan ±2 hari, Pengeluaran/Potongan -1 s/d +7 hari
-          if (bku.tipe === 'MASUK') return Math.abs(diffDays) <= 2;
-          return diffDays >= -1 && diffDays <= 7;
+          // Aturan Emas Jendela Waktu: Penerimaan ±2 hari, Pengeluaran/Potongan/Pajak -1 s/d +4 hari (lag riil maks +4)
+          if (bku.tipe === 'MASUK') return Math.abs(diffDays) <= (useExtendedDate ? 14 : 2);
+          return diffDays >= (useExtendedDate ? -14 : -1) && diffDays <= (useExtendedDate ? 14 : 4);
         })
         .map(bku => {
            const bkuDate = toNativeDate(fmtDate(bku.tanggal));
@@ -957,7 +980,9 @@ const serialize = (obj) => {
  * Supports match_type: 'neto' (default) or 'bruto'
  */
 const matchIndividual = async (req, res) => {
-  const { bankId, bkuId, match_type, keterangan_admin } = req.body;
+  let { bankId, bkuId, match_type, matchType, keterangan_admin } = req.body;
+  // Normalize: frontend sends matchType (camelCase), backend uses match_type (snake_case)
+  if (!match_type && matchType) match_type = matchType;
   
   // 1. Hard Validation
   if (!bankId || !bkuId) {
@@ -979,6 +1004,32 @@ const matchIndividual = async (req, res) => {
     let bkuValue = 0;
     let bkuRowData = null;
     const idStr = String(bkuId);
+
+    // ══════════════════════════════════════════════════════════════════════════════
+    // AUTO-DETECT GRUP_POTONGAN — mencegah salah match bank debet → SP2D netto
+    // Ketika frontend mengirim matchType='SMART_GROUP_MANUAL_LABEL' dan bkuId = SP2D UUID,
+    // cek apakah bank debet = sum potongan BELUM untuk SP2D itu.
+    // Jika ya → redirect ke GRUP_POTONGAN handler (match_type di-override).
+    // ══════════════════════════════════════════════════════════════════════════════
+    if (match_type === 'SMART_GROUP_MANUAL_LABEL') {
+      const sp2dAutoCheck = await prisma.data_sp2d.findUnique({ where: { id: idStr } });
+      if (sp2dAutoCheck) {
+        const belumPotongan = await prisma.data_sp2d_potongan.findMany({
+          where: {
+            id_sp2d: sp2dAutoCheck.id,
+            NOT: { status_rekon: { in: ['SUDAH', 'SUDAH_BRUTO'] } }
+          }
+        });
+        if (belumPotongan.length >= 2) {
+          const sumPotongan = belumPotongan.reduce((s, p) => s + Number(p.nilai || 0), 0);
+          const bankValAuto = Number(bankItem.debet) || Number(bankItem.kredit);
+          if (Math.abs(bankValAuto - sumPotongan) <= Math.max(sumPotongan * 0.05, 500000)) {
+            console.log(`[AUTO-GRUP] Redirect SMART_GROUP_MANUAL_LABEL → GRUP_POTONGAN: bank ${bankValAuto} ≈ sum potongan ${sumPotongan} (${belumPotongan.length} items)`);
+            match_type = 'GRUP_POTONGAN';
+          }
+        }
+      }
+    }
 
     // ══════════════════════════════════════════════════════════════════════════════
     // BUSINESS RULE LOCK — GRUP_POTONGAN HANDLER — JANGAN DIPINDAH ATAU DIUBAH
@@ -1105,9 +1156,39 @@ const matchIndividual = async (req, res) => {
     const bkuValRounded = Math.round(bkuValue);
     const diff = bankVal - bkuValRounded;
     const absDiff = Math.abs(diff);
+
+    // HARD VALIDATION: tolak match dengan selisih > threshold (10% atau Rp 500.000)
+    // Kecuali: (1) bruto match (wajar bruto > neto), (2) FORCE flag di catatan admin
+    const selisihThreshold = Math.max(bankVal * 0.10, 500000);
+    const hasForceFlag = keterangan_admin && keterangan_admin.toUpperCase().includes('FORCE:');
+    if (absDiff > selisihThreshold && !isBrutoMatch && !hasForceFlag) {
+      return res.status(400).json({
+        message: `Selisih terlalu besar: Rp ${new Intl.NumberFormat('id-ID').format(absDiff)}. ` +
+                 `Batas maksimal: Rp ${new Intl.NumberFormat('id-ID').format(Math.round(selisihThreshold))}. ` +
+                 `Jika yakin sudah benar, gunakan flag FORCE: di catatan admin.`
+      });
+    }
+
     // Bruto manual: SP2D mendapat SUDAH_BRUTO agar cascade potongan berjalan.
     // Tipe lain (Potongan/Pendapatan/Pajak) tetap SUDAH karena tidak punya child potongan.
     const status_rekon = (isBrutoMatch && sp2d) ? 'SUDAH_BRUTO' : 'SUDAH';
+
+    // ── AUTO DATE DISCREPANCY LOG ──────────────────────────────────────────────
+    // Jika selisih tanggal > 7 hari, auto-prepend catatan untuk audit trail
+    let enhancedKeterangan = keterangan_admin || '';
+    const bkuTanggal = bkuRowData?.tanggal_pencairan || bkuRowData?.tanggal;
+    const bankTanggal = bankItem?.tanggal;
+    if (bkuTanggal && bankTanggal) {
+      const fmtID = (d) => { const dt = new Date(d); return `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`; };
+      const diffMs = new Date(bankTanggal).getTime() - new Date(bkuTanggal).getTime();
+      const diffDays = Math.round(diffMs / (1000 * 3600 * 24));
+      if (Math.abs(diffDays) > 7) {
+        const dateNote = `[SELISIH TANGGAL: ${Math.abs(diffDays)} hari (Bank: ${fmtID(bankTanggal)} vs BKU: ${fmtID(bkuTanggal)})]`;
+        enhancedKeterangan = enhancedKeterangan.toUpperCase().includes('FORCE_DATE:') || enhancedKeterangan.includes(dateNote)
+          ? enhancedKeterangan
+          : `${dateNote}${enhancedKeterangan ? ' ' + enhancedKeterangan : ''}`;
+      }
+    }
 
     // 5. Database Transaction
     // Execute bank update and BKU updates in one go if possible, or sequentially
@@ -1119,8 +1200,8 @@ const matchIndividual = async (req, res) => {
         match_type: isBrutoMatch ? 'MANUAL_BRUTO' : 'MANUAL',
         selisih_nilai: absDiff > 0.01 ? diff : 0,
         catatan_selisih: absDiff > 0.01
-          ? `Selisih ${diff > 0 ? 'LEBIH' : 'KURANG'} Rp ${new Intl.NumberFormat('id-ID').format(Math.abs(diff))} [MANUAL]${keterangan_admin ? ' | Catatan: ' + keterangan_admin : ''}`
-          : (keterangan_admin ? `Catatan: ${keterangan_admin}` : null),
+          ? `Selisih ${diff > 0 ? 'LEBIH' : 'KURANG'} Rp ${new Intl.NumberFormat('id-ID').format(Math.abs(diff))} [MANUAL]${enhancedKeterangan ? ' | Catatan: ' + enhancedKeterangan : ''}`
+          : (enhancedKeterangan ? `Catatan: ${enhancedKeterangan}` : null),
       }
     });
 
@@ -1134,7 +1215,7 @@ const matchIndividual = async (req, res) => {
       absDiff,
       status_rekon,
       sp2dRow: sp2d,
-      keterangan_admin
+      keterangan_admin: enhancedKeterangan
     });
 
     // Cascade SUDAH_BRUTO ke child potongan saat match manual bruto pada SP2D
@@ -1166,7 +1247,8 @@ const matchIndividual = async (req, res) => {
  * Automatically reconciles perfect 1:1 matches (Value & Date proximity)
  */
 const bulkMatchSmart = async (req, res) => {
-  const { startDate, endDate, year } = req.body;
+  const { startDate, endDate, year, extendDate } = req.body;
+  const useExtendedDate = !!extendDate;
   
   // Kunci Tanggal: gunakan string asli parameter — tidak melalui objek Date agar tidak bergeser TZ
   const currentYear = parseInt(year) || new Date().getFullYear();
@@ -1175,7 +1257,7 @@ const bulkMatchSmart = async (req, res) => {
   const sDateObj = new Date(`${sDate}T00:00:00.000Z`);
   const eDateObj = new Date(`${eDate}T23:59:59.999Z`);
 
-  console.log(`[MAGIC ENGINE] Starting with range: ${sDate} to ${eDate}`);
+  console.log(`[MAGIC ENGINE] Starting with range: ${sDate} to ${eDate}${useExtendedDate ? ' (EXTENDED DATE: H-14 s/d H+14)' : ''}`);
 
   try {
     // Reset global progress
@@ -1196,7 +1278,8 @@ const bulkMatchSmart = async (req, res) => {
         tanggal: {
           gte: sDateObj,
           lte: eDateObj
-        }
+        },
+        ...BANK_KOREKSI_EXCLUDE
       },
       orderBy: { tanggal: 'asc' }
     });
@@ -1252,6 +1335,7 @@ const bulkMatchSmart = async (req, res) => {
       FROM setoran_pajak s
       LEFT JOIN bank_statement b ON TRIM(CAST(s.id AS VARCHAR)) = TRIM(b.ref_bku_id)
       WHERE COALESCE(UPPER(TRIM(s.status_rekon)), '') NOT LIKE '%SUDAH%' AND b.id IS NULL
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d hx WHERE TRIM(hx.nomor) = TRIM(s.nomor_bukti))
         AND CAST(COALESCE(s.tanggal_pencairan, s.tanggal) AS DATE) BETWEEN '${sDate}' AND '${eDate}'
         AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
 
@@ -1266,6 +1350,8 @@ const bulkMatchSmart = async (req, res) => {
       LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
       LEFT JOIN bank_statement b ON TRIM(CAST(p.id AS VARCHAR)) = TRIM(b.ref_bku_id)
       WHERE COALESCE(UPPER(TRIM(p.status_rekon)), '') NOT LIKE '%SUDAH%' AND b.id IS NULL
+        -- [LAINNYA-EXCLUDE] mengendap tidak di-match otomatis
+        AND NOT (LOWER(COALESCE(p.uraian, '')) LIKE '%lainnya%' OR LOWER(COALESCE(p.keterangan, '')) LIKE '%lainnya%')
         AND COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE BETWEEN '${sDate}' AND '${eDate}'
     `);
 
@@ -1287,6 +1373,7 @@ const bulkMatchSmart = async (req, res) => {
     let matchCount = 0;
     const updateTasks = [];
     const cascadeTasks = []; // [Fix] Kumpulan cascade SUDAH_BRUTO — eksekusi SETELAH $transaction
+    const matchedBankSet = new Set(); // [C.2] Lacak bank yang sudah dicocokkan fase 1 (updateTasks belum dieksekusi) agar fase 2 tidak memproses ulang
 
 
     for (let idx = 0; idx < bankItems.length; idx++) {
@@ -1314,7 +1401,7 @@ const bulkMatchSmart = async (req, res) => {
         const bkuDate = toNativeDate(bkuDateStr);
         const diffDays = (bankDate.getTime() - bkuDate.getTime()) / (1000 * 3600 * 24);
         if (bku.tipe === 'MASUK') return Math.abs(diffDays) <= 2;
-        return diffDays >= -1 && diffDays <= 7;
+        return diffDays >= -1 && diffDays <= 4;
       });
       const isStrictMode = activeDuplicates.length >= STRICT_MODE_THRESHOLD;
 
@@ -1331,8 +1418,8 @@ const bulkMatchSmart = async (req, res) => {
           if (!bkuDateStr) return false;
           const bkuDate = toNativeDate(bkuDateStr);
           const diffDays = (bankDate.getTime() - bkuDate.getTime()) / (1000 * 3600 * 24);
-          if (bku.tipe === 'MASUK') return Math.abs(diffDays) <= 2;
-          return diffDays >= -1 && diffDays <= 7;
+          if (bku.tipe === 'MASUK') return Math.abs(diffDays) <= (useExtendedDate ? 14 : 2);
+          return diffDays >= (useExtendedDate ? -14 : -1) && diffDays <= (useExtendedDate ? 14 : 4);
         })
         .map(bku => {
            const bkuTgl = fmtDate(bku.tanggal);
@@ -1420,7 +1507,7 @@ const bulkMatchSmart = async (req, res) => {
 
         // Tentukan match_type: SMART_BUKTI jika nomor_bukti pendapatan menjadi sinyal utama
         const isBuktiDriven = match.source === 'PENDAPATAN' && (match._nomorBuktiScore || 0) >= 120;
-        const resolvedMatchType = isBuktiDriven ? 'SMART_BUKTI' : (closerIsBruto ? 'SMART_BRUTO' : 'SMART_AUTO');
+        const resolvedMatchType = (isBuktiDriven ? 'SMART_BUKTI' : (closerIsBruto ? 'SMART_BRUTO' : 'SMART_AUTO')) + (useExtendedDate ? '_FD' : '');
 
         updateTasks.push(prisma.bank_statement.update({
           where: { id: bankItem.id },
@@ -1462,6 +1549,7 @@ const bulkMatchSmart = async (req, res) => {
           originalBku._isMatched = true;
         }
         match._isMatched = true;
+        matchedBankSet.add(bankItem.id);
         matchCount++;
       }
 
@@ -1491,6 +1579,103 @@ const bulkMatchSmart = async (req, res) => {
       }
     }
 
+    // ══ PHASE 2 — GRUP_POTONGAN (Gelondongan) ════════════════════════════════════════
+    // Setelah pasangan 1:1 tereksekusi, beberapa debit bank yang 1:1-nya TIDAK ada
+    // sebenarnya adalah gelondongan pajak LS Kontraktual/Barjas: 1 debit bank = jumlah
+    // (SUM) rincian potongan dari SATU SP2D yang sama. Dikenali via kecocokan EKSAK jumlah.
+    // Ini deterministik (jumlah pasti) sehingga aman — bukan perkiraan.
+    // Dilakukan setalah fase 1 commit agar tidak menduplikasi SP2D/potongan yang sudah cocok.
+    try {
+      const remainingBanks = await prisma.bank_statement.findMany({
+        where: { is_matched: false, tanggal: { gte: sDateObj, lte: eDateObj }, debet: { gt: 0 }, ...BANK_KOREKSI_EXCLUDE },
+        orderBy: { tanggal: 'asc' }
+      });
+      if (remainingBanks.length > 0) {
+        const belumPotongan = await prisma.$queryRaw`
+          SELECT p.id_sp2d::text AS id_sp2d,
+                 STRING_AGG(p.id::text, ',') AS pot_ids,
+                 STRING_AGG(p.nomor_sp2d::text, ' + ') AS nomor,
+                 SUM(p.nilai)::decimal AS total,
+                 COUNT(p.id)::int AS jumlah,
+                 COALESCE(MIN(p.tanggal_pencairan), MIN(s.tanggal_pencairan), MIN(s.tanggal)) AS tgl
+          FROM data_sp2d_potongan p
+          LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+          WHERE COALESCE(UPPER(TRIM(p.status_rekon)), '') NOT LIKE '%SUDAH%'
+            AND p.id_sp2d IS NOT NULL
+            AND NOT (LOWER(COALESCE(p.uraian, '')) LIKE '%lainnya%' OR LOWER(COALESCE(p.keterangan, '')) LIKE '%lainnya%')
+            AND NOT EXISTS (SELECT 1 FROM bank_statement bx WHERE bx.ref_bku_id = p.id_sp2d::text AND bx.match_type = 'GROUP_POTONGAN')
+            AND COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)::DATE BETWEEN CAST(${sDate} AS DATE) AND CAST(${eDate} AS DATE)
+          GROUP BY p.id_sp2d
+          HAVING COUNT(p.id) >= 2
+        `;
+
+        // Index grup berdasarkan total sen
+        const groupBySum = new Map(); // key=cents -> array of groups
+        for (const g of belumPotongan) {
+          const key = Math.round(Number(g.total) * 100);
+          if (!groupBySum.has(key)) groupBySum.set(key, []);
+          groupBySum.get(key).push(g);
+        }
+
+        let grupMatch = 0;
+        for (const bankItem of remainingBanks) {
+          const rawVal = Number(bankItem.debet) || 0;
+          if (rawVal === 0) continue;
+          const key = Math.round(rawVal * 100);
+          const groups = groupBySum.get(key);
+          // Hanya aman bila ada TEPAT SATU grup — ambigu jika lebih dari satu.
+          if (!groups || groups.length !== 1) continue;
+
+          const g = groups[0];
+          const potIds = String(g.pot_ids).split(',').filter(Boolean);
+          const tglBank = String(bankItem.tanggal).slice(0, 10);
+
+          await prisma.$transaction(async (tx) => {
+            await tx.bank_statement.update({
+              where: { id: bankItem.id },
+              data: {
+                is_matched: true,
+                ref_bku_id: g.id_sp2d,
+                match_type: 'GROUP_POTONGAN',
+                selisih_nilai: 0,
+                catatan_selisih: `Grup ${g.jumlah} rincian potongan SP2D ${g.nomor}`
+              }
+            });
+            await tx.data_sp2d_potongan.updateMany({
+              where: { id: { in: potIds } },
+              data: {
+                status_rekon: 'SUDAH',
+                selisih_rekon: 0,
+                keterangan_rekon: `Cocok via Grup Potongan (auto) ke bank tgl ${tglBank}`,
+                tanggal_pencairan: g.tgl ? new Date(g.tgl) : (tglBank ? new Date(tglBank) : null)
+              }
+            });
+          }).catch((e) => {
+            console.error(`[SMART][GRUP] Gagal gelondongan bank #${bankItem.id} ↔ SP2D ${g.id_sp2d}:`, e.message);
+            return;
+          });
+
+          // Tandai grup sudah dipakai agar tidak diproses ulang
+          groupBySum.delete(key);
+          grupMatch++;
+        }
+
+        if (grupMatch > 0) {
+          matchCount += grupMatch;
+          console.log(`[SMART][GRUP] Fase 2 berhasil mencocokkan ${grupMatch} debit gelondongan (GRUP_POTONGAN).`);
+          await prisma.log_aktivitas.create({
+            data: {
+              user_pelaksana: req.user?.username || req.user?.email || 'SYSTEM',
+              aksi: 'SMART_MATCH_GRUP_POTONGAN',
+              detail: `Pencocokan otomatis fase 2: ${grupMatch} debit gelondongan via jumlah potongan per SP2D.`
+            }
+          }).catch(() => {});
+        }
+      }
+    } catch (e) {
+      console.error('[SMART][GRUP] Fase 2 GRUP_POTONGAN error:', e.message);
+    }
+
     smartMatchProgress.status = 'done';
     smartMatchProgress.current = smartMatchProgress.total;
     smartMatchProgress.success = matchCount;
@@ -1515,7 +1700,10 @@ const bulkMatchSmart = async (req, res) => {
  */
 const getSuggestions = async (req, res) => {
   const { bankId } = req.params;
-  const { bankIds } = req.query;
+  const { bankIds, extendDate } = req.query;
+  const useExtendedDate = extendDate === 'true' || extendDate === '1';
+  const dateBefore = useExtendedDate ? 14 : 1;
+  const dateAfter = useExtendedDate ? 14 : 4;
   
   try {
     // bank_statement.id adalah Int (autoincrement) — wajib parseInt, bukan string
@@ -1580,10 +1768,10 @@ const getSuggestions = async (req, res) => {
         SELECT 1 FROM bank_statement bx
         WHERE TRIM(bx.ref_bku_id) = TRIM(CAST(h.id AS VARCHAR))
       )
-      -- [LOOSE] Jendela tanggal diperlebar H-1 s/d H+30
+      -- [REAL] Kondisi real: pencairan maksimal H+3/H+4 (lag positif riil maks +4)
       AND CAST(COALESCE(h.tanggal_pencairan, h.tanggal) AS DATE)
-          BETWEEN (CAST(${bankDateStr} AS DATE) - INTERVAL '1 day')
-          AND     (CAST(${bankDateStr} AS DATE) + INTERVAL '30 days')
+          BETWEEN (CAST(${bankDateStr} AS DATE) - INTERVAL '${Prisma.raw(String(dateBefore))} days')
+          AND     (CAST(${bankDateStr} AS DATE) + INTERVAL '${Prisma.raw(String(dateAfter))} days')
       ORDER BY ABS(ROUND(CAST(h.nilai_bruto - COALESCE(
         (SELECT SUM(p.nilai) FROM data_sp2d_potongan p WHERE p.id_sp2d = h.id AND (p.keterangan IS NULL OR p.keterangan != 'AUTO_HEADER')),
         h.nilai_potongan
@@ -1611,15 +1799,18 @@ const getSuggestions = async (req, res) => {
         ABS(CAST(p.nilai AS DECIMAL) - ${totalVal}) <= GREATEST(${totalVal} * 0.1, 1000000)
       )
       AND COALESCE(UPPER(TRIM(p.status_rekon)), '') NOT LIKE '%SUDAH%'
+      -- [LAINNYA-EXCLUDE] Potongan 'Lainnya' = mengendap: hanya tampung di /potongan-mengendap,
+      -- tidak pernah muncul sebagai rekomendasi (definisi: uraian ATAU keterangan)
+      AND NOT (LOWER(COALESCE(p.uraian, '')) LIKE '%lainnya%' OR LOWER(COALESCE(p.keterangan, '')) LIKE '%lainnya%')
       -- Double-Lock: eksklusi item BKU yang sudah terlink ke mutasi bank mana pun (termasuk draf)
       AND NOT EXISTS (
         SELECT 1 FROM bank_statement bx
         WHERE TRIM(bx.ref_bku_id) = TRIM(CAST(p.id AS VARCHAR))
       )
-      -- [LOOSE] Jendela tanggal H-1 s/d H+30
+      -- [REAL] Kondisi real: pencairan maksimal H+3/H+4 (lag positif riil maks +4)
       AND CAST(COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) AS DATE)
-          BETWEEN (CAST(${bankDateStr} AS DATE) - INTERVAL '1 day')
-          AND     (CAST(${bankDateStr} AS DATE) + INTERVAL '30 days')
+          BETWEEN (CAST(${bankDateStr} AS DATE) - INTERVAL '${Prisma.raw(String(dateBefore))} days')
+          AND     (CAST(${bankDateStr} AS DATE) + INTERVAL '${Prisma.raw(String(dateAfter))} days')
       ORDER BY ABS(ROUND(CAST(p.nilai AS DECIMAL)) - ROUND(${totalVal})) ASC
     ` : [];
     console.log(`[SUGGEST] potonganCandidates: ${potonganCandidates.length}`);
@@ -1647,9 +1838,9 @@ const getSuggestions = async (req, res) => {
           WHERE TRIM(bx.ref_bku_id) = TRIM(CAST(p.id AS VARCHAR))
         )
         AND CAST(COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) AS DATE)
-          BETWEEN (CAST(${bankDateStr} AS DATE) - INTERVAL '1 day')
-          AND     (CAST(${bankDateStr} AS DATE) + INTERVAL '30 days')
-        AND NOT (LOWER(COALESCE(p.uraian, '')) LIKE '%lainnya%')
+          BETWEEN (CAST(${bankDateStr} AS DATE) - INTERVAL '${Prisma.raw(String(dateBefore))} days')
+          AND     (CAST(${bankDateStr} AS DATE) + INTERVAL '${Prisma.raw(String(dateAfter))} days')
+        AND NOT (LOWER(COALESCE(p.uraian, '')) LIKE '%lainnya%' OR LOWER(COALESCE(p.keterangan, '')) LIKE '%lainnya%')
       GROUP BY COALESCE(p.id_sp2d::text, p.nomor_sp2d), p.nomor_sp2d
       HAVING COUNT(p.id) >= 2
         AND ABS(SUM(p.nilai) - ${totalVal}) <= GREATEST(${totalVal} * 0.05, 500000)
@@ -1675,6 +1866,7 @@ const getSuggestions = async (req, res) => {
       WHERE (
         -- [TOLERANCE] Izinkan selisih hingga 10% atau Maks Rp 1 Juta
         ABS(CAST(s.nilai AS DECIMAL) - ${totalVal}) <= GREATEST(${totalVal} * 0.1, 1000000)
+      AND NOT EXISTS (SELECT 1 FROM data_sp2d hx WHERE TRIM(hx.nomor) = TRIM(s.nomor_bukti))
       )
       AND COALESCE(UPPER(TRIM(s.status_rekon)), '') NOT LIKE '%SUDAH%'
       AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti)
@@ -1683,10 +1875,10 @@ const getSuggestions = async (req, res) => {
         SELECT 1 FROM bank_statement bx
         WHERE TRIM(bx.ref_bku_id) = TRIM(CAST(s.id AS VARCHAR))
       )
-      -- Jendela tanggal H-1 s/d H+7 (pajak biasanya tepat waktu)
+      -- Jendela tanggal H-1 s/d H+4 (lag positif riil maks +4)
       AND CAST(COALESCE(s.tanggal_pencairan, s.tanggal) AS DATE)
-          BETWEEN (CAST(${bankDateStr} AS DATE) - INTERVAL '1 day')
-          AND     (CAST(${bankDateStr} AS DATE) + INTERVAL '7 days')
+          BETWEEN (CAST(${bankDateStr} AS DATE) - INTERVAL '${Prisma.raw(String(dateBefore))} days')
+          AND     (CAST(${bankDateStr} AS DATE) + INTERVAL '${Prisma.raw(String(dateAfter))} days')
       ORDER BY ABS(ROUND(CAST(s.nilai AS DECIMAL)) - ROUND(${totalVal})) ASC
     ` : [];
     console.log(`[SUGGEST] pajakCandidates: ${pajakCandidates.length}`);
@@ -1714,7 +1906,7 @@ const getSuggestions = async (req, res) => {
       -- Poin 2: Zero Tolerance — nilai wajib sama persis hingga sen (selisih < Rp 1)
       AND ABS(CAST(p.nilai AS DECIMAL) - ${totalVal}) < 1
       -- Poin 1: Jendela Tanggal Super Ketat H-1 s/d H+1
-      AND CAST(p.tanggal AS DATE) BETWEEN (CAST(${bankDateStr} AS DATE) - INTERVAL '1 day') AND (CAST(${bankDateStr} AS DATE) + INTERVAL '1 day')
+      AND CAST(p.tanggal AS DATE) BETWEEN (CAST(${bankDateStr} AS DATE) - INTERVAL '${Prisma.raw(String(dateBefore))} days') AND (CAST(${bankDateStr} AS DATE) + INTERVAL '${Prisma.raw(String(dateAfter))} days')
       ORDER BY ABS(CAST(p.nilai AS DECIMAL) - ${totalVal}) ASC
     ` : [];
     console.log(`[SUGGEST] pendapatanCandidates: ${Array.isArray(pendapatanCandidates) ? pendapatanCandidates.length : 0} (isOut=${isOut})`);
@@ -1910,66 +2102,142 @@ const matchMultiple = async (req, res) => {
  * Mengimpor data Bank dari JSON
  */
 const importBankData = async (req, res) => {
-  const { data } = req.body;
+  const { data, hasSaldo } = req.body;
   if (!data || !Array.isArray(data)) return res.status(400).json({ message: 'Data tidak valid' });
+  const withSaldo = hasSaldo === true;
 
   try {
-    // 1. Fetch existing for deduplication
-    const existing = await prisma.bank_statement.findMany({
-      select: { tanggal: true, deskripsi: true, saldo_akhir: true },
-      where: {
-        tanggal: { gte: new Date(new Date().getFullYear(), new Date().getMonth() - 6, 1) }
-      }
-    });
-
-    const existingSet = new Set(existing.map(e => 
-      `${fmtDate(e.tanggal)}_${String(e.deskripsi || '').trim()}_${Number(e.saldo_akhir).toFixed(2)}`
-    ));
-
-    const toCreate = [];
+    // ── REPLACEMENT PER-BULAN ──
+    // Tanggal dibaca PERSIS sesuai file (parseDateSafe). Seluruh rentang bulan yang
+    // tercakup isi file dihapus dulu, lalu diisi ulang dari file — bukan ditumpuk.
+    // Bulan di luar file (sudah direkon) tidak tersentuh.
+    const parsed = [];
     for (const item of data) {
       const dateObj = parseDateSafe(item.TANGGAL);
       if (isNaN(dateObj.getTime())) continue;
-
-      const dateStr = fmtDate(dateObj);
-      const desc = String(item.URAIAN || '').replace(/[^\x20-\x7E]/g, '').trim(); // Remove non-printable chars
-      const saldo = Number(item.SALDO || 0);
-      const key = `${dateStr}_${desc}_${saldo.toFixed(2)}`;
-
-      if (!existingSet.has(key)) {
-        const debet = Number(item.PENGELUARAN || 0);
-        const kredit = Number(item.PENERIMAAN || 0);
-
-        // Ensure all numbers are valid finite numbers
-        if (Number.isFinite(debet) && Number.isFinite(kredit) && Number.isFinite(saldo)) {
-          toCreate.push({
-            tanggal: dateObj,
-            nomor_bukti: String(item.NOMOR_BUKTI || '').trim().substring(0, 100) || null,
-            deskripsi: desc.substring(0, 500) || 'Transaksi Bank',
-            debet: debet,
-            kredit: kredit,
-            saldo_akhir: saldo,
-            is_matched: false
-          });
-          existingSet.add(key);
-        }
-      }
+      parsed.push({ dateObj, item });
     }
+    if (parsed.length === 0) {
+      return res.status(400).json({ message: 'Tidak ada baris dengan tanggal valid di file. Periksa format kolom Tanggal.' });
+    }
+
+    const ts = parsed.map((p) => p.dateObj.getTime());
+    const minDate = new Date(Math.min(...ts));
+    const maxDate = new Date(Math.max(...ts));
+    const startRange = new Date(Date.UTC(minDate.getUTCFullYear(), minDate.getUTCMonth(), 1));
+    const endRange = new Date(Date.UTC(maxDate.getUTCFullYear(), maxDate.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+
+    const delResult = await prisma.bank_statement.deleteMany({
+      where: { tanggal: { gte: startRange, lte: endRange } }
+    });
+    await prisma.log_aktivitas.create({ data: {
+      user_pelaksana: req.user?.username || 'SYSTEM',
+      aksi: 'IMPORT_BANK_REPLACE',
+      detail: `Impor RKUD: bersihkan ${delResult.count} baris lama rentang ${fmtDate(startRange)} s/d ${fmtDate(endRange)}, lalu isi ulang ${parsed.length} mutasi dari file (tanggal persis file).`
+    }}).catch(() => {});
+
+    const toCreate = parsed.map(({ dateObj, item }) => {
+      const desc = String(item.URAIAN || '').replace(/[^\x20-\x7E]/g, '').trim();
+      const debet = Number(item.PENGELUARAN || 0);
+      const kredit = Number(item.PENERIMAAN || 0);
+      const saldo = Number(item.SALDO || 0);
+      const nomorBukti = String(item.NOMOR_BUKTI || '').trim().substring(0, 100) || null;
+      return {
+        tanggal: dateObj,
+        nomor_bukti: nomorBukti,
+        deskripsi: desc.substring(0, 500) || 'Transaksi Bank',
+        debet,
+        kredit,
+        saldo_akhir: withSaldo ? saldo : 0,
+        is_matched: false
+      };
+    });
 
     let successCount = 0;
     if (toCreate.length > 0) {
-      // Chunk into 500 rows per batch
       for (let i = 0; i < toCreate.length; i += 500) {
         const batch = toCreate.slice(i, i + 500);
-        await prisma.bank_statement.createMany({
-          data: batch,
-          skipDuplicates: true
-        });
+        await prisma.bank_statement.createMany({ data: batch });
         successCount += batch.length;
       }
     }
 
-    res.json({ message: 'Import selesai', importedCount: successCount });
+    let saldoAwalOtomatis = 0;
+    let saldoAkhirOtomatis = 0;
+
+    // 2a. Mode TANPA SALDO — hitung running balance otomatis
+    if (!withSaldo && successCount > 0) {
+      // Saldo awal = saldo_akhir baris terakhir SEBELUM tahun berjalan
+      const [prevBal] = await prisma.$queryRaw`
+        SELECT COALESCE(saldo_akhir, 0)::float8 AS bal
+        FROM bank_statement
+        WHERE EXTRACT(YEAR FROM tanggal) < EXTRACT(YEAR FROM CURRENT_DATE)
+        ORDER BY tanggal DESC, id DESC LIMIT 1`;
+      saldoAwalOtomatis = Number(prevBal?.bal || 0);
+
+      // Re-calculate running balance untuk SEMUA data tahun ini
+      await prisma.$queryRaw`
+        WITH cumulative AS (
+          SELECT id,
+                 SUM(COALESCE(kredit,0) - COALESCE(debet,0))
+                   OVER (ORDER BY tanggal ASC, id ASC
+                         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS cum
+          FROM bank_statement
+          WHERE EXTRACT(YEAR FROM tanggal) = EXTRACT(YEAR FROM CURRENT_DATE)
+        )
+        UPDATE bank_statement b
+        SET saldo_akhir = c.cum + ${saldoAwalOtomatis}
+        FROM cumulative c WHERE b.id = c.id`;
+
+      const lastNew = await prisma.bank_statement.findFirst({
+        orderBy: [{ tanggal: 'desc' }, { id: 'desc' }],
+        select: { saldo_akhir: true }
+      });
+      saldoAkhirOtomatis = Number(lastNew?.saldo_akhir || 0);
+    }
+
+    // 2b. Mode DENGAN SALDO — validasi drift file vs hitungan sistem
+    let driftCheck = null;
+    if (withSaldo) {
+      try {
+        const chk = await prisma.$queryRaw`
+          WITH x AS (
+            SELECT tanggal, id, COALESCE(kredit::DECIMAL,0) AS k, COALESCE(debet::DECIMAL,0) AS d,
+                   saldo_akhir::DECIMAL AS s_file
+            FROM bank_statement WHERE EXTRACT(YEAR FROM tanggal) = EXTRACT(YEAR FROM CURRENT_DATE)
+          ), y AS (
+            SELECT s_file, SUM(k - d) OVER (ORDER BY tanggal ASC, id ASC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS s_hitung FROM x
+          ), f AS (
+            SELECT (ARRAY_AGG(s_file ORDER BY tanggal DESC, id DESC))[1] AS s_file_last,
+                   (ARRAY_AGG((s_file - s_hitung) ORDER BY tanggal DESC, id DESC))[1] AS drift_last FROM y
+          )
+          SELECT ROUND(s_file_last,2)::float8 AS saldo_cetakan, ROUND(drift_last,2)::float8 AS drift FROM f`;
+        driftCheck = {
+          saldoCetakanFile: chk[0]?.saldo_cetakan ?? null,
+          selisihFileVsHitung: chk[0]?.drift ?? null,
+          status: Math.abs(Number(chk[0]?.drift || 0)) < 0.01 ? 'OK' : 'FILE_TIDAK_KONSISTEN'
+        };
+        if (driftCheck.status !== 'OK') {
+          await prisma.log_aktivitas.create({ data: {
+            user_pelaksana: req.user?.username || 'SYSTEM',
+            aksi: 'IMPORT_BANK_DRIFT',
+            detail: `Impor RKUD: kolom Saldo file menyimpang Rp${driftCheck.selisihFileVsHitung} dari Σ mutasi (anomali data file)`
+          }}).catch(() => {});
+        }
+      } catch (_) { driftCheck = null; }
+    }
+
+    if (withSaldo) {
+      res.json({ message: 'Import selesai', mode: 'DENGAN_SALDO', importedCount: successCount, driftCheck });
+    } else {
+      res.json({
+        message: 'Import selesai — saldo dihitung otomatis',
+        mode: 'TANPA_SALDO',
+        importedCount: successCount,
+        saldoAwalOtomatis,
+        saldoAkhirOtomatis
+      });
+    }
   } catch (err) {
     console.error('[IMPORT FINAL ERROR]', err);
     res.status(500).json({ 
@@ -2068,7 +2336,8 @@ const bulkMatchByValue = async (req, res) => {
       const bankItems = await prisma.bank_statement.findMany({
         where: { 
           is_matched: false,
-          deskripsi: { contains: ref, mode: 'insensitive' }
+          deskripsi: { contains: ref, mode: 'insensitive' },
+          ...BANK_KOREKSI_EXCLUDE
         }
       });
 
@@ -2166,6 +2435,40 @@ const bulkMatchByValue = async (req, res) => {
   }
 };
 
+// [FITUR] Pencarian nominal: normalisasi input agar cocok dgn format Indonesia (1.500.000)
+// maupun DB (1000.50). Konsisten dgn parseNumber di frontend/src/lib/utils.ts.
+const parseSearchNumber = (str) => {
+  if (!str) return null;
+  const s = String(str).trim();
+  if (!s) return null;
+  // Input yang mengandung huruf (mis. "SP2D 1500") bukan pencarian nominal murni.
+  if (/[A-Za-z]/.test(s)) return null;
+  const cleaned = s.replace(/[^\d.,-]/g, '');
+  if (!cleaned) return null;
+
+  const hasComma = cleaned.includes(',');
+  const dotParts = cleaned.split('.');
+  const hasMultipleDots = dotParts.length > 2;
+
+  let val;
+  if (hasComma || hasMultipleDots) {
+    // Format Indonesia: titik = ribuan, koma = desimal
+    val = parseFloat(cleaned.replace(/\./g, '').replace(',', '.'));
+  } else if (cleaned.includes('.')) {
+    const afterDot = dotParts[1] || '';
+    // Satu titik; bila 3 digit & bukan "0.x" → titik adalah ribuan
+    if (afterDot.length === 3 && !cleaned.startsWith('0.')) {
+      val = parseFloat(cleaned.replace(/\./g, ''));
+    } else {
+      val = parseFloat(cleaned);
+    }
+  } else {
+    val = parseFloat(cleaned);
+  }
+
+  return Number.isFinite(val) ? val : null;
+};
+
 /**
  * Mendapatkan Daftar Lengkap Rekening Koran
  */
@@ -2176,7 +2479,16 @@ const getBankStatements = async (req, res) => {
 
   try {
     const where = {};
-    if (search) where.deskripsi = { contains: search, mode: 'insensitive' };
+    // [FITUR] Pencarian berdasarkan nilai: input angka cocokkan persis dgn debet/kredit;
+    // input teks tetap dicari di deskripsi. Keduanya dalam satu query OR.
+    if (search) {
+      const numericVal = parseSearchNumber(search);
+      const conds = [{ deskripsi: { contains: search, mode: 'insensitive' } }];
+      if (numericVal !== null) {
+        conds.push({ debet: { equals: numericVal } }, { kredit: { equals: numericVal } });
+      }
+      where.OR = conds;
+    }
     if (is_matched !== undefined && is_matched !== '') where.is_matched = is_matched === 'true';
     if (startDate && endDate) {
       where.tanggal = {
@@ -2188,7 +2500,7 @@ const getBankStatements = async (req, res) => {
     const [data, total, summary] = await Promise.all([
       prisma.bank_statement.findMany({
         where,
-        orderBy: [{ tanggal: 'desc' }, { id: 'desc' }],
+        orderBy: [{ tanggal: 'asc' }, { id: 'asc' }],
         skip,
         take
       }),
@@ -2205,6 +2517,11 @@ const getBankStatements = async (req, res) => {
       orderBy: [{ tanggal: 'desc' }, { id: 'desc' }]
     });
 
+    // [KANONIK-C] Saldo hitung sistem = baris Saldo-Awal + Σ mutasi (bukan kolom cetakan)
+    const hitungRes = await prisma.$queryRaw`
+      SELECT COALESCE(SUM(COALESCE(kredit::DECIMAL,0) - COALESCE(debet::DECIMAL,0)), 0)::float8 AS t
+      FROM bank_statement`;
+
     res.json({
       data,
       total,
@@ -2214,7 +2531,8 @@ const getBankStatements = async (req, res) => {
         totalDebet: Number(summary._sum.debet || 0),
         totalKredit: Number(summary._sum.kredit || 0),
         totalItems: summary._count.id,
-        lastBalance: Number(lastItem?.saldo_akhir || 0)
+        lastBalance: Number(lastItem?.saldo_akhir || 0),
+        saldoHitungSistem: Number(hitungRes[0]?.t || 0)
       }
     });
   } catch (err) {
@@ -2279,13 +2597,17 @@ const deleteBankByDateRange = async (req, res) => {
 
     const refIds = bankItems.map(b => String(b.ref_bku_id));
 
+    // [BUGFIX UUID-MIX] Sama dengan resetAllReconciliation — lihat catatan di bawah.
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const potonganUuidIds = refIds.filter(id => uuidRe.test(id));
+
     // 2. Jika ada data rekon, reset dulu status rekonnya di modul Buku (SP2D, Pendapatan, Pajak, dll)
     if (refIds.length > 0) {
       const resetData = { status_rekon: 'BELUM', selisih_rekon: 0, keterangan_rekon: null };
       await Promise.all([
         prisma.data_sp2d.updateMany({ where: { id: { in: refIds } }, data: resetData }),
         prisma.data_pendapatan.updateMany({ where: { id: { in: refIds } }, data: resetData }),
-        prisma.data_sp2d_potongan.updateMany({ where: { id: { in: refIds } }, data: resetData }),
+        prisma.data_sp2d_potongan.updateMany({ where: { id: { in: potonganUuidIds } }, data: resetData }),
         prisma.setoran_pajak.updateMany({ where: { id: { in: refIds } }, data: resetData })
       ]);
     }
@@ -2421,11 +2743,17 @@ const getAnomalies = async (req, res) => {
         CAST(COALESCE(p.tanggal_pencairan, sp.tanggal_pencairan, sp.tanggal) AS DATE) as tanggal,
         p.nomor_sp2d as nomor_bukti, p.uraian, p.nilai::numeric, p.id_sumber_dana, 'SELISIH_POTONGAN' as tipe, p.status_rekon,
         COALESCE(p.selisih_rekon, 0)::numeric as selisih_rekon, p.keterangan_rekon,
-        COALESCE(p.opd, sp.opd) as opd,
+        -- DATA FIX Agustus 2026: p.opd bisa berisi junk impor ('TERLAMPIR'/nama penerima).
+        -- Validasi terhadap master_opd: hanya nilai terdaftar yang boleh tampil; selain itu
+        -- jatuh ke OPD SP2D induk, lalu NULL ('-' di frontend). Jangan pernah tampilkan teks mentah.
+        CASE WHEN p.opd IS NOT NULL
+                  AND EXISTS (SELECT 1 FROM master_opd m WHERE LOWER(m.nama) = LOWER(TRIM(p.opd)))
+             THEN p.opd ELSE sp.opd END as opd,
         sp.uraian as uraian_sp2d
       FROM data_sp2d_potongan p
       LEFT JOIN data_sp2d sp ON sp.nomor = p.nomor_sp2d
-      WHERE EXTRACT(YEAR FROM COALESCE(p.tanggal_pencairan, sp.tanggal_pencairan, sp.tanggal)) = ${targetTahun}
+      WHERE ((EXTRACT(YEAR FROM COALESCE(p.tanggal_pencairan, sp.tanggal_pencairan, sp.tanggal)) = ${targetTahun})
+             OR COALESCE(p.tanggal_pencairan, sp.tanggal_pencairan, sp.tanggal) IS NULL)
       ${targetBulan ? `AND EXTRACT(MONTH FROM COALESCE(p.tanggal_pencairan, sp.tanggal_pencairan, sp.tanggal)) = ${targetBulan}` : ''}
       AND (
         -- ════════════════════════════════════════════════════════════════════════
@@ -2481,7 +2809,7 @@ const getAnomalies = async (req, res) => {
         SELECT 1 FROM data_sp2d_potongan p2 WHERE p2.nomor_sp2d = s.nomor_bukti
       )
 
-      ORDER BY tanggal DESC
+      ORDER BY tanggal DESC NULLS LAST
       LIMIT ${limit}
     `);
 
@@ -2490,7 +2818,8 @@ const getAnomalies = async (req, res) => {
           SELECT COUNT(*) as count 
           FROM data_sp2d_potongan p
           LEFT JOIN data_sp2d sp2 ON sp2.nomor = p.nomor_sp2d
-          WHERE EXTRACT(YEAR FROM COALESCE(p.tanggal_pencairan, sp2.tanggal_pencairan, sp2.tanggal)) = ${targetTahun}
+          WHERE ((EXTRACT(YEAR FROM COALESCE(p.tanggal_pencairan, sp2.tanggal_pencairan, sp2.tanggal)) = ${targetTahun})
+                 OR COALESCE(p.tanggal_pencairan, sp2.tanggal_pencairan, sp2.tanggal) IS NULL)
           ${targetBulan ? `AND EXTRACT(MONTH FROM COALESCE(p.tanggal_pencairan, sp2.tanggal_pencairan, sp2.tanggal)) = ${targetBulan}` : ''}
           AND (
             -- LOCK: Tidak ada JOIN bank_statement di sini (lihat komentar query utama di atas).
@@ -2546,12 +2875,25 @@ const getAnomalies = async (req, res) => {
         LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
         WHERE COALESCE(p.status_rekon, 'BELUM') NOT IN ('BELUM', 'SUDAH_BRUTO')
           AND COALESCE(s.status_rekon, '') <> 'SUDAH_BRUTO'
+          -- ═══ PERFORMA FIX Agustus 2026 ═══
+          -- NOT EXISTS dengan OR di dalam subquery memblokir penggunaan indeks
+          -- idx_bank_ref_bku → seq scan bank_statement per kandidat → 63 detik.
+          -- Dipecah menjadi dua NOT EXISTS terpisah (identitas logika: NOT(A OR B) = NOT A AND NOT B).
+          -- Semantik ref_bku_id TIDAK berubah:
+          --   bx.ref_bku_id = p.id        → link langsung potongan↔bank
+          --   bx.ref_bku_id = p.id_sp2d + match_type='GROUP_POTONGAN' → gelondongan LS Kontraktual/Barjas
           AND NOT EXISTS (
             SELECT 1 FROM bank_statement bx
             WHERE bx.ref_bku_id = p.id::text
-               OR (bx.ref_bku_id = p.id_sp2d::text AND bx.match_type = 'GROUP_POTONGAN')
           )
-          AND EXTRACT(YEAR FROM COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)) = ${targetTahun}
+          AND NOT EXISTS (
+            SELECT 1 FROM bank_statement bx2
+            WHERE bx2.ref_bku_id = p.id_sp2d::text AND bx2.match_type = 'GROUP_POTONGAN'
+          )
+          -- NULL-inclusive: potongan/tanggal yang diperbaiki ke NULL (placeholder dibersihkan)
+          -- tetap harus TERLIHAT agar akuntabel — jangan hilang dari radar hanya karena tanpa tanggal.
+          AND (EXTRACT(YEAR FROM COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)) = ${targetTahun}
+               OR COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) IS NULL)
           ${targetBulan ? `AND EXTRACT(MONTH FROM COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)) = ${targetBulan}` : ''}
 
         UNION ALL
@@ -2577,12 +2919,17 @@ const getAnomalies = async (req, res) => {
           LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
           WHERE COALESCE(p.status_rekon, 'BELUM') NOT IN ('BELUM', 'SUDAH_BRUTO')
           AND COALESCE(s.status_rekon, '') <> 'SUDAH_BRUTO'
+          -- PERFORMA FIX: pecah NOT EXISTS OR (lihat komentar query data di atas)
           AND NOT EXISTS (
             SELECT 1 FROM bank_statement bx
             WHERE bx.ref_bku_id = p.id::text
-               OR (bx.ref_bku_id = p.id_sp2d::text AND bx.match_type = 'GROUP_POTONGAN')
           )
-          AND EXTRACT(YEAR FROM COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)) = ${targetTahun}
+          AND NOT EXISTS (
+            SELECT 1 FROM bank_statement bx2
+            WHERE bx2.ref_bku_id = p.id_sp2d::text AND bx2.match_type = 'GROUP_POTONGAN'
+          )
+          AND (EXTRACT(YEAR FROM COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)) = ${targetTahun}
+               OR COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) IS NULL)
           ${targetBulan ? `AND EXTRACT(MONTH FROM COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)) = ${targetBulan}` : ''}
           UNION ALL
           SELECT pnd.id::text FROM data_pendapatan pnd
@@ -2758,6 +3105,7 @@ const getBalanceComparison = async (req, res) => {
         AND NOT EXISTS (
           SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = s.nomor_bukti
         )
+        AND NOT EXISTS (SELECT 1 FROM data_sp2d hx WHERE TRIM(hx.nomor) = TRIM(s.nomor_bukti))
       `;
       sjk_sum = Number(sjk_res[0]?.total || 0);
     } catch (e) { console.error('[ERROR] SJK Query:', e.message); }
@@ -2919,6 +3267,7 @@ const getDiscrepancyReport = async (req, res) => {
           AND NOT EXISTS (
             SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = setoran_pajak.nomor_bukti
           )
+          AND NOT EXISTS (SELECT 1 FROM data_sp2d hx WHERE TRIM(hx.nomor) = TRIM(setoran_pajak.nomor_bukti))
         ) combined_exp
         GROUP BY bln
       ) exp ON exp.bln = m.bulan
@@ -2974,7 +3323,7 @@ const getDiscrepancyReport = async (req, res) => {
     `.catch(e => { console.error('Error Q6:', e); return []; });
 
     // Kolom numerik yang harus di-fallback ke 0 jika null
-    const NUMERIC_KEYS = new Set(['bulan','jumlah','total_neto','total_debet','penerimaan','pengeluaran',
+    const NUMERIC_KEYS = new Set(['bulan','jumlah','total_neto','total_debet','total_kredit','penerimaan','pengeluaran',
       'saldo_bank','pengeluaran_belum_rekon','bank_debet_belum_cocok','total_sp2d','sudah_rekon',
       'belum_rekon','neto_belum_rekon','nilai','selisih','total_nilai','total_rincian','total_penerimaan']);
     const serialize = (arr) => (arr || []).map(row => {
@@ -3028,7 +3377,36 @@ const getDiscrepancyReport = async (req, res) => {
       GROUP BY EXTRACT(MONTH FROM COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)), p.opd, p.jenis_potongan
     `.catch(() => []);
 
+    // 7b. Lampiran BAR — Rincian potongan mengendap per dokumen (bulan-scope frontend filter)
+    // AMENDEMAND Juni 2026: pengguna menyetujui penampilan rincian mengendap pada LAMPIRAN BAR.
+    // Filter dasar tetap sama (hanya 'Lainnya') — tidak mengubah Q7 aggregat di atas.
+    const potonganMengendapDetails = await prisma.$queryRaw`
+      SELECT
+        CAST(p.id AS VARCHAR) as id,
+        p.nomor_sp2d as no_sp2d,
+        p.opd,
+        p.jenis_potongan,
+        CAST(p.nilai AS DECIMAL) as nilai,
+        p.uraian,
+        s.uraian as uraian_sp2d,
+        p.status_mengendap,
+        p.tanggal_penyelesaian,
+        COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) as tanggal_sp2d,
+        EXTRACT(MONTH FROM COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal))::int as bulan
+      FROM data_sp2d_potongan p
+      LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
+      WHERE (LOWER(p.uraian) LIKE '%lainnya%' OR LOWER(p.keterangan) LIKE '%lainnya%')
+        AND (p.status_rekon = 'BELUM' OR p.status_rekon IS NULL)
+        AND EXTRACT(YEAR FROM COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal)) = ${currentYear}
+      ORDER BY COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) DESC
+      LIMIT 200
+    `.catch(e => { console.error('Error Q7b:', e); return []; });
+
     // 8. Unmatched Details (Restored)
+    // PRINSIP KELENGKAPAN BAR (mandat pengguna): semua item non-SILPA yang belum
+    // berpasangan WAJIB tampil di Point B/C — termasuk KREDIT bank belum identifikasi,
+    // PENDAPATAN belum rekon, dan SETORAN standalone belum rekon (guard anti-double-count
+    // sama dengan cabang exp di Q4).
     const unmatchedDetails = await prisma.$queryRaw`
       SELECT * FROM (
         SELECT CAST(id AS VARCHAR) as id, 'SP2D' as tipe, COALESCE(tanggal_pencairan, tanggal) as tanggal, nomor as bukti, opd, uraian, CAST(nilai_neto AS DECIMAL) as nilai, 'KELUAR' as d_k
@@ -3036,8 +3414,35 @@ const getDiscrepancyReport = async (req, res) => {
         UNION ALL
         SELECT CAST(id AS VARCHAR) as id, 'BANK' as tipe, tanggal, '' as bukti, 'BANK' as opd, deskripsi as uraian, CAST(debet AS DECIMAL) as nilai, 'KELUAR' as d_k
         FROM bank_statement WHERE EXTRACT(YEAR FROM tanggal) = ${currentYear} AND is_matched = false AND CAST(debet AS DECIMAL) > 0
-      ) comb ORDER BY tanggal DESC LIMIT 50
+        UNION ALL
+        SELECT CAST(id AS VARCHAR) as id, 'BANK' as tipe, tanggal, '' as bukti, 'BANK' as opd, deskripsi as uraian, CAST(kredit AS DECIMAL) as nilai, 'MASUK' as d_k
+        FROM bank_statement WHERE EXTRACT(YEAR FROM tanggal) = ${currentYear} AND is_matched = false AND CAST(kredit AS DECIMAL) > 0
+          AND deskripsi NOT ILIKE 'saldo awal%'
+        UNION ALL
+        SELECT CAST(id AS VARCHAR) as id, 'PENDAPATAN' as tipe, tanggal, nomor_bukti as bukti, 'BENDAHARA' as opd, uraian, CAST(nilai AS DECIMAL) as nilai, 'MASUK' as d_k
+        FROM data_pendapatan WHERE tahun = ${currentYear} AND (status_rekon = 'BELUM' OR status_rekon IS NULL)
+        UNION ALL
+        SELECT CAST(id AS VARCHAR) as id, 'PAJAK' as tipe, COALESCE(tanggal_pencairan, tanggal) as tanggal, nomor_bukti as bukti, opd, uraian, CAST(nilai AS DECIMAL) as nilai, 'MASUK' as d_k
+        FROM setoran_pajak
+        WHERE EXTRACT(YEAR FROM COALESCE(tanggal_pencairan, tanggal)) = ${currentYear}
+          AND (status_rekon = 'BELUM' OR status_rekon IS NULL)
+          AND NOT EXISTS (SELECT 1 FROM data_sp2d_potongan p WHERE p.nomor_sp2d = setoran_pajak.nomor_bukti)
+          AND NOT EXISTS (SELECT 1 FROM data_sp2d hx WHERE TRIM(hx.nomor) = TRIM(setoran_pajak.nomor_bukti))
+      ) comb ORDER BY tanggal DESC LIMIT 200
     `.catch(() => []);
+
+    // 8b. Bank Kredit Belum Teridentifikasi (agregat bulanan) — mis. "Belum Ada Transaksi"
+    const bankKreditUnmatched = await prisma.$queryRaw`
+      SELECT
+        EXTRACT(MONTH FROM tanggal)::int as bulan,
+        COUNT(*)::int as jumlah,
+        SUM(CAST(kredit AS DECIMAL)) as total_kredit
+      FROM bank_statement
+      WHERE EXTRACT(YEAR FROM tanggal) = ${currentYear} AND is_matched = false AND CAST(kredit AS DECIMAL) > 0
+        AND deskripsi NOT ILIKE 'saldo awal%'
+      GROUP BY EXTRACT(MONTH FROM tanggal)
+      ORDER BY bulan ASC
+    `.catch(e => { console.error('Error Q8b:', e); return []; });
 
     const saldoAwalSilpaRaw = await prisma.$queryRaw`
       SELECT COALESCE(SUM(CAST(nilai AS DECIMAL)), 0) as total FROM saldo_awal WHERE tahun = ${currentYear}
@@ -3055,6 +3460,8 @@ const getDiscrepancyReport = async (req, res) => {
       matchedWithDiscrepancy: serialize(matchedWithDiscrepancy),
       potonganUnmatched: serialize(potonganUnmatched),
       unmatchedDetails: serialize(unmatchedDetails),
+      bankKreditUnmatched: serialize(bankKreditUnmatched),
+      potonganMengendapDetails: serialize(potonganMengendapDetails),
       saldoAwalSilpa: saldoAwalSilpa
     });
   } catch (err) {
@@ -3225,12 +3632,17 @@ const getResetPreview = async (req, res) => {
  * Reset Rekonsiliasi Berdasarkan Rentang Tanggal
  */
 const resetReconciliationByDateRange = async (req, res) => {
-  const { startDate, endDate } = req.body;
+  const { startDate, endDate, force } = req.body;
   if (!startDate || !endDate) {
     return res.status(400).json({ message: 'Tanggal awal dan akhir wajib diisi.' });
   }
 
   try {
+    // NOTE (Mei 2026): Proteksi C.1/C.6 yang menghitung "data sudah dicocokkan" dan menolak
+    // reset via 409 telah DIHAPUS atas permintaan user. Reset rentang kini berjalan langsung
+    // tanpa konfirmasi jumlah, agar pengguna bebas melakukan reset kapan saja.
+    // Reset seluruh tahun (reset-all) tetap dilindungi kode konfirmasi "RESET REKON/BANK YYYY".
+
     // 1. Reset Bank Statement
     await prisma.$executeRaw`
       UPDATE bank_statement
@@ -3326,14 +3738,21 @@ const resetAllReconciliation = async (req, res) => {
          select: { ref_bku_id: true }
        });
 
-       const refIds = bankItems.map(b => String(b.ref_bku_id));
+    const refIds = bankItems.map(b => String(b.ref_bku_id));
+
+    // [BUGFIX UUID-MIX] ref_bku_id heterogen: header SP2D & setoran ber-id VARCHAR
+    // ('SP2D-…','TAX-…'), sedangkan kolom id data_sp2d_potongan bertipe UUID.
+    // Memasukkan string non-UUID ke updateMany potongan membuat query crash
+    // (kasus hapus-rentang Mei–Juni 2026). Pisahkan khusus utk tabel itu.
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const potonganUuidIds = refIds.filter(id => uuidRe.test(id));
        
        if (refIds.length > 0) {
          const resetData = { status_rekon: 'BELUM', selisih_rekon: 0, keterangan_rekon: null };
          await Promise.all([
            prisma.data_sp2d.updateMany({ where: { id: { in: refIds } }, data: resetData }),
            prisma.data_pendapatan.updateMany({ where: { id: { in: refIds } }, data: resetData }),
-           prisma.data_sp2d_potongan.updateMany({ where: { id: { in: refIds } }, data: resetData }),
+           prisma.data_sp2d_potongan.updateMany({ where: { id: { in: potonganUuidIds } }, data: resetData }),
            prisma.setoran_pajak.updateMany({ where: { id: { in: refIds } }, data: resetData })
          ]);
        }
@@ -3633,6 +4052,58 @@ const exportReconciliationAudit = async (req, res) => {
   }
 };
 
+// ─── Export Data Rekening Koran ke Excel berdasarkan Rentang Tanggal ──────────
+const exportBankData = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    const where = {};
+    if (startDate && endDate) {
+      where.tanggal = {
+        gte: parseDateSafe(startDate),
+        lte: parseDateSafe(endDate)
+      };
+    }
+
+    const data = await prisma.bank_statement.findMany({
+      where,
+      orderBy: [{ tanggal: 'asc' }, { id: 'asc' }]
+    });
+
+    const headers = ['No', 'Tanggal', 'Nomor Bukti', 'Deskripsi', 'Debet (Keluar)', 'Kredit (Masuk)', 'Saldo Akhir', 'Status'];
+    const rows = data.map((item, i) => [
+      i + 1,
+      fmtDate(item.tanggal),
+      item.nomor_bukti || '-',
+      item.deskripsi || '',
+      Number(item.debet) > 0 ? Number(item.debet) : 0,
+      Number(item.kredit) > 0 ? Number(item.kredit) : 0,
+      Number(item.saldo_akhir) || 0,
+      item.is_matched ? 'MATCHED' : 'OPEN'
+    ]);
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+    // Set lebar kolom
+    ws['!cols'] = [
+      { wch: 5 }, { wch: 14 }, { wch: 28 }, { wch: 50 },
+      { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 10 }
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Rekening Koran');
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    const filename = `Rekening_Koran_${startDate || 'ALL'}_${endDate || 'ALL'}_${Date.now()}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.send(buf);
+  } catch (err) {
+    res.status(500).json(formatReconError(err, { fn: 'exportBankData', detail: 'Gagal mengekspor data rekening koran.' }));
+  }
+};
+
 /**
  * Smart Cluster Match AI
  * Mencocokkan sekelompok mutasi bank bernilai sama secara sekuensial 1-to-1 ke BKU
@@ -3651,7 +4122,7 @@ const clusterMatch = async (req, res) => {
     // 1. Ambil bank items — hanya yang belum dicocokkan
     const numericIds = bankIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
     const bankItems = await prisma.bank_statement.findMany({
-      where: { id: { in: numericIds }, is_matched: false },
+      where: { id: { in: numericIds }, is_matched: false, ...BANK_KOREKSI_EXCLUDE },
       orderBy: { tanggal: 'asc' }
     });
 
@@ -3717,6 +4188,8 @@ const clusterMatch = async (req, res) => {
         LEFT JOIN data_sp2d s ON p.id_sp2d = s.id
         LEFT JOIN bank_statement b ON TRIM(CAST(p.id AS VARCHAR)) = TRIM(b.ref_bku_id)
         WHERE COALESCE(UPPER(TRIM(p.status_rekon)), '') NOT LIKE '%SUDAH%' AND b.id IS NULL
+          -- [LAINNYA-EXCLUDE] mengendap tidak di-match otomatis
+          AND NOT (LOWER(COALESCE(p.uraian, '')) LIKE '%lainnya%' OR LOWER(COALESCE(p.keterangan, '')) LIKE '%lainnya%')
           AND ABS(CAST(p.nilai AS DECIMAL) - ${targetVal}) < 1
           AND CAST(COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) AS DATE) BETWEEN CAST(${sDate} AS DATE) AND CAST(${eDate} AS DATE)
         ORDER BY COALESCE(p.tanggal_pencairan, s.tanggal_pencairan, s.tanggal) ASC
@@ -3728,6 +4201,7 @@ const clusterMatch = async (req, res) => {
                CAST(s.nilai AS DECIMAL) as nilai,
                COALESCE(s.tanggal_pencairan, s.tanggal) as tanggal, 'PAJAK' as source
         FROM setoran_pajak s
+          AND NOT EXISTS (SELECT 1 FROM data_sp2d hx WHERE TRIM(hx.nomor) = TRIM(s.nomor_bukti))
         LEFT JOIN bank_statement b ON TRIM(CAST(s.id AS VARCHAR)) = TRIM(b.ref_bku_id)
         WHERE COALESCE(UPPER(TRIM(s.status_rekon)), '') NOT LIKE '%SUDAH%' AND b.id IS NULL
           AND ABS(CAST(s.nilai AS DECIMAL) - ${targetVal}) < 1
@@ -3983,7 +4457,8 @@ const getPotonganMengendap = async (req, res) => {
           select: {
             nomor: true,
             tanggal: true,
-            opd: true
+            opd: true,
+            uraian: true
           }
         }
       },
@@ -3994,17 +4469,35 @@ const getPotonganMengendap = async (req, res) => {
       }
     });
 
-    const formatted = records.map(r => ({
-      id: r.id,
-      keterangan: r.uraian || r.keterangan || '-',
-      nilai: Number(r.nilai) || 0,
-      no_sp2d: r.sp2d?.nomor || r.nomor_sp2d || '-',
-      tanggal_sp2d: r.sp2d?.tanggal || null,
-      opd: r.sp2d?.opd || r.opd || '-',
-      status_rekon: r.status_rekon
-    }));
+    const formatted = records.map(r => {
+      const tglSp2d = r.sp2d?.tanggal || null;
+      const umurHari = tglSp2d
+        ? Math.floor((Date.now() - new Date(tglSp2d).getTime()) / 86400000)
+        : null;
+      return {
+        id: r.id,
+        keterangan: r.uraian || r.keterangan || '-',
+        nilai: Number(r.nilai) || 0,
+        no_sp2d: r.sp2d?.nomor || r.nomor_sp2d || '-',
+        tanggal_sp2d: tglSp2d,
+        opd: r.sp2d?.opd || r.opd || '-',
+        uraian_sp2d: r.sp2d?.uraian || '-',
+        status_rekon: r.status_rekon,
+        status_mengendap: r.status_mengendap || 'MENGENDAP',
+        tanggal_penyelesaian: r.tanggal_penyelesaian || null,
+        catatan_penyelesaian: r.catatan_penyelesaian || null,
+        umur_hari: umurHari
+      };
+    });
 
-    res.json(formatted);
+    // Ringkasan per status
+    const summary = { MENGENDAP: 0, DISETOR: 0, JADI_PADAN: 0 };
+    for (const f of formatted) {
+      const s = f.status_mengendap || 'MENGENDAP';
+      if (summary[s] !== undefined) summary[s]++;
+    }
+
+    res.json({ records: formatted, summary });
   } catch (err) {
     res.status(500).json(formatReconError(err, { fn: 'getPotonganMengendap', detail: 'Gagal memuat daftar potongan mengendap.' }));
   }
@@ -4036,6 +4529,7 @@ module.exports = {
   resetReconciliationByDateRange,
   saveResolution,
   exportReconciliationAudit,
+  exportBankData,
   getSmartMatchProgress,
   clusterMatch
 };

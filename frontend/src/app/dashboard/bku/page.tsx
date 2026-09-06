@@ -36,12 +36,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateRange } from "@/components/ui/date-range";
 import { toast } from 'sonner';
 import { PageHeader } from '@/components/patterns/page-header';
 import { Combobox } from "@/components/ui/combobox";
 
 
 const fetcher = (url: string, params: any) => api.get(url, { params }).then(res => res.data);
+
+// Gabungan uraian potongan + induk utk export (layar memakai render dua-baris)
+const uraianGabung = (it: any) => {
+  const base = it?.uraian_induk ? `${it.uraian} — ${it.uraian_induk}` : (it?.uraian ?? '');
+  if (it?.tipe === 'POTONGAN' && it?.bank_deskripsi) {
+    const bankDate = it.bank_tanggal ? format(new Date(it.bank_tanggal), 'dd/MM/yyyy') : '-';
+    return `${base} [Mutasi Bank: ${it.bank_deskripsi} | Tgl: ${bankDate} | Rp ${formatCurrency(it.bank_nilai)}]`;
+  }
+  return base;
+};
+
+// Layar memotong ±80 char agar ringkas; unduhan/cetak memakai teks penuh via uraianGabung
+const potong80 = (t?: string | null) => (t && t.length > 80 ? t.slice(0, 80) + '…' : (t ?? ''));
 
 const formatAuditStatus = (keterangan: string, status: string) => {
   if (keterangan && keterangan.trim() !== '') {
@@ -65,6 +79,7 @@ export default function BkuPage() {
     sumberDana: '',
     opd: '',
     jenisTransaksi: '',
+    search: '',
     page: 1,
     limit: 50
   });
@@ -84,7 +99,8 @@ export default function BkuPage() {
         tgl_awal: params.startDate,
         tgl_akhir: params.endDate,
         id_sumber_dana: params.sumberDana,
-        jenis_transaksi: params.jenisTransaksi
+        jenis_transaksi: params.jenisTransaksi,
+        search: params.search
       };
       return fetcher(url, mappedParams);
     }
@@ -132,7 +148,7 @@ export default function BkuPage() {
         'No': index + 1,
         'Tanggal': format(new Date(item.tanggal), 'dd/MM/yyyy'),
         'No. Bukti': item.bukti,
-        'Uraian': item.uraian,
+        'Uraian': uraianGabung(item),
         'OPD': item.opd,
         'Sumber Dana': item.id_sumber_dana,
         'Penerimaan': item.penerimaan,
@@ -174,7 +190,7 @@ export default function BkuPage() {
           index + 1,
           displayDate,
           item.bukti || '-',
-          item.uraian || '-',
+          uraianGabung(item) || '-',
           item.opd || '-',
           formatCurrency(item.penerimaan || 0),
           formatCurrency(item.pengeluaran || 0),
@@ -220,7 +236,7 @@ export default function BkuPage() {
           i + 1,
           displayDate,
           item.bukti || '-',
-          item.uraian || '-',
+          uraianGabung(item) || '-',
           item.opd || '-',
           formatCurrency(item.penerimaan || 0),
           formatCurrency(item.pengeluaran || 0),
@@ -278,7 +294,7 @@ export default function BkuPage() {
           i + 1,
           displayDate,
           item.bukti || '-',
-          item.uraian || '-',
+          uraianGabung(item) || '-',
           item.opd || '-',
           formatCurrency(item.penerimaan || 0),
           formatCurrency(item.pengeluaran || 0),
@@ -313,6 +329,9 @@ export default function BkuPage() {
     totalPengeluaran: bkuItems.reduce((acc: number, curr: any) => acc + (parseFloat(curr.pengeluaran) || 0), 0),
     saldoAkhir: bkuItems.length > 0 ? bkuItems[bkuItems.length - 1].saldo : 0
   };
+  // [KANONIK-B] Koreksi mengendap & saldo rekonsiliasi dari endpoint
+  const koreksiMengendap = (!Array.isArray(data) && data?.summary?.koreksiMengendap) || 0;
+  const saldoAkhirRekonsiliasi = (!Array.isArray(data) && data?.summary?.saldoAkhirRekonsiliasi) || summary.saldoAkhir;
   const pagination = !Array.isArray(data) && data?.pagination ? data.pagination : { totalData: bkuItems.length, page: 1, totalPages: 1 };
 
   return (
@@ -424,7 +443,15 @@ export default function BkuPage() {
                 <h2 className="text-xl font-black tracking-tight text-white tabular-nums truncate">
                   {formatCurrency(summary.saldoAkhir)}
                 </h2>
-                <span className="text-[9px] font-bold text-violet-200/50 uppercase mt-2 block">Saldo Kas Tersedia</span>
+                <span className="text-[9px] font-bold text-violet-200/50 uppercase mt-2 block">Saldo Kas Tersedia (Pembukuan)</span>
+                {koreksiMengendap !== 0 && (
+                  <div className="mt-2 pt-2 border-t border-white/10">
+                    <p className="text-[9px] font-bold text-emerald-200/80 uppercase tracking-widest">+ Koreksi Mengendap</p>
+                    <p className="text-sm font-black text-emerald-200 tabular-nums">{formatCurrency(koreksiMengendap)}</p>
+                    <p className="text-[9px] font-bold text-violet-200/70 uppercase tracking-widest mt-1">Saldo Akhir Rekonsiliasi</p>
+                    <p className="text-sm font-black text-white tabular-nums">{formatCurrency(saldoAkhirRekonsiliasi)}</p>
+                  </div>
+                )}
               </div>
            </div>
          </motion.div>
@@ -461,22 +488,34 @@ export default function BkuPage() {
               transition={{ duration: 0.3, ease: 'easeInOut' }}
             >
               <div className="p-6 border-b border-[#F8F9FA]">
+                {/* Baris 0: Pencarian (live) */}
+                <div className="space-y-1.5 mb-5">
+                  <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-tight ml-1 flex items-center gap-1.5">
+                    <Search size={12} className="text-[#2E90FA]" />
+                    Cari Transaksi
+                  </label>
+                  <Input
+                    placeholder="Cari uraian, nomor bukti, atau nominal (mis. 17.758.000)..."
+                    className="font-semibold text-xs animate-none h-11"
+                    value={filters.search}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setFilters(f => ({ ...f, search: v, page: 1 }));
+                      setQueryParams(q => ({ ...q, search: v, page: 1 }));
+                    }}
+                  />
+                </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
                   {/* Baris 1: Periode */}
-                  <div className="lg:col-span-6 space-y-2">
-                    <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-tight ml-1 flex items-center gap-1.5">
-                      <Calendar size={12} className="text-[#2E90FA]" />
-                      Rentang Periode Laporan
-                    </label>
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1">
-                        <Input type="date" className="h-11 px-4 bg-fin-page border-fin-border rounded-lg text-sm font-medium text-fin-text-primary focus-visible:ring-ds-focus-ring focus-visible:border-ds-focus-ring transition-all" value={filters.startDate} onChange={(e) => setFilters({...filters, startDate: e.target.value, page: 1})} />
-                      </div>
-                      <span className="text-[#D0D5DD] text-[10px] font-bold">S/D</span>
-                      <div className="flex-1">
-                        <Input type="date" className="h-11 px-4 bg-fin-page border-fin-border rounded-lg text-sm font-medium text-fin-text-primary focus-visible:ring-ds-focus-ring focus-visible:border-ds-focus-ring transition-all" value={filters.endDate} onChange={(e) => setFilters({...filters, endDate: e.target.value, page: 1})} />
-                      </div>
-                    </div>
+                  <div className="lg:col-span-6">
+                    <DateRange
+                      label="Rentang Periode Laporan"
+                      startDate={filters.startDate}
+                      endDate={filters.endDate}
+                      onChangeStart={(v) => setFilters({...filters, startDate: v, page: 1})}
+                      onChangeEnd={(v) => setFilters({...filters, endDate: v, page: 1})}
+                    />
                   </div>
 
                   {/* Baris 1: Sumber Dana */}
@@ -555,6 +594,7 @@ export default function BkuPage() {
                           sumberDana: '',
                           opd: '',
                           jenisTransaksi: '',
+                          search: '',
                           page: 1,
                           limit: 50
                         };
@@ -670,7 +710,17 @@ export default function BkuPage() {
                         </div>
                     </TableCell>
                     <TableCell className="px-4 py-4">
-                       <p className="text-xs font-semibold text-fin-text-primary leading-tight truncate max-w-[250px] group-hover:text-[#2E90FA] transition-colors">{item.uraian}</p>
+                       <div className="max-w-[250px]">
+                         <p className="text-xs font-semibold text-fin-text-primary leading-tight truncate group-hover:text-[#2E90FA] transition-colors">{item.uraian}</p>
+                         {(item.tipe === 'POTONGAN' || item.tipe === 'SETORAN') && item.uraian_induk ? (
+                           <p className="text-[10px] text-fin-text-muted leading-snug truncate" title={item.uraian_induk}>{potong80(item.uraian_induk)}</p>
+                         ) : null}
+                         {item.tipe === 'POTONGAN' && item.bank_deskripsi ? (
+                           <p className="text-[10px] italic text-fin-text-muted leading-snug mt-0.5" title={`${item.bank_deskripsi} | Tgl: ${format(new Date(item.bank_tanggal), 'dd/MM/yyyy')} | Rp ${formatCurrency(item.bank_nilai)}`}>
+                             {`\u21B3 ${item.bank_deskripsi} \u00B7 ${format(new Date(item.bank_tanggal), 'dd/MM/yyyy')} \u00B7 ${formatCurrency(item.bank_nilai)}`}
+                           </p>
+                         ) : null}
+                       </div>
                     </TableCell>
                     <TableCell className="px-4 py-4">
                        <p className="text-[10px] font-medium text-fin-text-muted truncate max-w-[150px]">{item.opd}</p>

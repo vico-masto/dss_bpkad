@@ -64,6 +64,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateRange } from "@/components/ui/date-range";
 import { Combobox } from "@/components/ui/combobox";
 import { 
   Dialog, 
@@ -460,26 +461,26 @@ function Sp2dUnifiedPageContent() {
 
   const handleDownloadTemplate = () => {
     const headers = [
-      'Nomor SP2D', 
-      'Tanggal Terbit (YYYY-MM-DD)', 
-      'Tanggal Pencairan (YYYY-MM-DD)', 
-      'OPD', 
+      'Tanggal Terbit (YYYY-MM-DD)',
+      'Tanggal Pencairan (YYYY-MM-DD)',
+      'Nomor SP2D',
+      'OPD',
+      'Uraian',
+      'Penerima',
       'ID Sumber Dana',
-      'Jenis', 
-      'Uraian', 
-      'Penerima', 
-      'Nilai Bruto', 
+      'Jenis',
+      'Nilai Bruto',
       'Nilai Potongan'
     ];
     const sample = [
+      format(new Date(), 'yyyy-MM-dd'),
+      format(new Date(), 'yyyy-MM-dd'),
       '0001/SP2D/LS/2026',
-      format(new Date(), 'yyyy-MM-dd'),
-      format(new Date(), 'yyyy-MM-dd'),
       'DINAS PENDIDIKAN',
-      'SD-PAD',
-      'LS BARJAS',
       'Pembayaran Belanja Modal Alat Kantor',
       'PT. MAJU BERSAMA',
+      'SD-PAD',
+      'LS BARJAS',
       '50000000',
       '1000000'
     ];
@@ -622,6 +623,7 @@ function Sp2dUnifiedPageContent() {
      const total = importPreview.data.length;
      setImportProgress({ current: 0, total, currentName: 'Memulai proses impor...' });
 
+     const errors: string[] = [];
      const toastId = toast.loading(`Mengimpor ${total} dokumen...`);
 
      for (let i = 0; i < importPreview.data.length; i++) {
@@ -661,15 +663,25 @@ function Sp2dUnifiedPageContent() {
            
            await api.post('/sp2d', formData);
            successCount++;
-        } catch (err) {
-           console.error('Row fail:', err);
+        } catch (err: any) {
            failCount++;
+           const errMsg = err.response?.data?.message || err.message || 'Gagal menyimpan';
+           errors.push(`${item.nomor || `Item #${i+1}`}: ${errMsg}`);
         }
      }
 
      toast.dismiss(toastId);
      if (failCount > 0) {
-        toast.warning(`Impor selesai dengan ${failCount} kegagalan.`, { description: `${successCount} data berhasil dimasukkan.` });
+        toast.warning(`Impor selesai: ${successCount} berhasil, ${failCount} gagal.`, {
+          description: (
+            <div className="mt-2 max-h-32 overflow-y-auto">
+              <ul className="list-disc pl-4 text-[11px] text-orange-700 space-y-0.5">
+                {errors.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            </div>
+          ),
+          duration: 10000,
+        });
      } else {
         toast.success(`Berhasil mengimpor ${successCount} data SP2D`);
      }
@@ -1027,15 +1039,14 @@ function Sp2dUnifiedPageContent() {
                           />
                         </div>
 
-                        <div className="lg:col-span-4 space-y-2">
-                          <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-tight ml-1 flex items-center gap-1.5">
-                            <Calendar size={12} className="text-[#2E90FA]" /> Rentang Periode
-                          </label>
-                          <div className="flex items-center gap-3">
-                            <Input type="date" className="h-11 px-4 bg-fin-page border-fin-border rounded-lg text-sm font-medium" value={filters.startDate} onChange={(e) => setFilters({...filters, startDate: e.target.value})} />
-                            <span className="text-[#D0D5DD] text-[10px] font-bold shrink-0">S/D</span>
-                            <Input type="date" className="h-11 px-4 bg-fin-page border-fin-border rounded-lg text-sm font-medium" value={filters.endDate} onChange={(e) => setFilters({...filters, endDate: e.target.value})} />
-                          </div>
+                        <div className="lg:col-span-4">
+                          <DateRange
+                            label="Rentang Periode"
+                            startDate={filters.startDate}
+                            endDate={filters.endDate}
+                            onChangeStart={(v) => setFilters({...filters, startDate: v})}
+                            onChangeEnd={(v) => setFilters({...filters, endDate: v})}
+                          />
                         </div>
 
                         <div className="lg:col-span-2 flex items-center gap-2 pt-5">
@@ -2036,29 +2047,14 @@ function Sp2dUnifiedPageContent() {
                </div>
             </div>
 
-            <DialogFooter className="p-10 bg-fin-page border-t border-fin-border flex flex-col gap-6">
+            <DialogFooter className="p-8 bg-fin-page border-t border-fin-border">
                {isImporting ? (
-                  <div className="w-full space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                     <div className="flex justify-between items-end">
-                        <div className="space-y-1">
-                           <p className="text-[10px] font-black text-fin-text-primary uppercase tracking-widest">Status Pengunggahan</p>
-                           <p className="text-xs font-medium text-[#667085]">Memproses: <span className="text-fin-text-primary font-bold">{importProgress.currentName}</span></p>
-                        </div>
-                        <p className="text-xl font-black text-fin-text-primary tabular-nums">
-                           {Math.round((importProgress.current / importProgress.total) * 100)}%
-                        </p>
-                     </div>
-                     <div className="h-3 w-full bg-[#EAECF0] rounded-full overflow-hidden border border-fin-border-strong/20 shadow-inner">
-                        <motion.div
-                           initial={{ width: 0 }}
-                           animate={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
-                           transition={{ duration: 0.2, ease: "easeOut" }}
-                           className="h-full bg-ds-primary rounded-full"
-                        />
-                     </div>
-                     <p className="text-[10px] text-center font-bold text-fin-text-muted uppercase tracking-widest">
-                        {importProgress.current} DARI {importProgress.total} DOKUMEN BERHASIL DIPROSES
-                     </p>
+                  <div className="w-full flex items-center gap-3">
+                    <Loader2 className="animate-spin text-ds-primary shrink-0" size={20} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-fin-text-primary truncate">Mengimpor data SP2D...</p>
+                      <p className="text-[11px] text-fin-text-muted">{importProgress.current} dari {importProgress.total} dokumen</p>
+                    </div>
                   </div>
                ) : (
                   <div className="flex gap-4 w-full sm:flex-row flex-col">

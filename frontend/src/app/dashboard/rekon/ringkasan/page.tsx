@@ -7,6 +7,7 @@ import { id } from 'date-fns/locale';
 import { Printer, RefreshCw, BookOpenCheck } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
 import api from '@/lib/api';
+import { classifyBarSelisih } from '@/lib/barSelisih';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +32,14 @@ export default function RingkasanRekonPage() {
   const { data, isLoading, mutate } = useSWR(
     ['/reports/reconciliation/discrepancy-report', year],
     ([url, y]: [string, string]) => api.get(url, { params: { year: y } }).then(r => r.data),
+    { revalidateOnFocus: false, shouldRetryOnError: false }
+  );
+
+  // [W-BAR] Peta penutupan selisih (koreksi bank) — untuk klasifikasi periode Point C,
+  // konsisten dgn BAR: item ditutup per akhir bulan → C.2; sesudahnya → outstanding.
+  const { data: resolvedMapData } = useSWR(
+    [`/koreksi-bank/resolved-map`, year],
+    ([url, y]: [string, string]) => api.get(url, { params: { tahun: y } }).then(r => r.data),
     { revalidateOnFocus: false, shouldRetryOnError: false }
   );
 
@@ -61,9 +70,16 @@ export default function RingkasanRekonPage() {
       : toN(currentMonthData?.penerimaan);
     const pengeluaran = toN(currentMonthData?.pengeluaran);
 
-    // Potongan mengendap hanya bulan terpilih
+    // Potongan mengendap bulan terpilih saja — dipakai untuk saldo akhir BKU (tidak double-count,
+    // karena saldo awal sudah membawa akumulasi bulan sebelumnya via potonganPrev).
     const potonganBulanIni = (data.potonganUnmatched || [])
       .filter((p: any) => p.bulan === selectedBulan)
+      .reduce((acc: number, p: any) => acc + toN(p.total_nilai), 0);
+
+    // Potongan mengendap AKUMULASI sejak awal tahun s.d. bulan terpilih — dipakai baris anomaly
+    // "POTONGAN MENGENDAP" (Ringkasan Juli menampilkan gabungan bulan sebelumnya s.d. Juli).
+    const potonganAkumulasi = (data.potonganUnmatched || [])
+      .filter((p: any) => p.bulan <= selectedBulan)
       .reduce((acc: number, p: any) => acc + toN(p.total_nilai), 0);
 
     const saldoAkhirBKU = saldoAwal + penerimaan - pengeluaran + potonganBulanIni;
@@ -73,7 +89,7 @@ export default function RingkasanRekonPage() {
 
     // ── Point C: outstanding items difilter per bulan & tahun ──
     const allAnomalies = [...(data.matchedWithDiscrepancy || []), ...(data.unmatchedDetails || [])];
-    const pAnomalyRows = allAnomalies
+    const pAnomalyRowsRaw = allAnomalies
       .filter((r: any) => {
         if (!r.tanggal) return false;
         const rDate = new Date(r.tanggal);
@@ -83,10 +99,67 @@ export default function RingkasanRekonPage() {
         const isPotongan = r.tipe === 'POTONGAN SP2D' || r.tipe === 'POTONGAN' || r.tipe === 'POTONGAN_BANK';
         const isLainnya  = (r.uraian || '').toLowerCase().includes('lainnya') || (r.keterangan_rekon || '').toLowerCase().includes('lainnya');
         return !(isPotongan && isLainnya);
+      })
+      .sort((a: any, b: any) => {
+        const ta = a.tanggal ? new Date(a.tanggal).getTime() : NaN;
+        const tb = b.tanggal ? new Date(b.tanggal).getTime() : NaN;
+        if (isNaN(ta) && isNaN(tb)) return String(a.bukti ?? '').localeCompare(String(b.bukti ?? ''));
+        if (isNaN(ta)) return 1;
+        if (isNaN(tb)) return -1;
+        if (ta !== tb) return ta - tb;
+        return String(a.bukti ?? '').localeCompare(String(b.bukti ?? ''));
       });
 
-    return { saldoAwal, penerimaan, pengeluaran, saldoAkhirBKU, saldoBank, pSelisih, pIsSesuai, pAnomalyRows };
-  }, [data, selectedBulan, year]);
+    // [W-BAR] Period-aware (konsisten dgn BAR): outstanding vs ditutup per akhir bulan.
+    const resolvedBySp2d: Record<string, any> = resolvedMapData?.bySp2d || {};
+    const resolvedByPotongan: Record<string, any> = resolvedMapData?.byPotongan || {};
+    const { outstanding: outstandingRows, closed: pClosedRows } = classifyBarSelisih(
+      pAnomalyRowsRaw,
+      resolvedBySp2d,
+      resolvedByPotongan,
+      selectedBulan,
+      parseInt(year)
+    );
+
+    const pAnomalyRows = potonganAkumulasi > 0
+      ? [...outstandingRows, {
+          tipe: 'POTONGAN MENGENDAP',
+          bukti: "'Lainnya'",
+          tanggal: format(new Date(Date.UTC(parseInt(year), selectedBulan, 0)), 'dd/MM/yyyy'),
+          keterangan: "Potongan 'Lainnya' belum cair ke kas — rincian di Lampiran",
+          opd: '',
+          nilai: potonganAkumulasi,
+        }]
+      : outstandingRows;
+
+    return { saldoAwal, penerimaan, pengeluaran, saldoAkhirBKU, saldoBank, pSelisih, pIsSesuai, pAnomalyRows, pClosedRows, potonganBulanIni };
+  }, [data, selectedBulan, year, resolvedMapData]);
+
+  // Lampiran — potongan mengendap detail KUMULATIF sejak awal tahun s.d. bulan terpilih,
+  // diurutkan NAIG dari tanggal/bulan terkecil ke terbesar
+  const pMengendapRows = useMemo(() => {
+    if (!data) return [];
+    return (data?.potonganMengendapDetails || [])
+      .filter((r: any) => r.bulan <= selectedBulan)
+      .sort((a: any, b: any) => {
+        const ta = a.tanggal_sp2d ? new Date(a.tanggal_sp2d).getTime() : NaN;
+        const tb = b.tanggal_sp2d ? new Date(b.tanggal_sp2d).getTime() : NaN;
+        if (isNaN(ta) && isNaN(tb)) return String(a.no_sp2d ?? '').localeCompare(String(b.no_sp2d ?? ''));
+        if (isNaN(ta)) return 1;
+        if (isNaN(tb)) return -1;
+        if (ta !== tb) return ta - tb;
+        return String(a.no_sp2d ?? '').localeCompare(String(b.no_sp2d ?? ''));
+      })
+      .map((r: any) => ({
+        no_sp2d: r.no_sp2d || '-',
+        tanggal: r.tanggal_sp2d || null,
+        opd: r.opd || '-',
+        uraian_sp2d: r.uraian_sp2d || '-',
+        jenis_potongan: r.jenis_potongan || '-',
+        nilai: Number(r.nilai) || 0,
+        status_mengendap: r.status_mengendap || 'MENGENDAP',
+      }));
+  }, [data, selectedBulan]);
 
   const bulanLabel = MONTHS[selectedBulan - 1];
 
@@ -195,38 +268,33 @@ export default function RingkasanRekonPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td style={{ ...TD, textAlign: 'center' }}>1</td>
-                    <td style={TD}>SALDO AWAL KAS BKU PER TANGGAL {firstDayFmt.toUpperCase()}</td>
-                    <td style={{ ...TD, textAlign: 'right', fontFamily: 'monospace' }}>{fmt(calc.saldoAwal)}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ ...TD, textAlign: 'center' }}>2</td>
-                    <td style={TD}>TOTAL PENERIMAAN KAS BULAN {bulanLabel.toUpperCase()}</td>
-                    <td style={{ ...TD, textAlign: 'right', fontFamily: 'monospace' }}>{fmt(calc.penerimaan)}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ ...TD, textAlign: 'center' }}>3</td>
-                    <td style={TD}>TOTAL PENGELUARAN KAS BULAN {bulanLabel.toUpperCase()}</td>
-                    <td style={{ ...TD, textAlign: 'right', fontFamily: 'monospace' }}>{fmt(calc.pengeluaran)}</td>
-                  </tr>
-                  <tr style={TOTAL_ROW}>
-                    <td style={{ ...TD, textAlign: 'center' }}>4</td>
-                    <td style={TD}>SALDO AKHIR BKU RKUD PER TANGGAL {lastDayFmt.toUpperCase()}</td>
-                    <td style={{ ...TD, textAlign: 'right', fontFamily: 'monospace' }}>{fmt(calc.saldoAkhirBKU)}</td>
-                  </tr>
-                  <tr style={TOTAL_ROW}>
-                    <td style={{ ...TD, textAlign: 'center' }}>5</td>
-                    <td style={TD}>SALDO REKENING KORAN BANK PER TANGGAL {lastDayFmt.toUpperCase()}</td>
-                    <td style={{ ...TD, textAlign: 'right', fontFamily: 'monospace' }}>{fmt(calc.saldoBank)}</td>
-                  </tr>
-                  <tr style={calc.pIsSesuai ? SELISIH_OK : SELISIH_WARN}>
-                    <td style={{ ...TD, textAlign: 'center' }}>6</td>
-                    <td style={TD}>SELISIH (NO. 4 − NO. 5)</td>
-                    <td style={{ ...TD, textAlign: 'right', fontFamily: 'monospace' }}>
-                      {calc.pIsSesuai ? 'NOL' : fmt(calc.pSelisih)}
-                    </td>
-                  </tr>
+                  {(() => {
+                    const rows: { label: string; val: string; total?: boolean }[] = [
+                      { label: `SALDO AWAL KAS BKU PER TANGGAL ${firstDayFmt.toUpperCase()}`, val: fmt(calc.saldoAwal) },
+                      { label: `TOTAL PENERIMAAN KAS BULAN ${bulanLabel.toUpperCase()}`, val: fmt(calc.penerimaan) },
+                      { label: `TOTAL PENGELUARAN KAS BULAN ${bulanLabel.toUpperCase()}`, val: fmt(calc.pengeluaran) },
+                      { label: `SALDO AKHIR BKU RKUD PER TANGGAL ${lastDayFmt.toUpperCase()}`, val: fmt(calc.saldoAkhirBKU), total: true },
+                      { label: `SALDO REKENING KORAN BANK PER TANGGAL ${lastDayFmt.toUpperCase()}`, val: fmt(calc.saldoBank), total: true },
+                    ];
+                    return (
+                      <>
+                        {rows.map((r, idx) => (
+                          <tr key={idx} style={r.total ? TOTAL_ROW : undefined}>
+                            <td style={{ ...TD, textAlign: 'center' }}>{idx + 1}</td>
+                            <td style={TD}>{r.label}</td>
+                            <td style={{ ...TD, textAlign: 'right', fontFamily: 'monospace' }}>{r.val}</td>
+                          </tr>
+                        ))}
+                        <tr style={calc.pIsSesuai ? SELISIH_OK : SELISIH_WARN}>
+                          <td style={{ ...TD, textAlign: 'center' }}>6</td>
+                          <td style={TD}>SELISIH (NO. 4 &minus; NO. 5)</td>
+                          <td style={{ ...TD, textAlign: 'right', fontFamily: 'monospace' }}>
+                            {calc.pIsSesuai ? 'NOL' : fmt(calc.pSelisih)}
+                          </td>
+                        </tr>
+                      </>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -260,17 +328,17 @@ export default function RingkasanRekonPage() {
                           <span style={{ fontWeight: 'bold', textTransform: 'uppercase', display: 'block' }}>{r.tipe}</span>
                           <span style={{ fontSize: '8.5pt', fontFamily: 'monospace', color: '#555' }}>{r.bukti || '—'}</span>
                           <div style={{ fontSize: '8pt', color: '#666', fontStyle: 'italic' }}>
-                            {r.tanggal ? format(new Date(r.tanggal), 'dd/MM/yyyy') : '—'}
+                            {r.tanggal || '—'}
                           </div>
                         </td>
                         <td style={{ ...TD, verticalAlign: 'top', wordBreak: 'break-word' }}>
-                          {r.keterangan_rekon || r.uraian || 'Belum ada penjelasan'}
+                          {r.keterangan}
                           {r.opd && (
                             <div style={{ fontSize: '8pt', color: '#888', fontStyle: 'italic', marginTop: 2 }}>{r.opd}</div>
                           )}
                         </td>
                         <td style={{ ...TD, textAlign: 'right', fontFamily: 'monospace', verticalAlign: 'top' }}>
-                          {fmt(toN(r.selisih || r.nilai))}
+                          {fmt(toN(r.nilai))}
                         </td>
                       </tr>
                     ))
@@ -284,6 +352,103 @@ export default function RingkasanRekonPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* ═══ POINT C.2 — Pos Selisih Yang Telah Ditutup ══════════════════ */}
+            {calc.pClosedRows.length > 0 && (
+              <div style={{ marginTop: '24px' }}>
+                <p style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '11pt', margin: '0 0 8px' }}>
+                  C.2 POS SELISIH YANG TELAH DITUTUP S.D. PERIODE INI
+                </p>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt', tableLayout: 'fixed' }}>
+                  <colgroup>
+                    <col style={{ width: '4%' }} />
+                    <col style={{ width: '15%' }} />
+                    <col style={{ width: '40%' }} />
+                    <col style={{ width: '11%' }} />
+                    <col style={{ width: '14%' }} />
+                    <col style={{ width: '16%' }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th style={TH}>NO</th>
+                      <th style={{ ...TH, textAlign: 'left', whiteSpace: 'normal' }}>REFERENSI / TIPE</th>
+                      <th style={{ ...TH, textAlign: 'left', whiteSpace: 'normal' }}>KETERANGAN TRANSAKSI</th>
+                      <th style={{ ...TH, textAlign: 'right' }}>NILAI (RP)</th>
+                      <th style={{ ...TH, whiteSpace: 'normal' }}>TGL MUTASI PERBAIKAN</th>
+                      <th style={{ ...TH, whiteSpace: 'normal' }}>SURAT KOREKSI</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {calc.pClosedRows.map((r: any, i: number) => (
+                      <tr key={`c2-${i}`} style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                        <td style={{ ...TD, textAlign: 'center', verticalAlign: 'top' }}>{i + 1}</td>
+                        <td style={{ ...TD, verticalAlign: 'top', wordBreak: 'break-word' }}>
+                          <span style={{ fontWeight: 'bold', textTransform: 'uppercase', display: 'block' }}>{r.tipe}</span>
+                          <span style={{ fontSize: '8.5pt', fontFamily: 'monospace', color: '#555' }}>{r.bukti || '—'}</span>
+                          <div style={{ fontSize: '8pt', color: '#666', fontStyle: 'italic' }}>{r.tanggal || '—'}</div>
+                        </td>
+                        <td style={{ ...TD, verticalAlign: 'top', wordBreak: 'break-word' }}>
+                          {r.keterangan}
+                          {r.opd && (
+                            <div style={{ fontSize: '8pt', color: '#888', fontStyle: 'italic', marginTop: 2 }}>{r.opd}</div>
+                          )}
+                        </td>
+                        <td style={{ ...TD, textAlign: 'right', fontFamily: 'monospace', verticalAlign: 'top' }}>{fmt(toN(r.nilai))}</td>
+                        <td style={{ ...TD, textAlign: 'center', verticalAlign: 'top', wordBreak: 'break-word' }}>{r.perbaikanTanggal || '—'}</td>
+                        <td style={{ ...TD, textAlign: 'center', verticalAlign: 'top', wordBreak: 'break-word' }}>{r.nomorSurat || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* LAMPIRAN — RINCIAN POTONGAN MENGENDAP */}
+            {pMengendapRows.length > 0 && (
+              <div style={{ marginTop: '24px', pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                <p style={{ fontWeight: 'bold', textTransform: 'uppercase', fontSize: '11pt', margin: '0 0 8px' }}>
+                  LAMPIRAN — RINCIAN POTONGAN MENGENDAP BULAN {bulanLabel.toUpperCase()}
+                </p>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10pt' }}>
+                  <thead>
+                    <tr>
+                      <th style={TH}>NO</th>
+                      <th style={{ ...TH, textAlign: 'left' }}>NO. SP2D</th>
+                      <th style={TH}>TANGGAL</th>
+                      <th style={{ ...TH, textAlign: 'left' }}>OPD</th>
+                      <th style={{ ...TH, textAlign: 'left' }}>URAIAN SP2D</th>
+                      <th style={{ ...TH, textAlign: 'left' }}>JENIS</th>
+                      <th style={{ ...TH, textAlign: 'right' }}>NILAI (RP)</th>
+                      <th style={TH}>STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pMengendapRows.map((row: any, i: number) => (
+                      <tr key={i} style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                        <td style={{ ...TD, textAlign: 'center' }}>{i + 1}</td>
+                        <td style={{ ...TD, fontFamily: 'monospace', fontSize: '9pt', wordBreak: 'break-all' }}>{row.no_sp2d}</td>
+                        <td style={{ ...TD, textAlign: 'center', fontSize: '9pt' }}>{row.tanggal ? format(new Date(row.tanggal), 'dd/MM/yyyy') : '-'}</td>
+                        <td style={{ ...TD, fontSize: '9pt' }}>{row.opd}</td>
+                        <td style={{ ...TD, fontSize: '9pt', wordBreak: 'break-word' }}>{row.uraian_sp2d}</td>
+                        <td style={{ ...TD, fontSize: '9pt' }}>{row.jenis_potongan}</td>
+                        <td style={{ ...TD, textAlign: 'right', fontFamily: 'monospace' }}>{fmt(row.nilai)}</td>
+                        <td style={{ ...TD, textAlign: 'center', fontSize: '9pt', textTransform: 'uppercase' }}>
+                          {row.status_mengendap === 'DISETOR' ? 'Disetor' : row.status_mengendap === 'JADI_PADAN' ? 'Jadi PAD' : 'Mengendap'}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr style={{ ...TOTAL_ROW }}>
+                      <td colSpan={6} style={{ ...TD, textAlign: 'right' }}>TOTAL MENGENDAP</td>
+                      <td style={{ ...TD, textAlign: 'right', fontFamily: 'monospace' }}>{fmt(pMengendapRows.reduce((a: number, r: any) => a + r.nilai, 0))}</td>
+                      <td style={TD}></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p style={{ fontSize: '9pt', color: '#666', fontStyle: 'italic', marginTop: '4px' }}>
+                  Potongan &quot;Lainnya&quot; tidak memiliki pos pembayaran di rekening koran — kas fisik masih berada di RKUD.
+                </p>
+              </div>
+            )}
 
             {/* Kesimpulan */}
             <div style={{ marginTop: '24px', padding: '12px 16px', border: `2px solid ${calc.pIsSesuai ? '#4caf50' : '#ff9800'}`, borderRadius: '6px', backgroundColor: calc.pIsSesuai ? '#f1f8e9' : '#fff8e1', pageBreakInside: 'avoid', breakInside: 'avoid' }}>

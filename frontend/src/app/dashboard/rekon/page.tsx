@@ -36,6 +36,7 @@ import {
   MousePointer2,
   Lock,
   FileText,
+  EyeOff,
   Moon,
   Sun,
   ShieldAlert,
@@ -50,6 +51,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ProgressCard } from '@/components/ProgressCard';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateRange } from "@/components/ui/date-range";
 import { Combobox } from "@/components/ui/combobox";
 import {
   Select,
@@ -117,6 +119,8 @@ export default function ReconciliationPage() {
   const [aiNotes, setAiNotes] = useState<Record<string, string>>({});
   const [manualPairingMap, setManualPairingMap] = useState<Record<number, number>>({}); // Maps Bank Sequence (#1, #2...) to BKU ID
   const [bankTypeFilter, setBankTypeFilter] = useState<'ALL' | 'PENERIMAAN' | 'PENGELUARAN'>('ALL');
+  const [showBkuPanel, setShowBkuPanel] = useState(true);
+  const [pairingSeeded, setPairingSeeded] = useState(false);
 
   // Computed totals for value-based filtering/matching
   const totalSelectedBku = data?.bku?.filter((b: any) => selectedBkuIds.includes(b.id))
@@ -228,8 +232,10 @@ export default function ReconciliationPage() {
   }, [filteredBank, smartGroupValue]);
 
   // Auto-populate manualPairingMap with suggestions when in smartGroupValue mode (Solusi 3 - Draf Rekomendasi)
+  // FIX LEPAS PAIRING: seeding hanya SEKALI per sesi grup (pairingSeeded). Tanpa ini, melepas semua/satu-satunya
+  // pairing mengosongkan map → efek mengisi ulang otomatis → "Lepas Pairing" terlihat tidak berfungsi.
   useEffect(() => {
-    if (smartGroupValue !== null && suggestionsData?.data?.length > 0 && smartGroupBankItems?.length > 0) {
+    if (smartGroupValue !== null && !pairingSeeded && suggestionsData?.data?.length > 0 && smartGroupBankItems?.length > 0) {
       const newMap: Record<number, number> = {};
       const activeSelectedBankIds = smartGroupBankItems
         .filter((b: any) => selectedBankIds.includes(b.id));
@@ -242,12 +248,18 @@ export default function ReconciliationPage() {
       });
 
       if (Object.keys(manualPairingMap).length === 0 && Object.keys(newMap).length > 0) {
+        setPairingSeeded(true);
         setManualPairingMap(newMap);
         const bkuIds = Object.values(newMap);
         setSelectedBkuIds(bkuIds);
       }
     }
-  }, [suggestionsData, smartGroupValue, selectedBankIds, smartGroupBankItems]);
+  }, [suggestionsData, smartGroupValue, selectedBankIds, smartGroupBankItems, pairingSeeded]);
+
+  // Sesi grup baru (ganti nilai / Reset) → auto-draf aktif kembali untuk grup tersebut
+  useEffect(() => {
+    setPairingSeeded(false);
+  }, [smartGroupValue]);
 
   // ── SMART CLUSTER MATCH AI ───────────────────────────────────────────────────
   // Deteksi cluster: mutasi bank yang belum dicocokkan dengan nilai sama, anggota > 5
@@ -321,57 +333,119 @@ export default function ReconciliationPage() {
 
     // Priority 1: Use manual pairings defined by the user (Labeling)
     const successPairs: {bankId: number, bkuId: number}[] = [];
-    
+
+    // FIX LEPAS PAIRING: fallback saran berurutan HANYA saat tidak ada labeling manual sama sekali.
+    // Begitu user melakukan pairing manual, slot yang di-"Lepas Pairing" TIDAK dipasangkan ulang diam-diam.
+    const hasManualPairing = Object.keys(manualPairingMap).length > 0;
+
     // Build the final execution list
     selectedBankIds.forEach((bankId, index) => {
        const bankSeq = index + 1;
        if (manualPairingMap[bankSeq]) {
           successPairs.push({ bankId, bkuId: manualPairingMap[bankSeq] });
-       } else if (suggestionsData?.data?.length > index) {
-          // Fallback to default sequential suggestion if not manually paired
+       } else if (!hasManualPairing && suggestionsData?.data?.length > index) {
+          // Fallback ke saran berurutan HANYA dalam mode otomatis murni (tanpa label manual)
           successPairs.push({ bankId, bkuId: suggestionsData.data[index].id });
        }
     });
 
     if (successPairs.length === 0) {
-      toast.error('Gunakan fitur Labeling (#1, #2...) untuk menentukan pasangan yang tepat.');
+      toast.error(hasManualPairing
+        ? 'Tidak ada pasangan aktif untuk diproses (pairing sudah dilepas).'
+        : 'Gunakan fitur Labeling (#1, #2...) untuk menentukan pasangan yang tepat.');
       return;
     }
 
-    setBatchProgress({ current: 0, total: successPairs.length, isOpen: true });
+    // ═══ DISIPLIN SELISIH — Toleransi Nol + Catatan Wajib (kebijakan pertanggungjawaban) ═══
+    // Klasifikasi sinkron SEBELUM kirim:
+    //   • Selisih Rp 0                → proses langsung
+    //   • Selisih ≥ Rp 1 ADA catatan  → proses, catatan tersimpan sebagai bukti pertanggungjawaban
+    //   • Selisih ≥ Rp 1 TANPA catatan→ DITOLAK & dilaporkan eksplisit (tidak ada skip senyap)
+    const eligiblePairs: { bankId: number; bkuId: number; keterangan: string }[] = [];
+    const rejectedNoNote: { label: string; bankVal: number; bkuVal: number; diff: number }[] = [];
 
-    // Kirim semua pasangan secara paralel — menggantikan sequential for-await (N×RTT → ~1×RTT)
+    successPairs.forEach(({ bankId, bkuId }) => {
+      const bankItem = data?.bank?.find((b: any) => b.id === bankId);
+      const bankVal = bankItem ? Math.round(Number(bankItem.debet) || Number(bankItem.kredit)) : 0;
+      const bkuItem = suggestionsData?.data?.find((s: any) => s.id === bkuId)
+        || data?.bku?.find((b: any) => b.id === bkuId);
+      const bkuVal = bkuItem
+        ? Math.round(Number(bkuItem.nilai_neto) || Number(bkuItem.nilai_bruto) || Number(bkuItem.nilai))
+        : 0;
+      const diff = Math.abs(bankVal - bkuVal);
+      const note = (aiNotes[bkuId] || manualRef || '').trim();
+      // HARD CAP: selisih > 10% atau Rp 500.000 → DITOLAK TOTAL (tidak ada catatan yang bisa meloloskan)
+      const hardThreshold = Math.max(bankVal * 0.10, 500000);
+      if (diff > hardThreshold) {
+        rejectedNoNote.push({
+          label: (bkuItem?.bukti || bkuItem?.nomor_sp2d || bankItem?.uraian || `ID ${bankId}`),
+          bankVal, bkuVal, diff
+        });
+      } else if (diff >= 1 && !note) {
+        rejectedNoNote.push({
+          label: (bkuItem?.bukti || bkuItem?.nomor_sp2d || bankItem?.uraian || `ID ${bankId}`),
+          bankVal, bkuVal, diff
+        });
+      } else {
+        eligiblePairs.push({ bankId, bkuId, keterangan: note || 'Bulk Match: Smart Group Manual Labeling' });
+      }
+    });
+
+    // Semua pasangan ditolak → jangan buka progress modal, laporkan langsung, biarkan seleksi utuh untuk perbaikan
+    if (eligiblePairs.length === 0 && rejectedNoNote.length > 0) {
+      toast.error(`${rejectedNoNote.length} pasangan ditolak — selisih wajib dicatat`, {
+        description: rejectedNoNote.map(r =>
+          `• ${r.label}: Bank ${formatCurrency(r.bankVal)} vs BKU ${formatCurrency(r.bkuVal)} (selisih ${formatCurrency(r.diff)})`
+        ).join('\n') + '\n\nIsi kolom "Catatan..." pada kartu saran atau buka Audit Detail, lalu ulangi pencocokan.',
+        duration: 15000
+      });
+      return;
+    }
+
+    setBatchProgress({ current: 0, total: eligiblePairs.length, isOpen: true });
+
+    // Kirim semua pasangan yang lolos secara paralel — menggantikan sequential for-await (N×RTT → ~1×RTT)
     const results = await Promise.all(
-      successPairs.map(async ({ bankId, bkuId }) => {
-        const bankItem = data?.bank?.find((b: any) => b.id === bankId);
-        const bankVal = bankItem ? (Number(bankItem.debet) || Number(bankItem.kredit)) : 0;
-        const bkuItem = suggestionsData?.data?.find((s: any) => s.id === bkuId)
-          || data?.bku?.find((b: any) => b.id === bkuId);
-        const bkuVal = bkuItem
-          ? (Number(bkuItem.nilai_neto) || Number(bkuItem.nilai_bruto) || Number(bkuItem.nilai))
-          : 0;
-        if (Math.abs(bankVal - bkuVal) > 100) return false;
+      eligiblePairs.map(async ({ bankId, bkuId, keterangan }) => {
         try {
           await api.post('/reports/reconciliation/match-individual', {
             bankId,
             bkuId,
             matchType: 'SMART_GROUP_MANUAL_LABEL',
-            keterangan_admin: manualRef || 'Bulk Match: Smart Group Manual Labeling'
+            keterangan_admin: keterangan
           });
           return true;
         } catch { return false; }
       })
     );
     const successCount = results.filter(Boolean).length;
-    setBatchProgress(prev => ({ ...prev, current: successPairs.length }));
+    setBatchProgress(prev => ({ ...prev, current: eligiblePairs.length }));
 
     toast.success(`${successCount} transaksi berhasil direkonsiliasi.`);
-    // Reset seleksi TERLEBIH DAHULU → SWR key suggestions berubah → cache otomatis invalid
-    setSelectedBankIds([]);
-    setSelectedBkuIds([]);
-    setSmartGroupValue(null);
-    setManualPairingMap({});
-    setManualRef('');
+
+    // Reset seleksi TERLEBIH DAHULU → SWR key suggestions berubah → cache otomatis invalid.
+    // Pasangan yang DITOLAK tetap terseleksi agar bisa langsung diperbaiki dan diulang.
+    if (rejectedNoNote.length > 0) {
+      toast.error(`${rejectedNoNote.length} pasangan ditolak — selisih wajib dicatat`, {
+        description: rejectedNoNote.map(r =>
+          `• ${r.label}: Bank ${formatCurrency(r.bankVal)} vs BKU ${formatCurrency(r.bkuVal)} (selisih ${formatCurrency(r.diff)})`
+        ).join('\n') + '\n\nIsi kolom "Catatan..." pada kartu saran atau buka Audit Detail, lalu ulangi pencocokan.',
+        duration: 15000
+      });
+      setSelectedBankIds(selectedBankIds.filter(id =>
+        !eligiblePairs.some(p => p.bankId === id)
+      ));
+      setSelectedBkuIds([]);
+      setSmartGroupValue(null);
+      setManualPairingMap({});
+      setManualRef('');
+    } else {
+      setSelectedBankIds([]);
+      setSelectedBkuIds([]);
+      setSmartGroupValue(null);
+      setManualPairingMap({});
+      setManualRef('');
+    }
     await mutate(); // Refresh tabel utama
     mutateSuggestions(); // Paksa hapus cache panel saran
     setBatchProgress(prev => ({ ...prev, isOpen: false }));
@@ -462,6 +536,7 @@ export default function ReconciliationPage() {
   const [loadingResetPreview, setLoadingResetPreview] = useState(false);
 
   const [confirmSmartMatch, setConfirmSmartMatch] = useState(false);
+  const [extendDate, setExtendDate] = useState(false);
 
   const [manualRef, setManualRef] = useState('');
 
@@ -632,6 +707,14 @@ export default function ReconciliationPage() {
 
   const handleSaveRekon = async () => {
     if (!rekonModal || selectedBankIds.length === 0) return;
+    // ═══ DISIPLIN SELISIH — Toleransi Nol: selisih ≥ Rp 1 WAJIB memiliki Catatan Audit ═══
+    const selisihAbs = Math.abs(Number(rekonModal.selisih) || 0);
+    if (selisihAbs >= 1 && !(rekonModal.keterangan || '').trim()) {
+      toast.error('Selisih wajib dicatat', {
+        description: `Terdapat selisih ${formatCurrency(selisihAbs)}. Isi Catatan Audit sebagai pertanggungjawaban sebelum menyimpan.`
+      });
+      return;
+    }
     setSavingRekon(true);
     try {
       const isMultiple = selectedBankIds.length > 1;
@@ -643,7 +726,9 @@ export default function ReconciliationPage() {
         ? {
             bkuId: rekonModal.id,
             bankIds: selectedBankIds,
-            keterangan_admin: rekonModal.keterangan,
+            keterangan_admin: rekonModal.manualTag
+              ? `[Penandaan: ${rekonModal.manualTag}] ${rekonModal.keterangan || ''}`.trim()
+              : rekonModal.keterangan,
           }
         : {
             bkuId: rekonModal.id,
@@ -687,7 +772,8 @@ export default function ReconciliationPage() {
     try {
       const res = await api.post('/reports/reconciliation/match-smart', {
         startDate: filters.startDate,
-        endDate: filters.endDate
+        endDate: filters.endDate,
+        extendDate
       });
       
       clearInterval(pollInterval);
@@ -965,25 +1051,13 @@ export default function ReconciliationPage() {
             </select>
           </div>
 
-          <div className="lg:col-span-4 space-y-2">
-            <label className="text-[10px] font-bold text-fin-text-muted uppercase tracking-wider flex items-center gap-1.5 ml-1">
-              <Calendar size={12} className="text-indigo-500" /> Rentang Tanggal
-            </label>
-            <div className="flex items-center gap-2">
-              <Input 
-                type="date" 
-                className="h-10 border-fin-border rounded-lg text-xs font-semibold animate-none"
-                value={filters.startDate}
-                onChange={(e) => setFilters(prev => ({...prev, startDate: e.target.value}))}
-              />
-              <span className="text-xs font-bold text-fin-text-muted">s/d</span>
-              <Input 
-                type="date" 
-                className="h-10 border-fin-border rounded-lg text-xs font-semibold animate-none"
-                value={filters.endDate}
-                onChange={(e) => setFilters(prev => ({...prev, endDate: e.target.value}))}
-              />
-            </div>
+          <div className="lg:col-span-4">
+            <DateRange
+              startDate={filters.startDate}
+              endDate={filters.endDate}
+              onChangeStart={(v) => setFilters(prev => ({...prev, startDate: v}))}
+              onChangeEnd={(v) => setFilters(prev => ({...prev, endDate: v}))}
+            />
           </div>
 
           <div className="lg:col-span-2">
@@ -1003,9 +1077,11 @@ export default function ReconciliationPage() {
       </Card>
 
       {/* MAIN RECONCILIATION AREA - 3 PANELS SYSTEM */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+      <div className="grid grid-cols-12 gap-3 items-start">
         
-        <div className="xl:col-span-3 flex flex-col">
+        {/* PANEL 1: AUDIT BKU — bisa disembunyikan agar Mutasi Bank & Audit Intelligence lebih lega */}
+        {showBkuPanel && (
+        <div className="col-span-3 flex flex-col min-w-0">
           <div className="h-14 flex items-center justify-between px-5 bg-fin-surface border-b border-fin-border rounded-t-xl relative overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)] z-10">
              {/* SUM-LOCK INDICATOR BAR (Dynamic) */}
              {selectedBankIds.length > 0 && (
@@ -1173,14 +1249,15 @@ export default function ReconciliationPage() {
                     </Card>
                   ))
                 )}
-                </TabsContent>
-              ))}
-            </Tabs>
-          </div>
+                 </TabsContent>
+               ))}
+             </Tabs>
+           </div>
         </div>
+        )}
 
-        {/* PANEL 2: BANK STATEMENTS (TENGAH - 50%) */}
-        <div className="xl:col-span-5 flex flex-col">
+        {/* PANEL 2: BANK STATEMENTS (KIRI - 58%) */}
+        <div className={cn(showBkuPanel ? "col-span-5" : "col-span-7", "flex flex-col min-w-0")}>
           <div className="h-14 flex items-center justify-between px-5 bg-fin-surface border-b border-fin-border rounded-t-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)] z-10">
             <div className="flex items-center gap-5 min-w-0">
               <div className="flex items-center gap-3 min-w-0">
@@ -1229,6 +1306,26 @@ export default function ReconciliationPage() {
 
             <div className="flex items-center gap-2">
               <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={() => setShowBkuPanel(prev => !prev)}
+                      variant="outline"
+                      className={cn(
+                        "h-8 w-8 p-0 rounded-lg border-fin-border shadow-sm transition-colors",
+                        showBkuPanel
+                          ? "text-fin-text-muted hover:bg-fin-page hover:border-fin-border"
+                          : "bg-indigo-500/10 text-indigo-500 border-indigo-500/30 hover:bg-indigo-500/20"
+                      )}
+                    >
+                      {showBkuPanel ? <Eye size={14} /> : <EyeOff size={14} />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-[10px] font-bold bg-fin-surface border-none text-white">
+                    {showBkuPanel ? 'Sembunyikan Audit BKU' : 'Tampilkan Audit BKU'}
+                  </TooltipContent>
+                </Tooltip>
+
                 {smartGroupValue !== null && (
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -1423,10 +1520,23 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                 {bank.is_matched && (
                                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                                       <Badge className="bg-emerald-500 h-4 text-[7px] px-1.5 font-black shadow-sm border-none">VERIFIED</Badge>
-                                      {bank.match_type === 'SMART_BUKTI' && (
-                                        <Badge className="bg-violet-100 text-violet-700 h-4 text-[7px] px-1.5 font-black border border-violet-300">№ BUKTI</Badge>
-                                      )}
+                                       {bank.match_type === 'SMART_BUKTI' && (
+                                         <Badge className="bg-violet-100 text-violet-700 h-4 text-[7px] px-1.5 font-black border border-violet-300">№ BUKTI</Badge>
+                                       )}
+                                       {bank.match_type?.includes('_FD') && (
+                                         <Badge className="bg-amber-100 text-amber-700 h-4 text-[7px] px-1.5 font-black border border-amber-300">TANGGAL DIPERLEBAR</Badge>
+                                       )}
                                       <span className="text-[7px] font-black text-fin-text-muted uppercase tracking-widest">Audit ID: {bank.ref_bku_id?.substring(0,8)}</span>
+                                      <button
+                                         onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleBatchUnmatch([bank.id]);
+                                         }}
+                                         title="Lepas Pairing"
+                                         className="w-4 h-4 rounded-md bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white flex items-center justify-center transition-all shrink-0"
+                                      >
+                                         <X size={9} strokeWidth={3} />
+                                      </button>
                                    </div>
                                 )}
                                 {!bank.is_matched && hasExactMatch && (
@@ -1473,7 +1583,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
           </Card>
         </div>
 
-        <div className="xl:col-span-4 flex flex-col">
+        <div className={cn(showBkuPanel ? "col-span-4" : "col-span-5", "flex flex-col min-w-0")}>
           <div className="h-14 flex items-center justify-between px-5 bg-fin-surface border-b border-fin-border rounded-t-xl shadow-[0_1px_2px_rgba(0,0,0,0.02)] z-10">
             <div className="flex flex-col min-w-0">
               <h2 className="text-[11px] font-bold text-fin-text-primary uppercase tracking-wider flex items-center gap-2 truncate">
@@ -1577,7 +1687,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                  {[1,2,3].map(i => <div key={i} className="h-24 animate-pulse bg-fin-page rounded-xl border border-dashed border-fin-border" />)}
                                </div>
                             ) : suggestionsData?.data?.length > 0 ? (
-                               <div className="neuron-scroll-panel flex-1 min-h-0 space-y-3 overflow-y-auto pr-2 custom-scrollbar pb-32">
+                               <div className="neuron-scroll-panel flex-1 min-h-0 space-y-3 overflow-x-hidden overflow-y-auto pr-2 custom-scrollbar pb-32">
                                   {suggestionsData.data.map((sug: any) => {
                                      const bkuVal = sug.match_mode === 'bruto' ? sug.nilai_bruto : sug.nilai_neto;
                                      // Server sudah menghitung totalBankValue dari semua ID yang dikirim — gunakan ini
@@ -1634,7 +1744,8 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                                <Select
                                                   value={pairedWith || "none"}
                                                   onValueChange={(val) => {
-                                                     if (val === "none") {
+                                                      setPairingSeeded(true);
+                                                      if (val === "none") {
                                                         const keyToDel = Object.keys(manualPairingMap).find(k => manualPairingMap[Number(k)] === sug.id);
                                                         if (keyToDel) {
                                                            setManualPairingMap(prev => {
@@ -1779,12 +1890,21 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                                                                    }
                                                                    setSavingRekon(true);
                                                                    try {
+                                                                      // ═══ DISIPLIN SELISIH — selisih ≥ Rp 1 wajib bernota (pertanggungjawaban) ═══
+                                                                      const noteNow = (aiNotes[sug.id] || manualRef || '').trim();
+                                                                      if (Math.abs(selisih) >= 1 && !noteNow) {
+                                                                         toast.error('Selisih wajib dicatat', {
+                                                                            description: `Terdapat selisih ${formatCurrency(Math.abs(selisih))}. Isi kolom "Catatan..." pada kartu saran terlebih dahulu.`
+                                                                         });
+                                                                         setSavingRekon(false);
+                                                                         return;
+                                                                      }
                                                                       const isMultiple = selectedBankIds.length > 1;
                                                                       const endpoint = isMultiple 
                                                                          ? '/reports/reconciliation/match-multiple' 
                                                                          : '/reports/reconciliation/match-individual';
                                                                       
-                                                                      const customNote = aiNotes[sug.id] || manualRef || 'Konfirmasi Instan AI';
+                                                                      const customNote = noteNow || 'Konfirmasi Instan AI';
                                                                       const payload = isMultiple
                                                                          ? { bkuId: sug.id, bankIds: selectedBankIds, keterangan_admin: customNote }
                                                                          : {
@@ -1866,75 +1986,80 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
       <AnimatePresence>
          {rekonModal && (
            <Dialog open={!!rekonModal} onOpenChange={() => setRekonModal(null)}>
-             <DialogContent className="sm:max-w-md rounded-xl">
-               <DialogHeader>
-                 <DialogTitle className="flex items-center gap-2 text-fin-info-text">
-                    <Brain size={20} /> Audit Integritas Data
-                 </DialogTitle>
-                 <DialogDescription className="text-xs">
-                    Lakukan penyesuaian nilai jika terdapat selisih antara BKU dan mutasi bank.
-                 </DialogDescription>
-               </DialogHeader>
-               
-               <div className="space-y-6 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-fin-text-muted uppercase">Nilai BKU</label>
-                        <div className="h-10 bg-fin-page rounded-lg flex items-center px-3 font-bold text-fin-text-primary text-xs">
-                           {formatCurrency(rekonModal.nilaiBku)}
-                        </div>
-                     </div>
-                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-fin-info-text uppercase">Nilai Bank</label>
-                        <Input 
-                           value={formatNumber(rekonModal.nilaiBank)}
-                           onChange={(e) => {
-                              const val = parseNumber(e.target.value);
-                              setRekonModal({...rekonModal, nilaiBank: val, selisih: rekonModal.nilaiBku - val});
-                           }}
-                           className="h-10 font-black text-xs text-indigo-700 border-indigo-200"
-                        />
-                     </div>
-                  </div>
+              <DialogContent className="sm:max-w-lg rounded-xl">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-fin-info-text">
+                     <Brain size={20} /> Audit Integritas Data
+                  </DialogTitle>
+                  <DialogDescription className="text-xs">
+                     Lakukan penyesuaian nilai jika terdapat selisih antara BKU dan mutasi bank.
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-5 py-4">
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                         <label className="text-[10px] font-black text-fin-text-muted uppercase">Nilai BKU</label>
+                         <div className="h-10 bg-fin-page rounded-lg flex items-center px-3 font-bold text-fin-text-primary text-xs">
+                            {formatCurrency(rekonModal.nilaiBku)}
+                         </div>
+                      </div>
+                      <div className="space-y-1.5">
+                         <label className="text-[10px] font-black text-fin-info-text uppercase">Nilai Bank</label>
+                         <Input 
+                            value={formatNumber(rekonModal.nilaiBank)}
+                            onChange={(e) => {
+                               const val = parseNumber(e.target.value);
+                               setRekonModal({...rekonModal, nilaiBank: val, selisih: rekonModal.nilaiBku - val});
+                            }}
+                            className="h-10 font-black text-xs text-indigo-700 border-indigo-200"
+                         />
+                      </div>
+                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-amber-600 uppercase flex items-center gap-1">
-                           <Tag size={10} /> Penomoran Manual (Data Kembar)
-                        </label>
-                        <Input 
-                           placeholder="Contoh: 1, 2, atau A"
-                           value={rekonModal.manualTag || ''}
-                           onChange={(e) => setRekonModal({...rekonModal, manualTag: e.target.value})}
-                           className="h-10 text-xs font-bold border-amber-200 focus:ring-amber-100"
-                        />
-                     </div>
-                     <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-fin-text-muted uppercase">Tanggal Cair</label>
-                        <Input 
-                           type="date"
-                           value={rekonModal.tanggalPencairan}
-                           onChange={(e) => setRekonModal({...rekonModal, tanggalPencairan: e.target.value})}
-                           className="h-10 text-xs font-bold"
-                        />
-                     </div>
-                  </div>
+                   <div className="p-3 rounded-xl border border-amber-500/20 bg-amber-500/5 space-y-3">
+                      <div className="grid grid-cols-2 gap-4">
+                         <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-amber-600 uppercase flex items-center gap-1">
+                               <Tag size={10} /> Penandaan Nomor (Data Kembar)
+                            </label>
+                            <Input 
+                               placeholder="Contoh: 1, 2, atau A"
+                               value={rekonModal.manualTag || ''}
+                               onChange={(e) => setRekonModal({...rekonModal, manualTag: e.target.value})}
+                               className="h-10 text-xs font-bold border-amber-200 focus:ring-amber-100"
+                            />
+                         </div>
+                         <div className="space-y-1.5">
+                            <label className="text-[10px] font-black text-fin-text-muted uppercase">Tanggal Cair</label>
+                            <Input 
+                               type="date"
+                               value={rekonModal.tanggalPencairan}
+                               onChange={(e) => setRekonModal({...rekonModal, tanggalPencairan: e.target.value})}
+                               className="h-10 text-xs font-bold"
+                            />
+                         </div>
+                      </div>
+                      <p className="text-[9px] font-bold text-amber-600/80 leading-relaxed uppercase tracking-wide">
+                         Penandaan tersimpan sebagai catatan audit — berlaku untuk pencocokan tunggal maupun multiple.
+                      </p>
+                   </div>
 
-                  <div className="p-4 bg-rose-500/10 rounded-xl border border-rose-500/20 flex justify-between items-center">
-                     <span className="text-[10px] font-black text-rose-400 uppercase">Selisih Audit</span>
-                     <span className="text-sm font-black text-rose-500 tabular-nums">{formatCurrency(rekonModal.selisih)}</span>
-                  </div>
+                   <div className="p-4 bg-rose-500/10 rounded-xl border border-rose-500/20 flex justify-between items-center">
+                      <span className="text-[10px] font-black text-rose-400 uppercase">Selisih Audit</span>
+                      <span className="text-sm font-black text-rose-500 tabular-nums">{formatCurrency(rekonModal.selisih)}</span>
+                   </div>
 
-                  <div className="space-y-2">
-                     <label className="text-[10px] font-black text-fin-text-muted uppercase">Catatan Audit</label>
-                     <textarea 
-                        className="w-full min-h-[80px] p-3 text-xs font-medium bg-fin-page border border-fin-border rounded-xl outline-none focus:border-ds-focus-ring/50 transition-all text-fin-text-primary placeholder:text-fin-text-muted/30"
-                        placeholder="Alasan selisih (contoh: Kesalahan NTPN atau pembulatan bank)..."
-                        value={rekonModal.keterangan}
-                        onChange={(e) => setRekonModal({...rekonModal, keterangan: e.target.value})}
-                     />
-                  </div>
-               </div>
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-black text-fin-text-muted uppercase">Catatan Audit</label>
+                      <textarea 
+                         className="w-full min-h-[80px] p-3 text-xs font-medium bg-fin-page border border-fin-border rounded-xl outline-none focus:border-ds-focus-ring/50 transition-all text-fin-text-primary placeholder:text-fin-text-muted/30"
+                         placeholder="Alasan selisih (contoh: Kesalahan NTPN atau pembulatan bank)..."
+                         value={rekonModal.keterangan}
+                         onChange={(e) => setRekonModal({...rekonModal, keterangan: e.target.value})}
+                      />
+                   </div>
+                </div>
 
                <DialogFooter>
                   <Button variant="ghost" onClick={() => setRekonModal(null)} className="rounded-xl text-xs font-bold text-fin-text-muted hover:text-fin-text-primary">Batal</Button>
@@ -2113,7 +2238,7 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                      <Calendar size={12} className="text-indigo-400" />
                   </div>
                   <p className="text-[10px] font-bold text-fin-text-muted leading-relaxed uppercase">
-                     Rentang waktu pencairan bank maksimal <span className="text-indigo-400 font-black italic underline">H+7</span> dari tanggal BKU.
+                     Rentang waktu pencairan bank maksimal <span className="text-indigo-400 font-black italic underline">{extendDate ? 'H+14' : 'H+4'}</span> dari tanggal BKU.
                   </p>
                </div>
                <div className="flex items-start gap-3">
@@ -2124,6 +2249,19 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
                      Hanya mengeksekusi jika ditemukan <span className="text-amber-400 font-black italic underline">Satu Kandidat Unik</span> untuk menjaga akurasi.
                   </p>
                </div>
+            </div>
+
+            <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-amber-500/5 border border-amber-500/20">
+              <input
+                type="checkbox"
+                id="extendDate"
+                checked={extendDate}
+                onChange={(e) => setExtendDate(e.target.checked)}
+                className="w-4 h-4 rounded border-amber-500/30 text-amber-500 focus:ring-amber-500/50 bg-transparent"
+              />
+              <label htmlFor="extendDate" className="text-[10px] font-bold text-fin-text-muted leading-relaxed uppercase cursor-pointer">
+                Perluas jendela tanggal ke <span className="text-amber-400 font-black italic underline">H-14 s/d H+14</span> (kasus bank salah catat tanggal)
+              </label>
             </div>
 
             <div className="flex gap-3 pt-2">
@@ -2292,59 +2430,48 @@ selectedBankIds.includes(bank.id) ? "bg-fin-info-bg/30 shadow-inner" : "hover:bg
 
       {/* RESET RANGE DIALOG */}
       <Dialog open={resetRangeModal.isOpen} onOpenChange={(open) => setResetRangeModal(prev => ({ ...prev, isOpen: open }))}>
-        <DialogContent className="max-w-md bg-fin-surface rounded-xl p-0 overflow-hidden border border-fin-border shadow-2xl">
-          <div className="bg-amber-600 p-8 text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
-            <div className="relative z-10 flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center mb-4 backdrop-blur-md border border-white/30">
-                <Calendar size={32} className="text-white" />
+        <DialogContent className="max-w-md bg-white dark:bg-fin-surface rounded-2xl p-0 overflow-hidden border border-fin-border/60 shadow-xl">
+          <div className="bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 px-6 pt-6 pb-4 border-b border-amber-100 dark:border-amber-900/30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-100 dark:bg-amber-900/40 rounded-xl flex items-center justify-center">
+                <Calendar size={20} className="text-amber-600 dark:text-amber-400" />
               </div>
-              <h2 className="text-xl font-black uppercase tracking-widest text-white">Reset Periode</h2>
-              <p className="text-amber-100 text-[10px] font-bold mt-2 uppercase tracking-tight">Batalkan pencocokan berdasarkan tanggal</p>
+              <div>
+                <h2 className="text-sm font-bold text-fin-text-primary">Reset Periode</h2>
+                <p className="text-[11px] text-fin-text-muted mt-0.5">Batalkan pencocokan berdasarkan tanggal</p>
+              </div>
             </div>
           </div>
           
-          <div className="p-8 space-y-6">
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-center">
-              <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase leading-relaxed">
-                Fitur ini akan mereset (Unmatch) semua transaksi bank dan BKU yang berada di dalam rentang tanggal pencairan yang dipilih.
+          <div className="p-6 space-y-5">
+            <div className="bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/30 rounded-xl px-4 py-3">
+              <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">
+                Semua transaksi bank dan BKU pada rentang tanggal yang dipilih akan di-reset (Unmatch) ke status <strong>Belum Rekon</strong>.
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-fin-text-muted uppercase">Tanggal Awal</label>
-                <Input 
-                  type="date"
-                  className="h-14 bg-fin-page border-fin-border rounded-xl font-black text-fin-text-primary focus:ring-amber-500/20 focus:border-amber-500/50 transition-all"
-                  value={resetRangeModal.startDate}
-                  onChange={(e) => setResetRangeModal(prev => ({ ...prev, startDate: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-fin-text-muted uppercase">Tanggal Akhir</label>
-                <Input 
-                  type="date"
-                  className="h-14 bg-fin-page border-fin-border rounded-xl font-black text-fin-text-primary focus:ring-amber-500/20 focus:border-amber-500/50 transition-all"
-                  value={resetRangeModal.endDate}
-                  onChange={(e) => setResetRangeModal(prev => ({ ...prev, endDate: e.target.value }))}
-                />
-              </div>
-            </div>
+            <DateRange
+              variant="danger"
+              showIcon={false}
+              startDate={resetRangeModal.startDate}
+              endDate={resetRangeModal.endDate}
+              onChangeStart={(v) => setResetRangeModal(prev => ({ ...prev, startDate: v }))}
+              onChangeEnd={(v) => setResetRangeModal(prev => ({ ...prev, endDate: v }))}
+            />
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 pt-1">
               <Button 
-                onClick={handleResetRange}
+                onClick={() => handleResetRange()}
                 disabled={!resetRangeModal.startDate || !resetRangeModal.endDate || isMatching}
-                className="flex-1 h-14 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-amber-900/20 transition-all active:scale-95"
+                className="flex-1 h-10 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs transition-all"
               >
-                {isMatching ? <Loader2 className="animate-spin mr-2" /> : <RefreshCw className="mr-2" size={14} />}
+                {isMatching ? <Loader2 className="animate-spin mr-2" size={14} /> : <RefreshCw className="mr-2" size={13} />}
                 Eksekusi Reset
               </Button>
               <Button 
                 variant="ghost" 
                 onClick={() => setResetRangeModal({ isOpen: false, startDate: '', endDate: '' })}
-                className="h-14 px-6 rounded-xl font-black text-[10px] uppercase text-fin-text-muted hover:bg-fin-page"
+                className="h-10 px-5 rounded-xl font-semibold text-xs text-fin-text-muted hover:bg-fin-page"
               >
                 Batal
               </Button>

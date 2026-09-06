@@ -16,6 +16,18 @@ services:
       timeout: 5s
       retries: 10
 
+  # Redis hanya untuk modul Verifikasi Masal (BullMQ). Tanpa port publik.
+  redis:
+    image: redis:7-alpine
+    container_name: dss-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
     build:
       context: ./backend
@@ -26,18 +38,44 @@ services:
     environment:
       # Override DATABASE_URL agar backend reach postgres via service name, bukan localhost
       DATABASE_URL: postgresql://postgres:v1ckh0Masto04@postgres:5432/dss_bpkad?connection_limit=3&pool_timeout=20
+      # Modul Verifikasi Masal: antrean via Redis
+      REDIS_URL: redis://redis:6379
     ports:
       - "5000:5000"
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./backend/uploads:/app/uploads
+
+  # Worker verifikasi masal: proses terpisah agar event loop API tak terbebani.
+  verification-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dss-verification-worker
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:v1ckh0Masto04@postgres:5432/dss_bpkad?connection_limit=3&pool_timeout=20
+      REDIS_URL: redis://redis:6379
+    command: ["node", "workers/verificationWorker.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        PUPPETEER_SKIP_DOWNLOAD: "true"
+        # Dipakai next.config.js saat `next build` (rewrites ke backend)
+        BACKEND_URL: "http://backend:5000"
     container_name: dss-frontend
     restart: unless-stopped
     environment:

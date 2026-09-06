@@ -216,12 +216,10 @@ const getTrendAnalysis = async () => {
 const getLiquidityHealthScore = async (tahun) => {
   const currentYear = tahun ? parseInt(tahun) : new Date().getFullYear();
   
-  // Get all sources to calculate total cash
+  // Get all sources to calculate total cash (paralel agar tidak menghabiskan pool lama)
   const sources = await prisma.master_sumber_dana.findMany({ select: { id: true } });
-  let totalKasValue = 0;
-  for (const s of sources) {
-    totalKasValue += await getRealTimeBalance(s.id);
-  }
+  const balances = await Promise.all(sources.map((s) => getRealTimeBalance(s.id)));
+  const totalKasValue = balances.reduce((acc, v) => acc + Number(v || 0), 0);
 
   const [totalPagu, currentRealization] = await Promise.all([
     prisma.master_pagu.aggregate({

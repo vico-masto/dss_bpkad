@@ -205,6 +205,36 @@ Kalimat harus menyebut **Pihak Kesatu** dan **Pihak Kedua** secara eksplisit: `"
 
 ---
 
+## Modul Verifikasi Masal — Kontrak Isolasi
+
+**Dikunci:** September 2026. Modul ini (verifikasi massal rekening bank & ID Billing Pajak) TIDAK BOLEH mengubah atau bergantung pada logika sistem inti DSS BPKAD.
+
+### Ruang lingkup file (hanya boleh menyentuh ini)
+- DB: `backend/database/init.sql` (append 3 tabel saja), `backend/prisma/schema.prisma` (append 3 model, TANPA relasi ke `users`).
+- Backend: `backend/routes/verificationRoutes.js`, `backend/controllers/verificationController.js`, `backend/workers/verificationWorker.js`, `backend/services/verificationQueue.js`, `backend/services/apiCoIdService.js`, `backend/utils/nameMatch.js`. `server.js` HANYA satu baris `app.use('/api/verifikasi', verificationRoutes)`.
+- Infra: `docker-compose.yml` (service `redis` + `verification-worker` + env `REDIS_URL`/`API_COID_MODE`).
+- Frontend: `frontend/src/app/dashboard/verifikasi-masal/**`, satu item menu di `Header.tsx` (dropdown administrator).
+
+### Tabel yang boleh ditulis
+- `verification_batches` (termasuk kolom `opd` & `periode` utk pelabelan batch), `verification_items`, `verification_single_log` (riwayat cek satuan). Baca `users` (nama pembuat/pengecek) & `master_opd` (dropdown OPD) — hanya baca, tanpa relasi/write.
+
+### Aturan WAJIB
+- **JANGAN pernah memakai `prisma db push`** — schema change = edit `init.sql` → apply statement tsb ke DB langsung (psql) → `npx prisma generate`.
+- Worker/controller HANYA menulis tabel `verification_*`. Tidak menyentuh SP2D, BKU, bank_statement, rekon, atau tabel inti lain.
+- Satu batch aktif per waktu (status PENDING/PROCESSING) — guard di `uploadBatch`.
+- API eksternal `api.co.id` default `DRY_RUN`; mode `LIVE` diaktifkan lewat env (`API_COID_MODE=LIVE`, `API_COID_BASE_URL`, `API_COID_KEY`, opsional `API_COID_BANK_CODE`, default `bank_maluku`). Kontrak LIVE (September 2026, sudah final di `apiCoIdService.js`): Bank Validation = `GET {BASE_URL}/validation/bank?bank_code&account_number&account_name`, auth header `x-api-co-id`, respons `{ data:{ is_valid, score(0-10), name(termasking), message, note } }`; 429 `{error:"quota_exceeded"}` = kuota habis (perlu subscribe, jangan retry). Produk ID Billing/NTPN TIDAK tersedia di api.co.id → `checkBillingId` SELALU DRY_RUN walau mode LIVE.
+- Nama kecocokan pakai `utils/nameMatch.js` (normalisasi gelar + Jaro-Winkler) UNTUK DRY_RUN; saat LIVE nama dari API termasking → skor nama memakai `score` provider (bukan matchNames lokal). Rule status: bank `VALID/INVALID/NOT_FOUND/ERROR`, billing `ACTIVE/EXPIRED/INVALID/ERROR`.
+
+### Fitur yang sudah dikunci (September 2026)
+- Verifikasi satuan (`POST /api/verifikasi/verify-single`) menyimpan riwayat ke `verification_single_log`; riwayat tampil + bisa dihapus (`GET /api/verifikasi/single-logs`, `DELETE /api/verifikasi/single-logs`).
+- `opd` WAJIB di batch (validasi terhadap `master_opd` bila master terisi), opsional di satuan. `periode` format `YYYY-MM`, default bulan berjalan.
+- Hapus batch (`DELETE /api/verifikasi/batches/:id`) DITOLAK untuk status PENDING/PROCESSING (wajib cancel dulu).
+- Rekap per OPD: `GET /api/verifikasi/summary?periode=YYYY-MM` (groupBy `opd`, aditif, hanya baca).
+- Info mode API: `GET /api/verifikasi/mode` (dipakai badge DRY_RUN/LIVE di UI).
+- Export hasil memuat kolom OPD & Periode. Halaman `verifikasi-masal` = 3 tab (Batch | Satuan | Rekap), polling 2s saat ada batch aktif, toast saat batch selesai.
+
+---
+
 ## AI integration
 
 `backend/services/aiService.js` powers the intelligence/chat features. Primary provider is **OpenRouter** (`deepseek/deepseek-chat`) via `OPENROUTER_API_KEY`; Google Gemini (`@google/generative-ai`, `GEMINI_API_KEY`) is the fallback. Exposed through `intelligenceController` at `/api/dss/intelligence/*`.

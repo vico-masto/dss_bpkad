@@ -19,6 +19,7 @@ const {
   deletePotongan,
   deletePotonganByMonth,
   deletePotonganByRange,
+  deleteSp2dByBulan,
   bulkDeletePotongan,
   bulkDeleteIntegrated,
   getMissingPencairanStats,
@@ -32,6 +33,8 @@ const {
   bulkUpdateJenisPotongan,
   bulkUpdateSumberDana,
   updateSumberDanaInline,
+  exportTemplateUpdateSp2d,
+  importUpdateSp2d,
 } = require('../controllers/sp2dController');
 const authMiddleware = require('../middleware/authMiddleware');
 const upload = require('../config/multer');
@@ -52,6 +55,8 @@ const adminOnly = (req, res, next) => {
   next();
 };
 
+router.get('/export-template', authMiddleware, operatorSp2dOrAdminOnly, exportTemplateUpdateSp2d);
+router.post('/import-update', authMiddleware, operatorSp2dOrAdminOnly, upload.single('file'), importUpdateSp2d);
 router.put('/koreksi/:id', authMiddleware, operatorSp2dOrAdminOnly, updateSp2d);
 router.post('/', authMiddleware, operatorSp2dOrAdminOnly, upload.single('file'), createSp2d);
 router.get('/', authMiddleware, operatorSp2dOrAdminOnly, getSp2dList);
@@ -67,6 +72,8 @@ router.put('/potongan/:id', authMiddleware, adminOnly, updatePotongan);
 router.post('/potongan/bulk-delete', authMiddleware, adminOnly, bulkDeletePotongan);
 router.delete('/potongan-bulan', authMiddleware, adminOnly, deletePotonganByMonth);
 router.delete('/potongan-range', authMiddleware, adminOnly, deletePotonganByRange);
+// [KELOLA] Hapus seluruh SP2D satu bulan (kascade penuh) — WAJIB sebelum '/:id'
+router.delete('/bulan', authMiddleware, adminOnly, deleteSp2dByBulan);
 router.delete('/potongan/:id', authMiddleware, adminOnly, deletePotongan);
 
 // Kelengkapan Tanggal Pencairan — harus sebelum /:id

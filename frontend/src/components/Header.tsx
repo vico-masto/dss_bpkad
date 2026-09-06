@@ -1,6 +1,6 @@
 'use client';
 
-import { LogOut, User, Menu, Sun, Moon, Brain, ChevronDown, Database, Scale, ScrollText, Users, Settings, Monitor, Maximize2, Minimize2 } from 'lucide-react';
+import { LogOut, User, Menu, Sun, Moon, Brain, ChevronDown, Database, Scale, ScrollText, Users, Settings, Monitor, Maximize2, Minimize2, ShieldCheck } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
@@ -304,6 +304,15 @@ export default function Header({ isCollapsed, setIsCollapsed }: { isCollapsed: b
                 >
                   <Users size={14} className="text-fin-text-muted" />
                   <span>Manajemen Akun</span>
+                </Link>
+
+                <Link
+                  href="/dashboard/verifikasi-masal"
+                  onClick={() => setIsDropdownOpen(false)}
+                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] font-semibold text-fin-text-secondary hover:text-fin-text-primary hover:bg-fin-subtle/80 transition-all"
+                >
+                  <ShieldCheck size={14} className="text-fin-text-muted" />
+                  <span>Verifikasi Masal</span>
                 </Link>
 
                 <Link

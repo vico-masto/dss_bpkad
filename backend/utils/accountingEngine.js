@@ -150,6 +150,62 @@ const processIncomeJournalBulk = async (incomes, tx = null) => {
   }
 };
 
+/**
+ * processPenyesuaianJournal - Jurnal otomatis untuk penyesuaian kas (BUKU).
+ * MASUK  → Dr Kas di Kas Daerah (1101) / Cr Pendapatan Lain-lain yang Sah (4201)
+ * KELUAR → Dr Belanja Lain-lain (5299) / Cr Kas di Kas Daerah (1101)
+ * ref_id = data_penyesuaian.id agar dapat di-void/dihapus bersamaan.
+ */
+const processPenyesuaianJournal = async ({ id, tanggal, jenis, nilai, id_sumber_dana, uraian, nomor_surat }, tx = null) => {
+  const keterangan = [uraian, nomor_surat ? `[Surat ${nomor_surat}]` : null].filter(Boolean).join(' ');
+  const nilaiNum = parseFloat(nilai) || 0;
+
+  if (jenis === 'MASUK') {
+    await postJournal({
+      tanggal,
+      kode_akun: '1101',
+      nama_akun: 'KAS DI KAS DAERAH',
+      debet: nilaiNum,
+      kredit: 0,
+      keterangan: `Penyesuaian Masuk (Pendapatan Lain-lain) - ${keterangan}`,
+      ref_id: id,
+      id_sumber_dana,
+    }, tx);
+    await postJournal({
+      tanggal,
+      kode_akun: '4201',
+      nama_akun: 'PENDAPATAN LAIN-LAIN YANG SAH',
+      debet: 0,
+      kredit: nilaiNum,
+      keterangan: `Penyesuaian Masuk - ${keterangan}`,
+      ref_id: id,
+      id_sumber_dana,
+    }, tx);
+  } else {
+    // KELUAR
+    await postJournal({
+      tanggal,
+      kode_akun: '5299',
+      nama_akun: 'BELANJA LAIN-LAIN',
+      debet: nilaiNum,
+      kredit: 0,
+      keterangan: `Penyesuaian Keluar (Belanja Lain-lain) - ${keterangan}`,
+      ref_id: id,
+      id_sumber_dana,
+    }, tx);
+    await postJournal({
+      tanggal,
+      kode_akun: '1101',
+      nama_akun: 'KAS DI KAS DAERAH',
+      debet: 0,
+      kredit: nilaiNum,
+      keterangan: `Penyesuaian Keluar - ${keterangan}`,
+      ref_id: id,
+      id_sumber_dana,
+    }, tx);
+  }
+};
+
 const processPotonganJournalBulk = async (potonganItems, tx = null) => {
   if (!potonganItems || potonganItems.length === 0) return;
   
@@ -192,5 +248,6 @@ module.exports = {
   processSp2dJournal,
   processIncomeJournal,
   processIncomeJournalBulk,
+  processPenyesuaianJournal,
   processPotonganJournalBulk
 };

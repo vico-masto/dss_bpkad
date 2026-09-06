@@ -27,6 +27,7 @@ model master_sumber_dana {
   data_pendapatan     data_pendapatan[]
   data_penyesuaian    data_penyesuaian[]
   detail_sp2d         detail_sp2d[]
+  detailKoreksiBank   detail_koreksi_bank[]
   jurnalAsli          jurnal_talangan[]     @relation("SumberAsli")
   jurnalTalangan      jurnal_talangan[]     @relation("SumberTalangan")
   master_pagu         master_pagu[]
@@ -85,6 +86,7 @@ model data_sp2d {
   updated_at        DateTime?            @updatedAt @db.Timestamp(6)
   potongan          data_sp2d_potongan[]
   details           detail_sp2d[]
+  koreksiBank       detail_koreksi_bank[]
 
   @@index([tanggal])
   @@index([status_rekon])
@@ -135,9 +137,11 @@ model bank_statement {
   catatan_selisih String?
   match_type      String?   @db.VarChar(20)
   selisih_nilai   Decimal?  @default(0) @db.Decimal(15, 2)
+  resolved_at     DateTime? @db.Timestamp(6)
 
   @@index([tanggal])
   @@index([is_matched])
+  @@index([resolved_at])
 }
 
 model data_penyesuaian {
@@ -150,6 +154,8 @@ model data_penyesuaian {
   nilai              Decimal             @db.Decimal(20, 2)
   user_pelaksana     String?             @db.VarChar(100)
   created_at         DateTime?           @default(now()) @db.Timestamp(6)
+  ref_koreksi_bank   String?             @db.VarChar(100)
+  dokumen            String?             @db.VarChar(255)
   master_sumber_dana master_sumber_dana? @relation(fields: [id_sumber_dana], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
@@ -169,6 +175,9 @@ model data_sp2d_potongan {
   status_rekon      String?    @default("BELUM") @db.VarChar(50)
   keterangan_rekon  String?
   selisih_rekon     Decimal?   @default(0) @db.Decimal(15, 2)
+  status_mengendap        String?  @default("MENGENDAP") @db.VarChar(20)
+  tanggal_penyelesaian    DateTime? @db.Date
+  catatan_penyelesaian    String?
   sp2d              data_sp2d? @relation(fields: [id_sp2d], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([tanggal_pencairan])
@@ -297,5 +306,130 @@ model data_lra {
 
   @@index([tahun, bulan])
   @@map("data_lra")
+}
+
+model surat_koreksi_bank {
+  id               String                @id @db.VarChar(100)
+  nomor_surat      String                @db.VarChar(200)
+  tanggal_surat    DateTime              @db.Date
+  tanggal_diterima DateTime?             @db.Date
+  pihak_bank       String?               @db.VarChar(200)
+  keterangan       String?
+  file_path        String?               @db.VarChar(500)
+  total_nilai      Decimal               @default(0) @db.Decimal(20, 2)
+  status           String                @default("APPLIED") @db.VarChar(20)
+  user_pelaksana   String?               @db.VarChar(100)
+  created_at       DateTime?             @default(now()) @db.Timestamp(6)
+  details          detail_koreksi_bank[]
+
+  @@map("surat_koreksi_bank")
+}
+
+model detail_koreksi_bank {
+  id                 String               @id @db.VarChar(100)
+  id_surat           String               @db.VarChar(100)
+  jenis_koreksi      String               @db.VarChar(50)
+  nilai              Decimal              @db.Decimal(20, 2)
+  uraian             String?
+  id_sumber_dana     String?              @db.VarChar(50)
+  ref_bank_id        Int?
+  ref_sp2d_id        String?              @db.VarChar(100)
+  ref_penyesuaian_id String?              @db.VarChar(100)
+  status             String               @default("PENDING") @db.VarChar(20)
+  created_at         DateTime?            @default(now()) @db.Timestamp(6)
+  surat              surat_koreksi_bank   @relation(fields: [id_surat], references: [id], onDelete: Cascade)
+  sumber_dana        master_sumber_dana?  @relation(fields: [id_sumber_dana], references: [id])
+  sp2d               data_sp2d?           @relation(fields: [ref_sp2d_id], references: [id])
+
+  @@index([id_surat])
+  @@index([ref_bank_id])
+  @@map("detail_koreksi_bank")
+}
+
+// === MODUL VERIFIKASI MASAL (Sep 2026) ===
+// Terisolasi penuh dari modul rekon: model baru ber-awalan `verification_` saja.
+// Tidak ada relasi Prisma ke `users` agar model existing tak dimodifikasi.
+model verification_batches {
+  id               String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  verification_type String              @db.VarChar(20)
+  filename         String               @db.VarChar(255)
+  created_by       String?              @db.Uuid
+  opd              String?              @db.VarChar(255)
+  periode          String?              @db.VarChar(7)
+  total_records    Int                  @default(0)
+  processed        Int                  @default(0)
+  ok_count         Int                  @default(0)
+  fail_count       Int                  @default(0)
+  status           String               @default("PENDING") @db.VarChar(20)
+  error_message    String?
+  created_at       DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at       DateTime?            @db.Timestamp(6)
+  finished_at      DateTime?            @db.Timestamp(6)
+  items            verification_items[]
+
+  @@index([verification_type])
+  @@index([status])
+  @@index([opd])
+  @@index([periode])
+  @@map("verification_batches")
+}
+
+model verification_items {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batch_id            String               @db.Uuid
+  row_no              Int
+  input_account_no    String?              @db.VarChar(50)
+  input_account_name  String?              @db.VarChar(255)
+  input_billing_id    String?              @db.VarChar(50)
+  bank_registered_name String?             @db.VarChar(255)
+  bank_status         String?              @default("UNVERIFIED") @db.VarChar(20)
+  name_match_score    Decimal?             @db.Decimal(5, 2)
+  name_match_label    String?              @db.VarChar(20)
+  tax_status          String?              @default("UNVERIFIED") @db.VarChar(20)
+  tax_type            String?              @db.VarChar(50)
+  tax_type_name       String?              @db.VarChar(255)
+  tax_amount          Decimal?             @db.Decimal(20, 2)
+  payer_name          String?              @db.VarChar(255)
+  api_response        String?
+  validation_message  String?
+  api_error_message   String?
+  retry_count         Int                  @default(0)
+  verified_at         DateTime?            @db.Timestamp(6)
+  created_at          DateTime?            @default(now()) @db.Timestamp(6)
+  batch               verification_batches @relation(fields: [batch_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([batch_id])
+  @@index([batch_id, bank_status])
+  @@index([batch_id, tax_status])
+  @@map("verification_items")
+}
+
+model verification_single_log {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  verification_type   String    @db.VarChar(20)
+  opd                 String?   @db.VarChar(255)
+  periode             String?   @db.VarChar(7)
+  input_account_name  String?   @db.VarChar(255)
+  input_account_no    String?   @db.VarChar(50)
+  input_billing_id    String?   @db.VarChar(50)
+  bank_registered_name String?  @db.VarChar(255)
+  bank_status         String?   @db.VarChar(20)
+  name_match_score    Decimal?  @db.Decimal(5, 2)
+  name_match_label    String?   @db.VarChar(20)
+  tax_status          String?   @db.VarChar(20)
+  tax_type            String?   @db.VarChar(50)
+  tax_type_name       String?   @db.VarChar(255)
+  tax_amount          Decimal?  @db.Decimal(20, 2)
+  payer_name          String?   @db.VarChar(255)
+  api_response        String?
+  error_message       String?
+  checked_by          String?   @db.Uuid
+  created_at          DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([verification_type])
+  @@index([opd])
+  @@index([periode])
+  @@index([created_at])
+  @@map("verification_single_log")
 }
 

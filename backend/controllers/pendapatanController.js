@@ -1,9 +1,25 @@
-const { Prisma } = require('@prisma/client');
+﻿const { Prisma } = require('@prisma/client');
 const prisma = require('../prismaClient');
 const dssService = require('../services/dssService');
 const auditService = require('../services/auditService');
 const accountingEngine = require('../utils/accountingEngine');
 const { parseDateSafe, parseNilaiExcel } = require('../utils/dateUtils');
+const XLSX = require('xlsx');
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Deteksi baris koreksi/pemindahbukuan internal bank (BO0* dan pola "PB/KOREKSI/KKURANGAN/KSALHN")
+ * yang BUKAN pendapatan riil. Baris seperti ini harus ditangani via menu Koreksi Bank,
+ * bukan dicatat sebagai penerimaan di data_pendapatan.
+ */
+const isKoreksiBank = (nomorBukti, uraian) => {
+  const nb = (nomorBukti || '').toString().trim().toUpperCase();
+  const ur = (uraian || '').toString().toUpperCase();
+  if (nb.startsWith('BO0')) return true;
+  if (/\bPB\b/.test(ur)) return true;
+  return ['KSALHN', 'KKURANGAN', 'KOREKSI', 'KOREK'].some((k) => ur.includes(k));
+};
 
 /**
  * Mencatat Kas Masuk / Pendapatan dengan Auto-Settlement Talangan
@@ -39,6 +55,11 @@ const createPendapatan = async (req, res) => {
     let settlementResult = { settledCount: 0 };
 
     await prisma.$transaction(async (tx) => {
+      // Tolak baris koreksi/pemindahbukuan internal bank (BO0* dan pola PB/KOREKSI) —
+      // ini BUKAN pendapatan riil, harus ditangani via menu Koreksi Bank.
+      if (isKoreksiBank(nomor_bukti, uraian)) {
+        throw new Error(`KOREKSI_BANK_BUKTI:${nomor_bukti}|${uraian}`);
+      }
       const { skipDuplicate = false } = req.body;
       if (skipDuplicate) {
         const existing = await tx.data_pendapatan.findUnique({ where: { nomor_bukti } });
@@ -87,6 +108,15 @@ const createPendapatan = async (req, res) => {
   } catch (err) {
     console.error('CREATE PENDAPATAN ERROR:', err.message);
     console.error('PAYLOAD WAS:', req.body);
+
+    if (err.message.startsWith('KOREKSI_BANK_BUKTI:')) {
+      const info = err.message.slice('KOREKSI_BANK_BUKTI:'.length);
+      const [bkt, ...ur] = info.split('|');
+      return res.status(400).json({
+        message: `Baris '${ur.join('|') || bkt}' (bukti ${bkt}) terdeteksi sebagai koreksi/pemindahbukuan internal bank, bukan pendapatan. Gunakan menu Koreksi Bank.`,
+        error: err.message
+      });
+    }
 
     if (err.message.startsWith('DUPLICATE_BUKTI:')) {
       const bkt = err.message.split(':')[1];
@@ -395,6 +425,47 @@ const deleteMultiplePendapatan = async (req, res) => {
   }
 };
 
+/**
+ * [KELOLA] Hapus seluruh Pendapatan satu bulan (kascade jurnal)
+ */
+const deletePendapatanByBulan = async (req, res) => {
+  let deletedCount = 0;
+  const tahun = parseInt(req.query.tahun);
+  const bulan = parseInt(req.query.bulan);
+  if (!tahun || !bulan || bulan < 1 || bulan > 12) {
+    return res.status(400).json({ message: 'Tahun & Bulan wajib valid' });
+  }
+  try {
+    await prisma.$transaction(async (tx) => {
+      const items = await tx.data_pendapatan.findMany({
+        where: { tahun, },
+        select: { id: true, nomor_bukti: true, tanggal: true }
+      });
+      const inMonth = items.filter(i => {
+        const t = i.tanggal ? new Date(i.tanggal) : null;
+        return t && !isNaN(t) && (t.getMonth() + 1) === bulan;
+      });
+      if (inMonth.length > 0) {
+        const nomorBuktis = inMonth.map(i => i.nomor_bukti).filter(Boolean);
+        if (nomorBuktis.length > 0) {
+          await tx.jurnal_umum.deleteMany({ where: { ref_id: { in: nomorBuktis } } });
+        }
+        await tx.data_pendapatan.deleteMany({
+          where: { id: { in: inMonth.map(i => i.id) } }
+        });
+      }
+
+      deletedCount = inMonth.length;
+    }, { timeout: 60000 });
+
+    await auditService.logActivity(req, 'RESET_BULAN', 'PENDAPATAN', `Hapus ${deletedCount} pendapatan bulan ${bulan}/${tahun}`);
+    res.json({ message: `Berhasil menghapus ${deletedCount} pendapatan bulan ${bulan}/${tahun}`, deleted: deletedCount });
+  } catch (err) {
+    console.error('DELETE PENDAPATAN BY BULAN:', err.message);
+    res.status(500).json({ message: 'Gagal menghapus pendapatan bulanan', error: err.message });
+  }
+};
+
 const importBulkPendapatan = async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ message: 'File Excel tidak ditemukan' });
@@ -546,7 +617,15 @@ const importBulkPendapatan = async (req, res) => {
           status_rekon: 'BELUM'
         };
 
-        // Auto-link ke bank_statement: cari kredit dengan nilai & tanggal sama (±2 hari)
+        // Tolak baris koreksi/pemindahbukuan internal bank (BO02/419... dan pola PB/KOREKSI) —
+        // BUKAN pendapatan riil; harus lewat menu Koreksi Bank. Jangan di-auto-link ke bank.
+        if (isKoreksiBank(finalNomor, rowData.uraian)) {
+          errorCount++;
+          errors.push(`Bukti ${finalNomor}: baris koreksi/pemindahbukuan internal bank, dilewati. Gunakan menu Koreksi Bank.`);
+          continue;
+        }
+
+        // Auto-link ke bank_statement: cari kredit dengan nilai & tanggal sama (Â±2 hari)
         // Pendapatan bersumber dari rekening koran, jadi seharusnya langsung cocok saat import.
         if (nilaiParsed > 0) {
           const bankMatch = await tx.$queryRawUnsafe(`
@@ -606,8 +685,171 @@ const importBulkPendapatan = async (req, res) => {
     console.error('BULK IMPORT PENDAPATAN ERROR:', err);
     res.status(500).json({
       message: 'Gagal memproses file import (Metode SP2D)',
-      error: err.message
     });
+  }
+};
+
+// â”€â”€â”€ Export Template untuk Update Massal Uraian & Sumber Dana â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const exportTemplateUpdatePendapatan = async (req, res) => {
+  try {
+    const { tahun, tgl_awal, tgl_akhir, id_sumber_dana } = req.query;
+
+    // Ambil data pendapatan dengan filter
+    const where = {};
+    if (tahun) where.tahun = parseInt(tahun);
+    if (tgl_awal || tgl_akhir) {
+      where.tanggal = {};
+      if (tgl_awal) where.tanggal.gte = new Date(tgl_awal);
+      if (tgl_akhir) where.tanggal.lte = new Date(tgl_akhir);
+    }
+    if (id_sumber_dana) where.id_sumber_dana = id_sumber_dana;
+
+    const data = await prisma.data_pendapatan.findMany({
+      where,
+      orderBy: [{ tanggal: 'asc' }, { nomor_bukti: 'asc' }],
+      select: { nomor_bukti: true, tanggal: true, uraian: true, id_sumber_dana: true, nilai: true }
+    });
+
+    // Ambil daftar sumber dana untuk sheet referensi
+    const sumberDana = await prisma.master_sumber_dana.findMany({
+      orderBy: { id: 'asc' },
+      select: { id: true, nama: true }
+    });
+
+    // Sheet 1: Data untuk diupdate
+    const wsData = [
+      ['Nomor Bukti', 'Tanggal', 'Uraian (Saat Ini)', 'Uraian Baru', 'Sumber Dana (Saat Ini)', 'Sumber Dana Baru'],
+      ...data.map(d => [
+        d.nomor_bukti,
+        d.tanggal.toISOString().split('T')[0],
+        d.uraian || '',
+        '',
+        d.id_sumber_dana || '',
+        ''
+      ])
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // Sheet 2: Referensi Sumber Dana
+    const refData = [
+      ['ID Sumber Dana', 'Nama Sumber Dana'],
+      ...sumberDana.map(s => [s.id, s.nama])
+    ];
+    const wsRef = XLSX.utils.aoa_to_sheet(refData);
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Update Data');
+    XLSX.utils.book_append_sheet(wb, wsRef, 'Daftar Sumber Dana');
+
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="Template_Update_Pendapatan_${Date.now()}.xlsx"`);
+    res.send(buf);
+  } catch (err) {
+    console.error('exportTemplateUpdatePendapatan error:', err);
+    res.status(500).json({ message: 'Gagal mengekspor template', error: err.message });
+  }
+};
+
+// â”€â”€â”€ Import Update Massal Uraian & Sumber Dana â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const importUpdatePendapatan = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'File Excel tidak ditemukan' });
+  }
+  try {
+    const absolutePath = path.resolve(req.file.path);
+    if (!fs.existsSync(absolutePath)) {
+      throw new Error(`File tidak ditemukan di path: ${absolutePath}`);
+    }
+
+    const workbook = XLSX.readFile(absolutePath);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(worksheet);
+
+    if (rows.length === 0) {
+      throw new Error('File Excel kosong atau tidak terbaca');
+    }
+
+    // Mapping nama kolom (case-insensitive)
+    const getVal = (item, keyTarget) => {
+      const found = Object.keys(item).find(k => {
+        const cleanKey = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanTarget = keyTarget.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return cleanKey === cleanTarget;
+      });
+      return found ? item[found] : '';
+    };
+
+    // Ambil daftar sumber dana untuk validasi
+    const sumberDanaList = await prisma.master_sumber_dana.findMany({ select: { id: true, nama: true } });
+    const sdById = new Map(sumberDanaList.map(s => [s.id, s]));
+    const sdByName = new Map(sumberDanaList.map(s => [s.nama.toUpperCase(), s.id]));
+
+    let updated = 0;
+    let skipped = 0;
+    const errors = [];
+
+    // Proses per baris
+    for (const row of rows) {
+      const nomorBukti = (getVal(row, 'Nomor Bukti') || '').toString().trim();
+      const uraianBaru = (getVal(row, 'Uraian Baru') || '').toString().trim();
+      const sdBaru = (getVal(row, 'Sumber Dana Baru') || '').toString().trim().toUpperCase();
+
+      if (!nomorBukti) {
+        skipped++;
+        continue;
+      }
+      if (!uraianBaru && !sdBaru) {
+        skipped++;
+        continue;
+      }
+
+      // Cari data existing berdasarkan nomor_bukti
+      const existing = await prisma.data_pendapatan.findFirst({
+        where: { nomor_bukti: nomorBukti }
+      });
+      if (!existing) {
+        errors.push(`Nomor bukti '${nomorBukti}' tidak ditemukan di database`);
+        continue;
+      }
+
+      // Siapkan data update
+      const updateData = { updated_at: new Date() };
+      if (uraianBaru) updateData.uraian = uraianBaru;
+      if (sdBaru) {
+        // Coba cocokkan sebagai ID dulu, lalu sebagai Nama
+        let finalSdId = sdById.has(sdBaru) ? sdBaru : sdByName.get(sdBaru);
+        if (!finalSdId) {
+          errors.push(`Nomor bukti '${nomorBukti}': Sumber dana '${sdBaru}' tidak valid. Cek sheet referensi.`);
+          continue;
+        }
+        updateData.id_sumber_dana = finalSdId;
+      }
+
+      await prisma.data_pendapatan.update({
+        where: { id: existing.id },
+        data: updateData
+      });
+      updated++;
+    }
+
+    // Hapus file temporary
+    try { if (fs.existsSync(absolutePath)) fs.unlinkSync(absolutePath); } catch (e) { /* ok */ }
+
+    res.json({
+      message: `Selesai: ${updated} data diupdate, ${skipped} dilewati`,
+      updated,
+      skipped,
+      errors: errors.slice(0, 50)
+    });
+  } catch (err) {
+    console.error('importUpdatePendapatan error:', err);
+    // Hapus file jika ada error
+    if (req.file && req.file.path) {
+      try { if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path); } catch (e) { /* ok */ }
+    }
+    res.status(500).json({ message: 'Gagal memproses file update', error: err.message });
   }
 };
 
@@ -617,7 +859,12 @@ module.exports = {
   updatePendapatan,
   deletePendapatan,
   deleteMultiplePendapatan,
-  importBulkPendapatan
+  deletePendapatanByBulan,
+  importBulkPendapatan,
+  exportTemplateUpdatePendapatan,
+  importUpdatePendapatan
 };
+
+
 
 

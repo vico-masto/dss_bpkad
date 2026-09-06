@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+// Gunakan relative URL agar request browser lewat Next.js rewrite
+// (rewrite di next.config.js proxy ke backend:5000 via Docker network)
+const API_URL = '/api';
 
 const api = axios.create({
   baseURL: API_URL,

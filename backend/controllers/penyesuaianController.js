@@ -1,24 +1,40 @@
 const prisma = require('../prismaClient');
 const dssService = require('../services/dssService');
 const auditService = require('../services/auditService');
+const { processPenyesuaianJournal } = require('../utils/accountingEngine');
 
 const createPenyesuaian = async (req, res) => {
-  const { tanggal, uraian, id_sumber_dana, nilai, jenis, sisi_pengaruh } = req.body;
+  const { tanggal, uraian, id_sumber_dana, nilai, jenis, sisi_pengaruh, dokumen } = req.body;
 
   try {
     const id = `ADJ-${Date.now()}`;
 
-    const result = await prisma.data_penyesuaian.create({
-      data: {
+    const result = await prisma.$transaction(async (tx) => {
+      const created = await tx.data_penyesuaian.create({
+        data: {
+          id,
+          tanggal: new Date(tanggal),
+          uraian,
+          id_sumber_dana,
+          nilai: parseFloat(nilai),
+          jenis,
+          sisi_pengaruh: sisi_pengaruh || 'BUKU',
+          dokumen: dokumen || null,
+          user_pelaksana: req.user.username
+        }
+      });
+
+      // Jurnal otomatis (akrual): MASUK/KELUAR menghasilkan baris debet-kredit
+      await processPenyesuaianJournal({
         id,
-        tanggal: new Date(tanggal),
-        uraian,
-        id_sumber_dana,
-        nilai: parseFloat(nilai),
+        tanggal,
         jenis,
-        sisi_pengaruh,
-        user_pelaksana: req.user.username
-      }
+        nilai,
+        id_sumber_dana,
+        uraian,
+      }, tx);
+
+      return created;
     });
 
     let settledCount = 0;
@@ -65,22 +81,38 @@ const getPenyesuaianById = async (req, res) => {
 
 const updatePenyesuaian = async (req, res) => {
   const { id } = req.params;
-  const { tanggal, uraian, id_sumber_dana, nilai, jenis, sisi_pengaruh } = req.body;
+  const { tanggal, uraian, id_sumber_dana, nilai, jenis, sisi_pengaruh, dokumen } = req.body;
 
   try {
     const existing = await prisma.data_penyesuaian.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ message: 'Data tidak ditemukan' });
 
-    const result = await prisma.data_penyesuaian.update({
-      where: { id },
-      data: {
-        tanggal: new Date(tanggal),
-        uraian,
-        id_sumber_dana,
-        nilai: parseFloat(nilai),
+    const result = await prisma.$transaction(async (tx) => {
+      const updated = await tx.data_penyesuaian.update({
+        where: { id },
+        data: {
+          tanggal: new Date(tanggal),
+          uraian,
+          id_sumber_dana,
+          nilai: parseFloat(nilai),
+          jenis,
+          sisi_pengaruh: sisi_pengaruh || existing.sisi_pengaruh || 'BUKU',
+          dokumen: dokumen !== undefined ? (dokumen || null) : existing.dokumen
+        }
+      });
+
+      // Hapus jurnal lama lalu buat ulang (key: ref_id = id)
+      await tx.jurnal_umum.deleteMany({ where: { ref_id: id } });
+      await processPenyesuaianJournal({
+        id,
+        tanggal,
         jenis,
-        sisi_pengaruh
-      }
+        nilai,
+        id_sumber_dana,
+        uraian,
+      }, tx);
+
+      return updated;
     });
 
     let settledCount = 0;
@@ -105,7 +137,11 @@ const deletePenyesuaian = async (req, res) => {
     const existing = await prisma.data_penyesuaian.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ message: 'Data tidak ditemukan' });
 
-    await prisma.data_penyesuaian.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      // Hapus jurnal penyesuaian terlebih dahulu (key: ref_id = id)
+      await tx.jurnal_umum.deleteMany({ where: { ref_id: id } });
+      await tx.data_penyesuaian.delete({ where: { id } });
+    });
 
     await auditService.logActivity(req, 'HAPUS', 'PENYESUAIAN', `ID: ${id} | ${existing.jenis} | ${existing.uraian} | Rp ${Number(existing.nilai).toLocaleString('id-ID')}`);
 

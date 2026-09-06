@@ -34,12 +34,13 @@ const ROUTE_LABELS: Record<string, string> = {
   'discrepancy':       'Laporan Selisih',
   'anomalies':         'Integritas Data',
   'ba':                'Berita Acara',
+  'koreksi-bank':      'Koreksi Bank',
 
   // Laporan
   'bku':               'Buku Kas Umum',
   'jurnal':            'Buku Besar',
   'talangan':          'Jurnal Talangan',
-  'penyesuaian':       'Penyesuaian & Koreksi',
+  'penyesuaian':       'Penyesuaian Kas',
 
   // Buku Pembantu
   'ledgers':           'Buku Pembantu',

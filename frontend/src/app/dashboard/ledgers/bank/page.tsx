@@ -36,6 +36,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DateRange } from "@/components/ui/date-range";
 import { toast } from 'sonner';
 import { Combobox } from "@/components/ui/combobox";
 
@@ -194,28 +195,13 @@ export default function BankLedgerPage() {
             <Card className="border-fin-border shadow-sm bg-fin-surface overflow-visible">
               <CardContent className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest flex items-center gap-2">
-                       <Calendar size={12} className="text-fin-info" /> Tanggal Mulai
-                    </label>
-                    <Input 
-                      type="date" 
-                      value={filters.startDate}
-                      onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-                      className="h-10 border-fin-border bg-fin-page text-fin-text-primary focus:ring-ds-focus-ring"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest flex items-center gap-2">
-                       <Calendar size={12} className="text-fin-info" /> Tanggal Akhir
-                    </label>
-                    <Input 
-                      type="date" 
-                      value={filters.endDate}
-                      onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-                      className="h-10 border-fin-border bg-fin-page text-fin-text-primary focus:ring-ds-focus-ring"
-                    />
-                  </div>
+                  <DateRange
+                    label="Tanggal Mulai"
+                    startDate={filters.startDate}
+                    endDate={filters.endDate}
+                    onChangeStart={(v) => setFilters({ ...filters, startDate: v })}
+                    onChangeEnd={(v) => setFilters({ ...filters, endDate: v })}
+                  />
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest flex items-center gap-2">
                        <Wallet size={12} className="text-fin-info" /> Rekening Bank / Sumber Dana

@@ -442,10 +442,10 @@ export default function AnomalyPage() {
                               <TableRow key={item.id} className="hover:bg-fin-page transition-colors group">
                                 <TableCell className="p-4">
                                   <div className="font-black text-xs text-fin-text-primary truncate max-w-[200px]">{item.nomor}</div>
-                                  <div className="text-[9px] font-bold text-fin-text-muted uppercase mt-0.5">{format(new Date(item.tanggal), 'dd MMM yyyy')}</div>
+                                  <div className="text-[9px] font-bold text-fin-text-muted uppercase mt-0.5">{item.tanggal ? format(new Date(item.tanggal), 'dd MMM yyyy') : '-'}</div>
                                 </TableCell>
                                 <TableCell className="p-4">
-                                  <div className="text-[10px] font-bold text-fin-text-secondary truncate max-w-[200px]">{item.opd}</div>
+                                  <div className="text-[10px] font-bold text-fin-text-secondary truncate max-w-[200px]">{item.opd || '-'}</div>
                                 </TableCell>
                                 <TableCell className="p-4">
                                   <div className="text-[10px] font-bold text-fin-text-muted truncate max-w-[200px] italic">{item.uraian}</div>
@@ -455,7 +455,7 @@ export default function AnomalyPage() {
                                 </TableCell>
                                 <TableCell className="p-4">
                                   <div className="text-[10px] font-black text-fin-text-muted">
-                                    {format(new Date(item.tanggal), 'dd/MM/yy')}
+                                    {item.tanggal ? format(new Date(item.tanggal), 'dd/MM/yy') : '-'}
                                   </div>
                                 </TableCell>
                                 <TableCell className="p-4 text-center">
@@ -520,7 +520,7 @@ export default function AnomalyPage() {
                                   <div className="font-black text-xs text-fin-income tabular-nums">{formatCurrency(item.nilai)}</div>
                                 </TableCell>
                                 <TableCell className="p-4">
-                                  <div className="text-[10px] font-black text-fin-text-muted">{format(new Date(item.tanggal), 'dd/MM/yy')}</div>
+                                  <div className="text-[10px] font-black text-fin-text-muted">{item.tanggal ? format(new Date(item.tanggal), 'dd/MM/yy') : '-'}</div>
                                 </TableCell>
                                 <TableCell className="p-4 text-center">
                                   <Link href={`/pendapatan?search=${item.nomor_bukti}`}>
@@ -593,7 +593,7 @@ export default function AnomalyPage() {
                                   <div className="font-black text-xs text-fin-info tabular-nums">{formatCurrency(item.nilai)}</div>
                                 </TableCell>
                                 <TableCell className="p-4">
-                                  <div className="text-[10px] font-black text-fin-text-muted">{format(new Date(item.tanggal), 'dd/MM/yy')}</div>
+                                  <div className="text-[10px] font-black text-fin-text-muted">{item.tanggal ? format(new Date(item.tanggal), 'dd/MM/yy') : '-'}</div>
                                 </TableCell>
                                 <TableCell className="p-4 text-center">
                                    <span className={cn(
@@ -647,7 +647,7 @@ export default function AnomalyPage() {
                             ).map((item: any) => (
                               <TableRow key={item.id} className="hover:bg-fin-page transition-colors">
                                 <TableCell className="p-4">
-                                  <div className="text-xs font-black text-fin-text-primary">{format(new Date(item.tanggal), 'dd/MM/yy')}</div>
+                                  <div className="text-xs font-black text-fin-text-primary">{item.tanggal ? format(new Date(item.tanggal), 'dd/MM/yy') : '-'}</div>
                                 </TableCell>
                                 <TableCell className="p-4">
                                   <div className="text-[10px] font-bold text-fin-text-muted line-clamp-1 max-w-[400px] uppercase">{item.deskripsi}</div>

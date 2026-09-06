@@ -6,7 +6,10 @@ const {
   updatePendapatan, 
   deletePendapatan, 
   deleteMultiplePendapatan,
-  importBulkPendapatan 
+  deletePendapatanByBulan,
+  importBulkPendapatan,
+  exportTemplateUpdatePendapatan,
+  importUpdatePendapatan 
 } = require('../controllers/pendapatanController');
 const authMiddleware = require('../middleware/authMiddleware');
 const upload = require('../config/multer');
@@ -20,7 +23,11 @@ const operatorPenerimaanOrAdminOnly = (req, res, next) => {
 };
 
 router.post('/', authMiddleware, operatorPenerimaanOrAdminOnly, upload.single('file'), createPendapatan);
+router.get('/export-template', authMiddleware, operatorPenerimaanOrAdminOnly, exportTemplateUpdatePendapatan);
+router.post('/import-update', authMiddleware, operatorPenerimaanOrAdminOnly, upload.single('file'), importUpdatePendapatan);
 router.post('/import-bulk', authMiddleware, operatorPenerimaanOrAdminOnly, upload.single('file'), importBulkPendapatan);
+// [KELOLA] Hapus seluruh pendapatan satu bulan — WAJIB sebelum '/:id'
+router.delete('/bulan', authMiddleware, operatorPenerimaanOrAdminOnly, deletePendapatanByBulan);
 router.get('/', authMiddleware, operatorPenerimaanOrAdminOnly, getPendapatanList);
 router.delete('/bulk', authMiddleware, operatorPenerimaanOrAdminOnly, deleteMultiplePendapatan);
 router.put('/:id', authMiddleware, operatorPenerimaanOrAdminOnly, upload.single('file'), updatePendapatan);

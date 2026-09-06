@@ -70,6 +70,7 @@ import { SearchInput } from '@/components/ui/search-input';
 import { FilterBar } from '@/components/patterns/filter-bar';
 import { PageHeader } from '@/components/patterns/page-header';
 import { FormField } from '@/components/patterns/form-field';
+import { DateRange } from "@/components/ui/date-range";
 
 const fetcher = (url: string, params: any) =>
   api.get(url, { params }).then((res) => res.data);
@@ -1128,39 +1129,14 @@ function PendapatanPageContent() {
                         />
                       </FormField>
 
-                      <FormField label="Mulai Tanggal">
-                        <div className="relative">
-                          <Calendar
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-fin-text-muted pointer-events-none"
-                            size={14}
-                          />
-                          <Input
-                            type="date"
-                            className="pl-9"
-                            value={filters.tgl_awal}
-                            onChange={(e) =>
-                              setFilters({ ...filters, tgl_awal: e.target.value })
-                            }
-                          />
-                        </div>
-                      </FormField>
-
-                      <FormField label="Sampai Tanggal">
-                        <div className="relative">
-                          <Calendar
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-fin-text-muted pointer-events-none"
-                            size={14}
-                          />
-                          <Input
-                            type="date"
-                            className="pl-9"
-                            value={filters.tgl_akhir}
-                            onChange={(e) =>
-                              setFilters({ ...filters, tgl_akhir: e.target.value })
-                            }
-                          />
-                        </div>
-                      </FormField>
+                      <DateRange
+                        variant="compact"
+                        label="Mulai Tanggal"
+                        startDate={filters.tgl_awal}
+                        endDate={filters.tgl_akhir}
+                        onChangeStart={(v) => setFilters({ ...filters, tgl_awal: v })}
+                        onChangeEnd={(v) => setFilters({ ...filters, tgl_akhir: v })}
+                      />
 
                       <FormField label="Aksi Cepat">
                         <div className="flex items-center gap-2">

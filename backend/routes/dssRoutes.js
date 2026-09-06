@@ -10,6 +10,8 @@ const intelligenceController = require('../controllers/intelligenceController');
 const lraController = require('../controllers/lraController');
 const upload = require('../config/multer');
 const authMiddleware = require('../middleware/authMiddleware');
+const checkRole = require('../middleware/roleMiddleware');
+const { backfillHandler } = require('../services/potonganSyncService');
 
 const reportController = require('../controllers/reportController');
 
@@ -71,6 +73,13 @@ router.post('/talangan', authMiddleware, talanganController.createTalanganManual
 // Setoran Pajak
 router.get('/setoran-pajak', authMiddleware, setoranPajakController.getSetoranPajakList);
 router.post('/setoran-pajak', authMiddleware, setoranPajakController.createSetoranPajak);
+// [INVARIANT] Backfill rincian potongan utk header manual yang kosong (admin-only)
+router.get('/admin/backfill-potongan-manual', authMiddleware, checkRole(['admin', 'ADMIN']), backfillHandler);
+// [WIZARD IMPOR] Status 4 langkah + finalisasi status dana
+router.get('/impor-status', authMiddleware, dssController.getImporStatus);
+router.get('/impor-preview', authMiddleware, dssController.getImporPreview);
+router.post('/finalisasi-status-dana', authMiddleware, dssController.finalisasiStatusDana);
+router.patch('/mengendap/:id', authMiddleware, checkRole(['admin', 'ADMIN']), dssController.updateMengendapStatus);
 router.put('/setoran-pajak/bulk-jenis', authMiddleware, setoranPajakController.bulkUpdateJenisPajak);
 router.put('/setoran-pajak/:id', authMiddleware, setoranPajakController.updateSetoranPajak);
 router.delete('/setoran-pajak/:id', authMiddleware, setoranPajakController.deleteSetoranPajak);

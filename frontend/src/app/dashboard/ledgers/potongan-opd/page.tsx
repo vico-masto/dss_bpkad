@@ -28,6 +28,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateRange } from "@/components/ui/date-range";
 import { toast } from 'sonner';
 
 const BULAN_NAMES = [
@@ -292,15 +293,13 @@ export default function RealisasiPotonganOpdPage() {
                     </select>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Dari Tanggal</label>
-                    <Input type="date" value={filters.startDate} onChange={e => setFilters(f => ({ ...f, startDate: e.target.value }))} className="h-10 border-fin-border" />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Sampai Tanggal</label>
-                    <Input type="date" value={filters.endDate} onChange={e => setFilters(f => ({ ...f, endDate: e.target.value }))} className="h-10 border-fin-border" />
-                  </div>
+                  <DateRange
+                    label="Tanggal Mulai"
+                    startDate={filters.startDate}
+                    endDate={filters.endDate}
+                    onChangeStart={(v) => setFilters(f => ({ ...f, startDate: v }))}
+                    onChangeEnd={(v) => setFilters(f => ({ ...f, endDate: v }))}
+                  />
 
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-fin-text-muted uppercase tracking-widest">Jenis Potongan</label>

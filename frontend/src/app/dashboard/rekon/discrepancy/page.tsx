@@ -1,11 +1,13 @@
-'use client';
+﻿'use client';
 // Rebuild trigger
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { AlertTriangle, BarChart3, Building2, Calendar, CheckCircle2, ChevronDown, ChevronRight, Download, RefreshCw, XCircle, FileText, ShieldCheck, Lock, Edit3, Sparkles, FileSignature, Save, User, Printer } from 'lucide-react';
+import { AlertTriangle, BarChart3, Building2, Calendar, CheckCircle2, ChevronDown, ChevronRight, Download, RefreshCw, XCircle, FileText, ShieldCheck, Lock, Edit3, Sparkles, FileSignature, Save, User, Printer, Search, Wand2 } from 'lucide-react';
 import { formatCurrency, cn } from '@/lib/utils';
 import api from '@/lib/api';
+import { classifyBarSelisih } from '@/lib/barSelisih';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -62,6 +64,20 @@ const toN = (v: any) => Number(v) || 0;
 function getBarKey(year: string, bulan: string) {
   return `bar_config_discrepancy_${year}_${String(bulan).padStart(2, '0')}`;
 }
+
+// [W1] Urutan Point C kronologis: tanggal terkecil → terbesar, tie-break nomor bukti
+const sortByTglBuktiAsc = (arr: any[]) => [...(arr || [])].sort((a: any, b: any) => {
+  const ta = a?.tanggal ? new Date(a.tanggal).getTime() : NaN;
+  const tb = b?.tanggal ? new Date(b.tanggal).getTime() : NaN;
+  if (isNaN(ta) && isNaN(tb)) return String(a.bukti ?? '').localeCompare(String(b.bukti ?? ''));
+  if (isNaN(ta)) return 1;
+  if (isNaN(tb)) return -1;
+  if (ta !== tb) return ta - tb;
+  return String(a.bukti ?? '').localeCompare(String(b.bukti ?? ''));
+});
+
+// [W-BAR] classifyBarSelisih diekstrak ke @/lib/barSelisih — dipakai bersama
+// halaman BAR (discrepancy) dan Ringkasan (Point C) agar logika periode konsisten.
 
 const terbilang = (n: number): string => {
   if (n < 0) return "Minus " + terbilang(-n);
@@ -125,9 +141,10 @@ export default function DiscrepancyReportPage() {
 
   // ── Muat konfigurasi BAR dari localStorage saat pertama kali mount ──
   useEffect(() => {
+    // [W3] Rantai load: key bulan-pilihan → key bulan-nyata → global (fallback)
     const currentMonth = String(new Date().getMonth() + 1);
-    // Per-bulan key (baru), fallback ke key lama untuk backward compat
-    const savedBar = localStorage.getItem(getBarKey(year, currentMonth))
+    const savedBar = localStorage.getItem(getBarKey(year, barConfig.bulanRekon))
+                  ?? localStorage.getItem(getBarKey(year, currentMonth))
                   ?? localStorage.getItem('bar_config_discrepancy');
     if (savedBar) {
       try { setBarConfig(prev => ({ ...prev, ...JSON.parse(savedBar) })); } catch {}
@@ -161,6 +178,8 @@ export default function DiscrepancyReportPage() {
       return;
     }
     localStorage.setItem(getBarKey(year, barConfig.bulanRekon), JSON.stringify(barConfig));
+    // [W3] Mirror global: fallback agar konfigurasi terakhir selalu tersedia di bulan apapun
+    localStorage.setItem('bar_config_discrepancy', JSON.stringify(barConfig));
   }, [barConfig]);
 
   const [auditNote, setAuditNote] = useState('');
@@ -172,6 +191,35 @@ export default function DiscrepancyReportPage() {
     ([url, y]: [string, string]) => api.get(url, { params: { year: y } }).then(r => r.data),
     { revalidateOnFocus: false, shouldRetryOnError: false }
   );
+
+  const router = useRouter();
+  const [showOnlyOpen, setShowOnlyOpen] = useState(true);
+
+  const { data: resolvedMapData } = useSWR(
+    `/koreksi-bank/resolved-map?tahun=${year}`,
+    (url: string) => api.get(url).then(r => r.data),
+    { revalidateOnFocus: false }
+  );
+  const resolvedBySp2d: Record<string, { resolvedAt: string; bulan: number }> = resolvedMapData?.bySp2d || {};
+  const resolvedByPotongan: Record<string, { resolvedAt: string; bulan: number }> = resolvedMapData?.byPotongan || {};
+
+  const { data: autoDetectData, mutate: mutateAutoDetect } = useSWR(
+    `/koreksi-bank/auto-detect?tahun=${year}`,
+    (url: string) => api.get(url).then(r => r.data),
+    { revalidateOnFocus: false }
+  );
+  const autoDetectSuggestions: any[] = autoDetectData?.data || [];
+
+  const isResolved = (r: any) => {
+    if (r.tipe === 'SP2D') return !!resolvedBySp2d[r.id];
+    if (r.tipe === 'POTONGAN') return !!resolvedByPotongan[r.id] || !!resolvedBySp2d[r.id];
+    return false;
+  };
+  const resolvedBulan = (r: any) => {
+    if (r.tipe === 'SP2D') return resolvedBySp2d[r.id]?.bulan;
+    if (r.tipe === 'POTONGAN') return resolvedByPotongan[r.id]?.bulan || resolvedBySp2d[r.id]?.bulan;
+    return undefined;
+  };
 
   const handleExport = () => {
     if (!data) return;
@@ -218,10 +266,34 @@ export default function DiscrepancyReportPage() {
         : toN(currentMonthData?.penerimaan);
       const totalPengeluaran = toN(currentMonthData?.pengeluaran);
 
-      // Potongan mengendap hanya bulan terpilih
+      // Potongan mengendap bulan terpilih saja — dipakai untuk saldo akhir BKU (tidak double-count,
+      // karena saldo awal sudah membawa akumulasi bulan sebelumnya via potPrev).
       const totalPotonganMengendap = (data.potonganUnmatched || [])
         .filter((p: any) => p.bulan === targetBulanInt)
         .reduce((acc: number, p: any) => acc + toN(p.total_nilai), 0);
+
+      // Lampiran BAR — potongan mengendap KUMULATIF sejak awal tahun s.d. bulan terpilih,
+      // diurutkan NAIG dari tanggal/bulan terkecil ke terbesar
+      const mengendapRowsBulanIni = (data?.potonganMengendapDetails || [])
+        .filter((r: any) => r.bulan <= targetBulanInt)
+        .sort((a: any, b: any) => {
+          const ta = a.tanggal_sp2d ? new Date(a.tanggal_sp2d).getTime() : NaN;
+          const tb = b.tanggal_sp2d ? new Date(b.tanggal_sp2d).getTime() : NaN;
+          if (isNaN(ta) && isNaN(tb)) return String(a.no_sp2d ?? '').localeCompare(String(b.no_sp2d ?? ''));
+          if (isNaN(ta)) return 1;
+          if (isNaN(tb)) return -1;
+          if (ta !== tb) return ta - tb;
+          return String(a.no_sp2d ?? '').localeCompare(String(b.no_sp2d ?? ''));
+        })
+        .map((r: any) => ({
+          no_sp2d: r.no_sp2d,
+          tanggal: r.tanggal_sp2d || null,
+          opd: r.opd,
+          uraian_sp2d: r.uraian_sp2d || '-',
+          jenis_potongan: r.jenis_potongan || '-',
+          nilai: Number(r.nilai) || 0,
+          status_mengendap: r.status_mengendap || 'MENGENDAP',
+        }));
 
       const saldoAkhirBKU = saldoAwalKas + displayPenerimaan - totalPengeluaran + totalPotonganMengendap;
       const saldoBank = toN(data.monthlyBalance?.find((m: any) => m.bulan === targetBulanInt)?.saldo_bank || 0);
@@ -239,7 +311,7 @@ export default function DiscrepancyReportPage() {
       const terbilangThn = terbilang(previewThn);
 
       const allAnomalies = [...(data.matchedWithDiscrepancy || []), ...(data.unmatchedDetails || [])];
-      const anomalyRows = allAnomalies
+      const sortedAnomalies = allAnomalies
         .filter((r: any) => {
           const rDate = new Date(r.tanggal);
           return rDate.getMonth() + 1 <= targetBulanInt && rDate.getFullYear() === (new Date(barConfig.tanggalRekon || new Date()).getFullYear());
@@ -249,14 +321,51 @@ export default function DiscrepancyReportPage() {
           const isLainnya = (r.uraian || '').toLowerCase().includes('lainnya') || (r.keterangan_rekon || '').toLowerCase().includes('lainnya');
           return !(isPotongan && isLainnya);
         })
-        .map((r: any) => ({
-          tipe: r.tipe,
-          bukti: r.bukti,
-          tanggal: r.tanggal ? format(new Date(r.tanggal), 'dd/MM/yyyy') : '-',
-          keterangan: r.keterangan_rekon || r.uraian || 'Belum ada penjelasan',
-          opd: r.opd || '',
-          nilai: toN(r.selisih || r.nilai)
-        }));
+        .sort((a: any, b: any) => {
+          const ta = a.tanggal ? new Date(a.tanggal.split('/').reverse().join('-')).getTime() : NaN;
+          const tb = b.tanggal ? new Date(b.tanggal.split('/').reverse().join('-')).getTime() : NaN;
+          if (isNaN(ta) && isNaN(tb)) return String(a.bukti).localeCompare(String(b.bukti));
+          if (isNaN(ta)) return 1;
+          if (isNaN(tb)) return -1;
+          if (ta !== tb) return ta - tb;
+          return String(a.bukti).localeCompare(String(b.bukti));
+        });
+
+      // [W-BAR] Period-aware: BAR bulan N = posisi selisih per akhir bulan N.
+      // Perbaikan jatuh <= akhir bulan N → C.2 "Ditutup"; sesudahnya → outstanding.
+      // Point C disamakan dgn Ringkasan: outstanding items + baris "POTONGAN MENGENDAP".
+      const { outstanding: outstandingRowsBar, closed: closedRowsBar } = classifyBarSelisih(
+        sortedAnomalies,
+        resolvedBySp2d,
+        resolvedByPotongan,
+        targetBulanInt,
+        tglObj.getFullYear()
+      );
+
+      const anomalyRows = outstandingRowsBar.map((r: any) => ({
+        tipe: r.tipe,
+        bukti: r.bukti,
+        tanggal: r.tanggal || '-',
+        keterangan: r.keterangan,
+        opd: r.opd || '',
+        nilai: toN(r.nilai)
+      }));
+
+      // Ringkasan menampilkan akumulasi potongan 'Lainnya' (sejak awal tahun s.d. bulan N)
+      // sebagai satu baris pada Point C; detail per-SP2D ada di Lampiran.
+      const potonganAkumulasi = (data.potonganUnmatched || [])
+        .filter((p: any) => p.bulan <= targetBulanInt)
+        .reduce((acc: number, p: any) => acc + toN(p.total_nilai), 0);
+      if (potonganAkumulasi > 0) {
+        anomalyRows.push({
+          tipe: 'POTONGAN MENGENDAP',
+          bukti: "'Lainnya'",
+          tanggal: format(new Date(tglObj.getFullYear(), targetBulanInt, 0), 'dd/MM/yyyy'),
+          keterangan: "Potongan 'Lainnya' belum cair ke kas — rincian di Lampiran",
+          opd: '',
+          nilai: potonganAkumulasi,
+        });
+      }
 
       const res = await fetch('/api/cetak-discrepancy-rekon', {
         method: 'POST',
@@ -266,7 +375,8 @@ export default function DiscrepancyReportPage() {
           totalPengeluaran, saldoAkhirBKU, saldoBank, selisihNilai, isSesuai,
           formattedLastDay, previewBlnRekonName: selectedBlnName,
           previewHari, previewTgl, previewBln, previewThn,
-          terbilangTgl, terbilangThn, anomalyRows
+          terbilangTgl, terbilangThn, anomalyRows, closedRows: closedRowsBar,
+          mengendapRows: mengendapRowsBulanIni
         })
       });
 
@@ -482,6 +592,85 @@ export default function DiscrepancyReportPage() {
           </Section>
 
           <Section id="matched-discrepancy" title="Daftar Selisih (Outstanding Items)" icon={AlertTriangle} color="bg-ds-primary">
+            {/* Filter bar */}
+            <div className="flex items-center justify-between mb-3 px-1">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={showOnlyOpen ? 'default' : 'outline'}
+                  size="sm"
+                  className={`h-7 text-[9px] font-bold uppercase ${showOnlyOpen ? 'bg-ds-primary text-white' : 'text-fin-text-muted border-fin-border'}`}
+                  onClick={() => setShowOnlyOpen(true)}
+                >
+                  Tersisa saja
+                </Button>
+                <Button
+                  variant={!showOnlyOpen ? 'default' : 'outline'}
+                  size="sm"
+                  className={`h-7 text-[9px] font-bold uppercase ${!showOnlyOpen ? 'bg-ds-primary text-white' : 'text-fin-text-muted border-fin-border'}`}
+                  onClick={() => setShowOnlyOpen(false)}
+                >
+                  Semua
+                </Button>
+              </div>
+              <span className="text-[9px] text-fin-text-muted font-bold">
+                {[...sortByTglBuktiAsc(data.matchedWithDiscrepancy || [])].filter((r: any) => !showOnlyOpen || !isResolved(r)).length} item
+              </span>
+            </div>
+
+            {/* Auto-detect suggestions */}
+            {autoDetectSuggestions.length > 0 && (
+              <div className="mb-4 mx-1 p-3 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+                <div className="flex items-center gap-2 mb-2">
+                  <Wand2 size={14} className="text-amber-600" />
+                  <span className="text-[11px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                    Perbaikan Bank Terdeteksi ({autoDetectSuggestions.length})
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {autoDetectSuggestions.map((s: any, idx: number) => (
+                    <div key={idx} className="flex items-center justify-between gap-3 p-2 rounded-lg bg-white dark:bg-slate-900 border border-fin-border">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-bold text-fin-text-primary truncate">
+                          [{s.arah === 'LEBIH' ? '+' : '-'}] Rp {formatCurrency(s.besar)} &rarr; {s.nomorSp2d}
+                        </p>
+                        <p className="text-[9px] text-fin-text-muted truncate">{s.opd} &middot; Bank #{s.bankRowId}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="h-7 px-2 text-[9px] font-bold bg-amber-600 hover:bg-amber-700 text-white shrink-0"
+                        onClick={async () => {
+                          try {
+                            const res = await api.post('/koreksi-bank/auto-detect/confirm', {
+                              bankRowId: s.bankRowId,
+                              sp2dId: s.sp2dId,
+                              arah: s.arah,
+                              besar: s.besar,
+                            });
+                            const draft = res.data?.data;
+                            if (draft) {
+                              const params = new URLSearchParams({
+                                draft: '1',
+                                jenis: draft.jenis_koreksi,
+                                sp2d: draft.ref_sp2d_id,
+                                bank: draft.ref_bank_id,
+                                nilai: draft.nilai,
+                                uraian: draft.uraian,
+                              });
+                              router.push(`/dashboard/rekon/koreksi-bank?${params.toString()}`);
+                            }
+                          } catch (err: any) {
+                            toast.error(err?.response?.data?.message || 'Gagal membuat draft koreksi.');
+                          }
+                        }}
+                      >
+                        <Search size={10} className="mr-1" /> Isi ke Koreksi Bank
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -490,23 +679,39 @@ export default function DiscrepancyReportPage() {
                     <TableHead className="text-[10px] font-bold uppercase text-fin-text-muted">Bukti</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase text-fin-text-muted">Keterangan</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase text-fin-text-muted text-right">Selisih</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase text-fin-text-muted text-center">Status</TableHead>
                     <TableHead className="text-[10px] font-bold uppercase text-fin-text-muted text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody className="divide-y divide-fin-border">
-                  {(data.matchedWithDiscrepancy || []).map((r: any, i: number) => (
-                    <TableRow key={i} className="hover:bg-fin-page transition-colors border-b border-fin-border">
-                      <TableCell className="text-xs font-medium text-fin-text-secondary py-3">{r.tanggal ? format(new Date(r.tanggal), 'dd/MM/yyyy') : '-'}</TableCell>
-                      <TableCell className="text-xs font-bold text-fin-text-primary py-3">{r.bukti || '-'}</TableCell>
-                      <TableCell className="text-xs text-fin-text-muted py-3">{r.keterangan_rekon || r.uraian}</TableCell>
-                      <TableCell className="text-xs text-right font-black text-fin-expense py-3">{formatCurrency(toN(r.selisih))}</TableCell>
-                      <TableCell className="text-center py-3">
-                         <Button variant="ghost" size="sm" className="h-7 px-2 text-[9px] font-bold text-indigo-400 hover:bg-fin-info-bg" onClick={() => { setSelectedAnomaly(r); setAuditNote(r.keterangan_rekon || ''); setAuditStatus(r.status_rekon || 'OPEN'); }}>
-                            <Edit3 size={10} className="mr-1" /> Resolusi
-                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {[...sortByTglBuktiAsc(data.matchedWithDiscrepancy || [])]
+                    .filter((r: any) => !showOnlyOpen || !isResolved(r))
+                    .map((r: any, i: number) => {
+                      const resolved = isResolved(r);
+                      const bln = resolvedBulan(r);
+                      return (
+                        <TableRow key={i} className={`hover:bg-fin-page transition-colors border-b border-fin-border ${resolved ? 'opacity-60' : ''}`}>
+                          <TableCell className="text-xs font-medium text-fin-text-secondary py-3">{r.tanggal ? format(new Date(r.tanggal), 'dd/MM/yyyy') : '-'}</TableCell>
+                          <TableCell className="text-xs font-bold text-fin-text-primary py-3">{r.bukti || '-'}</TableCell>
+                          <TableCell className="text-xs text-fin-text-muted py-3">{r.keterangan_rekon || r.uraian}</TableCell>
+                          <TableCell className="text-xs text-right font-black text-fin-expense py-3">{formatCurrency(toN(r.selisih))}</TableCell>
+                          <TableCell className="text-center py-3">
+                            {resolved ? (
+                              <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[8px] font-black">
+                                DITUTUP{bln ? ` (bln ${MONTHS[bln - 1]})` : ''}
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[8px] font-black">TERBUKA</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center py-3">
+                            <Button variant="ghost" size="sm" className="h-7 px-2 text-[9px] font-bold text-indigo-400 hover:bg-fin-info-bg" onClick={() => { setSelectedAnomaly(r); setAuditNote(r.keterangan_rekon || ''); setAuditStatus(r.status_rekon || 'OPEN'); }}>
+                              <Edit3 size={10} className="mr-1" /> Resolusi
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                 </TableBody>
               </Table>
             </div>
@@ -573,22 +778,25 @@ export default function DiscrepancyReportPage() {
 
       {/* BAR MODAL */}
       <Dialog open={showBarModal} onOpenChange={setShowBarModal}>
-        <DialogContent className="sm:max-w-[1400px] w-[96vw] max-h-[92vh] bg-fin-surface rounded-2xl p-0 overflow-hidden border-none shadow-2xl flex flex-col">
+        <DialogContent className="sm:max-w-[1600px] w-[97vw] h-[93vh] bg-fin-surface rounded-2xl p-0 overflow-hidden border-none shadow-2xl flex flex-col">
           <DialogHeader className="p-6 bg-gradient-to-r from-indigo-600 to-violet-700 text-white relative shrink-0">
             <div className="absolute right-8 top-6 opacity-20"><FileSignature size={60} /></div>
             <DialogTitle className="text-xl font-black tracking-tight">Konfigurasi Berita Acara (BAR)</DialogTitle>
             <DialogDescription className="text-indigo-100 text-xs opacity-90 text-left">Lengkapi parameter resmi sesuai format BPKAD Kab. Kepulauan Aru.</DialogDescription>
           </DialogHeader>
 
-          {/* Split Screen Grid */}
-          <div className="grid grid-cols-1 xl:grid-cols-12 overflow-hidden flex-1 min-h-0 bg-fin-page">
+          {/* [W-A] SPLIT SIDEBAR PERMANEN — form selalu kiri, preview selalu kanan */}
+          <div className="flex overflow-hidden flex-1 min-h-0 bg-fin-page">
 
-            {/* LEFT SIDE: CONFIGURATION INPUTS */}
-            <div className="xl:col-span-5 bg-fin-surface p-6 space-y-5 overflow-y-auto custom-scrollbar flex flex-col justify-start border-r border-fin-border">
-              <div className="bg-fin-page p-4 rounded-xl border border-fin-border shadow-inner grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
+            {/* LEFT SIDE: SIDEBAR CONFIGURATION */}
+            <aside className="w-[360px] xl:w-[400px] shrink-0 h-full overflow-y-auto custom-scrollbar bg-fin-surface border-r border-fin-border p-4 space-y-4 flex flex-col">
+              <div className="shrink-0 pb-2 border-b border-fin-border">
+                <span className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-widest flex items-center gap-1.5"><FileSignature size={12} /> Parameter Dokumen</span>
+              </div>
+              <div className="space-y-3 shrink-0">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase text-fin-text-secondary tracking-wider ml-1">Nomor BAR</label>
-                  <Input value={barConfig.noBar} onChange={e => setBarConfig({ ...barConfig, noBar: e.target.value })} className="text-xs font-bold h-10 bg-fin-surface border-fin-border text-fin-text-primary rounded-lg shadow-sm focus:border-indigo-500" />
+                  <Input value={barConfig.noBar} onChange={e => setBarConfig({ ...barConfig, noBar: e.target.value })} className="text-xs font-bold h-10 bg-fin-surface border-fin-border text-fin-text-primary shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 w-full outline-none" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase text-fin-text-secondary tracking-wider ml-1">Bulan Rekon</label>
@@ -615,13 +823,13 @@ export default function DiscrepancyReportPage() {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase text-fin-text-secondary tracking-wider ml-1">Tgl Rekon</label>
-                  <Input type="date" value={barConfig.tanggalRekon} onChange={e => setBarConfig({ ...barConfig, tanggalRekon: e.target.value })} className="text-xs font-bold h-10 bg-fin-surface border-fin-border text-fin-text-primary rounded-lg shadow-sm focus:border-indigo-500" />
+                  <Input type="date" value={barConfig.tanggalRekon} onChange={e => setBarConfig({ ...barConfig, tanggalRekon: e.target.value })} className="text-xs font-bold h-10 bg-fin-surface border-fin-border text-fin-text-primary shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 w-full outline-none" />
                 </div>
               </div>
 
               <div className="space-y-1.5 shrink-0">
                 <label className="text-[10px] font-black uppercase text-fin-text-secondary tracking-wider ml-1 flex items-center gap-1.5"><ShieldCheck size={14} className="text-indigo-500" /> Dasar Hukum BAR</label>
-                <Textarea value={barConfig.dasarHukum} onChange={e => setBarConfig({ ...barConfig, dasarHukum: e.target.value })} className="text-xs font-bold min-h-[70px] bg-fin-surface border-fin-border text-fin-text-primary rounded-lg p-3 shadow-sm resize-none focus:border-indigo-500" />
+                <Textarea value={barConfig.dasarHukum} onChange={e => setBarConfig({ ...barConfig, dasarHukum: e.target.value })} className="text-xs font-bold min-h-[70px] bg-fin-surface border-fin-border text-fin-text-primary rounded-lg p-3 shadow-sm resize-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 w-full outline-none" />
               </div>
 
               <div className="space-y-4 pr-2 pb-6">
@@ -643,70 +851,70 @@ export default function DiscrepancyReportPage() {
 
                 <div className="space-y-3 p-5 bg-indigo-500/[0.03] dark:bg-indigo-500/[0.05] rounded-xl border border-indigo-500/20 hover:border-indigo-500/40 transition-colors">
                   <label className="text-[11px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1.5 border-b border-indigo-500/10 pb-2 mb-1">Pihak Pertama (BPKAD)</label>
-                  <div className="space-y-3 mt-2">
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Jabatan Resmi</span>
-                      <Input value={barConfig.jabatan1} onChange={e => setBarConfig({ ...barConfig, jabatan1: e.target.value })} placeholder="Jabatan" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-indigo-500" />
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-3 mt-2">
+                    <div className="space-y-1 col-span-2">
+                      <span className="text-[10px] font-black text-fin-text-secondary tracking-wider ml-1">Jabatan Resmi</span>
+                      <Input value={barConfig.jabatan1} onChange={e => setBarConfig({ ...barConfig, jabatan1: e.target.value })} placeholder="Jabatan" className="h-10 text-xs bg-fin-surface border border-fin-border text-fin-text-primary rounded-lg shadow-sm px-3 w-full outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50" />
                     </div>
                     <div className="space-y-1">
-                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Nama Lengkap</span>
-                      <Input value={barConfig.pejabat1} onChange={e => setBarConfig({ ...barConfig, pejabat1: e.target.value })} placeholder="Nama Lengkap" className="text-sm font-black h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-indigo-500" />
+                      <span className="text-[10px] font-black text-fin-text-secondary tracking-wider ml-1">Nama Lengkap</span>
+                      <Input value={barConfig.pejabat1} onChange={e => setBarConfig({ ...barConfig, pejabat1: e.target.value })} placeholder="Nama Lengkap" className="h-10 text-sm font-bold bg-fin-surface border border-fin-border text-fin-text-primary rounded-lg shadow-sm px-3 w-full outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50" />
                     </div>
                     <div className="space-y-1">
-                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Pangkat / Gol</span>
-                      <Input value={barConfig.pangkat1} onChange={e => setBarConfig({ ...barConfig, pangkat1: e.target.value })} placeholder="Pangkat / Golongan (opsional)" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-indigo-500" />
+                      <span className="text-[10px] font-black text-fin-text-secondary tracking-wider ml-1">Pangkat / Gol</span>
+                      <Input value={barConfig.pangkat1} onChange={e => setBarConfig({ ...barConfig, pangkat1: e.target.value })} placeholder="Pangkat / Golongan (opsional)" className="h-10 text-xs bg-fin-surface border border-fin-border text-fin-text-primary rounded-lg shadow-sm px-3 w-full outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50" />
                     </div>
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">NIP</span>
-                      <Input value={barConfig.nip1} onChange={e => setBarConfig({ ...barConfig, nip1: e.target.value })} placeholder="NIP" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-indigo-500" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3 p-5 bg-emerald-500/[0.03] dark:bg-emerald-500/[0.05] rounded-xl border border-emerald-500/20 hover:border-emerald-500/40 transition-colors">
-                  <label className="text-[11px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider flex items-center gap-1.5 border-b border-emerald-500/10 pb-2 mb-1">Pihak Kedua (BANK)</label>
-                  <div className="space-y-3 mt-2">
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Jabatan Resmi</span>
-                      <Input value={barConfig.jabatan2} onChange={e => setBarConfig({ ...barConfig, jabatan2: e.target.value })} placeholder="Jabatan" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-emerald-500" />
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Nama Lengkap</span>
-                      <Input value={barConfig.pejabat2} onChange={e => setBarConfig({ ...barConfig, pejabat2: e.target.value })} placeholder="Nama Lengkap" className="text-sm font-black h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-emerald-500" />
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">ID / NIP</span>
-                      <Input value={barConfig.nip2} onChange={e => setBarConfig({ ...barConfig, nip2: e.target.value })} placeholder="ID / NIP" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-emerald-500" />
+                    <div className="space-y-1 col-span-2">
+                      <span className="text-[10px] font-black text-fin-text-secondary tracking-wider ml-1">NIP</span>
+                      <Input value={barConfig.nip1} onChange={e => setBarConfig({ ...barConfig, nip1: e.target.value })} placeholder="NIP" className="h-10 text-xs bg-fin-surface border border-fin-border text-fin-text-primary rounded-lg shadow-sm px-3 w-full outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50" />
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-3 p-5 bg-amber-500/[0.03] dark:bg-amber-500/[0.05] rounded-xl border border-amber-500/20 hover:border-amber-500/40 transition-colors">
-                  <label className="text-[11px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider flex items-center gap-1.5 border-b border-amber-500/10 pb-2 mb-1">Mengetahui (BPKAD)</label>
-                  <div className="space-y-3 mt-2">
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Jabatan Resmi</span>
-                      <Input value={barConfig.jabatan3} onChange={e => setBarConfig({ ...barConfig, jabatan3: e.target.value })} placeholder="Jabatan" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-amber-500" />
+                <div className="space-y-3 p-5 bg-indigo-500/[0.03] dark:bg-indigo-500/[0.05] rounded-xl border border-indigo-500/20 hover:border-indigo-500/40 transition-colors">
+                  <label className="text-[11px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1.5 border-b border-indigo-500/10 pb-2 mb-1">Pihak Kedua (BANK)</label>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-3 mt-2">
+                    <div className="space-y-1 col-span-2">
+                      <span className="text-[10px] font-black text-fin-text-secondary tracking-wider ml-1">Jabatan Resmi</span>
+                      <Input value={barConfig.jabatan2} onChange={e => setBarConfig({ ...barConfig, jabatan2: e.target.value })} placeholder="Jabatan" className="h-10 text-xs bg-fin-surface border border-fin-border text-fin-text-primary rounded-lg shadow-sm px-3 w-full outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50" />
+                    </div>
+                    <div className="space-y-1 col-span-2">
+                      <span className="text-[10px] font-black text-fin-text-secondary tracking-wider ml-1">Nama Lengkap</span>
+                      <Input value={barConfig.pejabat2} onChange={e => setBarConfig({ ...barConfig, pejabat2: e.target.value })} placeholder="Nama Lengkap" className="h-10 text-sm font-bold bg-fin-surface border border-fin-border text-fin-text-primary rounded-lg shadow-sm px-3 w-full outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50" />
+                    </div>
+                    <div className="space-y-1 col-span-2">
+                      <span className="text-[10px] font-black text-fin-text-secondary tracking-wider ml-1">ID / NIP</span>
+                      <Input value={barConfig.nip2} onChange={e => setBarConfig({ ...barConfig, nip2: e.target.value })} placeholder="ID / NIP" className="h-10 text-xs bg-fin-surface border border-fin-border text-fin-text-primary rounded-lg shadow-sm px-3 w-full outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3 p-5 bg-indigo-500/[0.03] dark:bg-indigo-500/[0.05] rounded-xl border border-indigo-500/20 hover:border-indigo-500/40 transition-colors">
+                  <label className="text-[11px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1.5 border-b border-indigo-500/10 pb-2 mb-1">Mengetahui (BPKAD)</label>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-3 mt-2">
+                    <div className="space-y-1 col-span-2">
+                      <span className="text-[10px] font-black text-fin-text-secondary tracking-wider ml-1">Jabatan Resmi</span>
+                      <Input value={barConfig.jabatan3} onChange={e => setBarConfig({ ...barConfig, jabatan3: e.target.value })} placeholder="Jabatan" className="h-10 text-xs bg-fin-surface border border-fin-border text-fin-text-primary rounded-lg shadow-sm px-3 w-full outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50" />
                     </div>
                     <div className="space-y-1">
-                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Nama Lengkap</span>
-                      <Input value={barConfig.pejabat3} onChange={e => setBarConfig({ ...barConfig, pejabat3: e.target.value })} placeholder="Nama Lengkap" className="text-sm font-black h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-amber-500" />
+                      <span className="text-[10px] font-black text-fin-text-secondary tracking-wider ml-1">Nama Lengkap</span>
+                      <Input value={barConfig.pejabat3} onChange={e => setBarConfig({ ...barConfig, pejabat3: e.target.value })} placeholder="Nama Lengkap" className="h-10 text-sm font-bold bg-fin-surface border border-fin-border text-fin-text-primary rounded-lg shadow-sm px-3 w-full outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50" />
                     </div>
                     <div className="space-y-1">
-                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">Pangkat / Gol</span>
-                      <Input value={barConfig.pangkat3} onChange={e => setBarConfig({ ...barConfig, pangkat3: e.target.value })} placeholder="Pangkat / Golongan (opsional)" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-amber-500" />
+                      <span className="text-[10px] font-black text-fin-text-secondary tracking-wider ml-1">Pangkat / Gol</span>
+                      <Input value={barConfig.pangkat3} onChange={e => setBarConfig({ ...barConfig, pangkat3: e.target.value })} placeholder="Pangkat / Golongan (opsional)" className="h-10 text-xs bg-fin-surface border border-fin-border text-fin-text-primary rounded-lg shadow-sm px-3 w-full outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50" />
                     </div>
-                    <div className="space-y-1">
-                      <span className="text-[9px] font-bold text-fin-text-muted uppercase tracking-wider ml-0.5">NIP</span>
-                      <Input value={barConfig.nip3} onChange={e => setBarConfig({ ...barConfig, nip3: e.target.value })} placeholder="NIP" className="text-xs h-10 bg-fin-surface border-fin-border text-fin-text-primary focus:border-amber-500" />
+                    <div className="space-y-1 col-span-2">
+                      <span className="text-[10px] font-black text-fin-text-secondary tracking-wider ml-1">NIP</span>
+                      <Input value={barConfig.nip3} onChange={e => setBarConfig({ ...barConfig, nip3: e.target.value })} placeholder="NIP" className="h-10 text-xs bg-fin-surface border border-fin-border text-fin-text-primary rounded-lg shadow-sm px-3 w-full outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50" />
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </aside>
 
             {/* RIGHT SIDE: LIVE PREVIEW OF THE DOCUMENT */}
-            <div className="xl:col-span-7 bg-fin-subtle p-6 overflow-y-auto custom-scrollbar flex justify-center items-start">
+            <main className="flex-1 min-w-0 h-full overflow-auto custom-scrollbar bg-fin-subtle p-6 flex justify-center items-start">
               {/* Scaled paper preview */}
               <div className="bg-white p-10 shadow-2xl rounded-sm w-[210mm] min-h-[297mm] text-black text-[9.5pt] leading-relaxed flex flex-col print:shadow-none" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
 
@@ -766,7 +974,8 @@ export default function DiscrepancyReportPage() {
                     : toN(pCurMonthData?.penerimaan);
                   const pTotalPeng = toN(pCurMonthData?.pengeluaran);
 
-                  // Potongan mengendap hanya bulan terpilih
+                  // Potongan mengendap bulan terpilih saja — dipakai saldo akhir BKU (tidak double-count,
+                  // karena saldo awal sudah membawa akumulasi bulan sebelumnya via potPrev).
                   const pTotalPotonganMengendap = (data?.potonganUnmatched || [])
                     .filter((p: any) => p.bulan === targetB)
                     .reduce((acc: number, p: any) => acc + toN(p.total_nilai), 0);
@@ -776,17 +985,54 @@ export default function DiscrepancyReportPage() {
                   const pSelisih = Math.abs(pSaldoBank - pSaldoAkhirBKU);
                   const pIsSesuai = pSelisih < 1;
 
+                  const pBarRows: { label: string; val: string; bold?: boolean; bg?: string }[] = [
+                    { label: 'Saldo Awal Kas BKU (Kas Daerah)', val: formatCurrency(pSaldoAwalKas) },
+                    { label: `Total Penerimaan Kas Bulan ${selectedBlnName}`, val: formatCurrency(pDisplayPenerimaan) },
+                    { label: `Total Pengeluaran Kas Bulan ${selectedBlnName}`, val: formatCurrency(pTotalPeng) },
+                    { label: `Saldo Akhir BKU RKUD per Tanggal ${previewFmtLastDay}`, val: formatCurrency(pSaldoAkhirBKU), bold: true, bg: '#eef2ff' },
+                    { label: `Saldo Rekening Koran Bank per Tanggal ${previewFmtLastDay}`, val: formatCurrency(pSaldoBank), bold: true, bg: '#f0fdf4' },
+                  ];
+
                   const pAllAnomalies = [...(data?.matchedWithDiscrepancy || []), ...(data?.unmatchedDetails || [])];
-                  const pAnomalyRows = pAllAnomalies
-                    .filter((r: any) => {
-                      const rDate = new Date(r.tanggal);
-                      return rDate.getMonth() + 1 <= targetB && rDate.getFullYear() === (new Date(barConfig.tanggalRekon || new Date()).getFullYear());
-                    })
-                    .filter((r: any) => {
-                      const isPotongan = r.tipe === 'POTONGAN SP2D' || r.tipe === 'POTONGAN' || r.tipe === 'POTONGAN_BANK';
-                      const isLainnya = (r.uraian || '').toLowerCase().includes('lainnya') || (r.keterangan_rekon || '').toLowerCase().includes('lainnya');
-                      return !(isPotongan && isLainnya);
-                    });
+
+                  // Pasokan tunggal: filter bulan/tahun + kecualikan potongan-'Lainnya'.
+                  const pSortedAnomalies = sortByTglBuktiAsc(
+                    pAllAnomalies
+                      .filter((r: any) => {
+                        const rDate = new Date(r.tanggal);
+                        return rDate.getMonth() + 1 <= targetB && rDate.getFullYear() === (new Date(barConfig.tanggalRekon || new Date()).getFullYear());
+                      })
+                      .filter((r: any) => {
+                        const isPotongan = r.tipe === 'POTONGAN SP2D' || r.tipe === 'POTONGAN' || r.tipe === 'POTONGAN_BANK';
+                        const isLainnya = (r.uraian || '').toLowerCase().includes('lainnya') || (r.keterangan_rekon || '').toLowerCase().includes('lainnya');
+                        return !(isPotongan && isLainnya);
+                      })
+                  );
+
+                  // [W-BAR] Samakan dgn Ringkasan: Point C = outstanding, C.2 = closed (per akhir bulan rekon).
+                  const { outstanding: pOutstanding, closed: pClosedRows } = classifyBarSelisih(
+                    pSortedAnomalies,
+                    resolvedBySp2d,
+                    resolvedByPotongan,
+                    targetB,
+                    tglObj.getFullYear()
+                  );
+
+                  // Akumulasi potongan 'Lainnya' (sejak awal tahun s.d. bulan N) → satu baris di Point C.
+                  const pPotonganAkumulasi = (data?.potonganUnmatched || [])
+                    .filter((p: any) => p.bulan <= targetB)
+                    .reduce((acc: number, p: any) => acc + toN(p.total_nilai), 0);
+                  const pAnomalyRows = pPotonganAkumulasi > 0
+                    ? [...pOutstanding, {
+                        id: 'potongan-mengendap',
+                        tipe: 'POTONGAN MENGENDAP',
+                        bukti: "'Lainnya'",
+                        tanggal: format(new Date(Date.UTC(tglObj.getFullYear(), targetB, 0)), 'dd/MM/yyyy'),
+                        keterangan: "Potongan 'Lainnya' belum cair ke kas — rincian di Lampiran",
+                        opd: '',
+                        nilai: pPotonganAkumulasi,
+                      }]
+                    : pOutstanding;
 
                   return (
                     <div className="flex-1 flex flex-col text-justify font-serif text-[10pt]">
@@ -870,39 +1116,21 @@ export default function DiscrepancyReportPage() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt', fontFamily: 'sans-serif' }}>
                           <thead>
                             <tr>
-                              <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'center', width: 32 }}>NO</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'center', width: 48, whiteSpace: 'nowrap' }}>NO</th>
                               <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'left' }}>URAIAN</th>
                               <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'right', width: 176 }}>JUMLAH (RP)</th>
                             </tr>
                           </thead>
                           <tbody>
-                            <tr>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>1</td>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px' }}>Saldo Awal Kas BKU (Kas Daerah)</td>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(pSaldoAwalKas)}</td>
-                            </tr>
-                            <tr>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>2</td>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px' }}>Total Penerimaan Kas Bulan {selectedBlnName}</td>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(pDisplayPenerimaan)}</td>
-                            </tr>
-                            <tr>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>3</td>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px' }}>Total Pengeluaran Kas Bulan {selectedBlnName}</td>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(pTotalPeng)}</td>
-                            </tr>
-                            <tr style={{ fontWeight: 'bold', backgroundColor: '#eef2ff' }}>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>4</td>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px' }}>Saldo Akhir BKU RKUD per Tanggal {previewFmtLastDay}</td>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(pSaldoAkhirBKU)}</td>
-                            </tr>
-                            <tr style={{ fontWeight: 'bold', backgroundColor: '#f0fdf4' }}>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>5</td>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px' }}>Saldo Rekening Koran Bank per Tanggal {previewFmtLastDay}</td>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{formatCurrency(pSaldoBank)}</td>
-                            </tr>
+                            {pBarRows.map((row, idx) => (
+                              <tr key={idx} style={{ fontWeight: row.bold ? 'bold' : 'normal', backgroundColor: row.bg || 'transparent' }}>
+                                <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>{idx + 1}</td>
+                                <td style={{ border: '1px solid #000', padding: '4px 6px' }}>{row.label}</td>
+                                <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{row.val}</td>
+                              </tr>
+                            ))}
                             <tr style={{ fontWeight: 'bold', backgroundColor: pIsSesuai ? '#f8fafc' : '#fff1f2' }}>
-                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>6</td>
+                              <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>{pBarRows.length + 1}</td>
                               <td style={{ border: '1px solid #000', padding: '4px 6px' }}>Selisih (No. 4 - No. 5)</td>
                               <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace' }}>{pIsSesuai ? 'NOL' : formatCurrency(pSelisih)}</td>
                             </tr>
@@ -916,15 +1144,16 @@ export default function DiscrepancyReportPage() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8pt', fontFamily: 'sans-serif' }}>
                           <thead>
                             <tr>
-                              <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'center', width: 32 }}>NO</th>
+                              <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'center', width: 48, whiteSpace: 'nowrap' }}>NO</th>
                               <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'left', width: 128 }}>REFERENSI / TIPE</th>
                               <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'left' }}>KETERANGAN TRANSAKSI</th>
                               <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'right', width: 144 }}>NILAI (RP)</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {pAnomalyRows.length > 0 ? (
-                              pAnomalyRows.map((r: any, i: number) => (
+                          {pAnomalyRows.length > 0 ? (
+                            <>
+                              {pAnomalyRows.map((r: any, i: number) => (
                                 <tr key={r.id}>
                                   <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>{i + 1}</td>
                                   <td style={{ border: '1px solid #000', padding: '4px 6px', textTransform: 'uppercase', verticalAlign: 'top' }}>
@@ -932,23 +1161,64 @@ export default function DiscrepancyReportPage() {
                                     <div style={{ marginTop: 2 }}>
                                       <span style={{ fontSize: '7.5pt', fontFamily: 'monospace', color: '#555' }}>{r.bukti || '-'}</span>
                                     </div>
-                                    <div style={{ fontSize: '7pt', color: '#666', fontStyle: 'italic' }}>Tgl: {r.tanggal ? format(new Date(r.tanggal), 'dd/MM/yyyy') : '-'}</div>
+                                    <div style={{ fontSize: '7pt', color: '#666', fontStyle: 'italic' }}>Tgl: {r.tanggal || '-'}</div>
                                   </td>
                                   <td style={{ border: '1px solid #000', padding: '4px 6px', verticalAlign: 'top' }}>
-                                    {r.keterangan_rekon || r.uraian || 'Belum ada penjelasan'}
+                                    {r.keterangan}
                                     {r.opd && <div style={{ fontSize: '7pt', color: '#888', fontStyle: 'italic' }}>{r.opd}</div>}
                                   </td>
-                                  <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace', verticalAlign: 'top' }}>{formatCurrency(toN(r.selisih || r.nilai))}</td>
+                                  <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace', verticalAlign: 'top' }}>{formatCurrency(toN(r.nilai))}</td>
                                 </tr>
-                              ))
-                            ) : (
+                              ))}
+                            </>
+                          ) : (
                               <tr>
                                 <td colSpan={4} style={{ border: '1px solid #000', padding: '8px 6px', textAlign: 'center', fontStyle: 'italic', color: '#64748b' }}>Kas Terverifikasi Sinkron. Tidak terdapat selisih pembukuan.</td>
                               </tr>
-                            )}
+                          )}
                           </tbody>
                         </table>
-                      </div>
+                       </div>
+
+                       {/* C.2 POS SELISIH YANG TELAH DITUTUP S.D. PERIODE INI */}
+                       {pClosedRows.length > 0 && (
+                         <div className="mt-3">
+                           <p className="font-bold uppercase text-[9.5pt] tracking-wide mb-1.5">C.2 POS SELISIH YANG TELAH DITUTUP S.D. PERIODE INI</p>
+                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8pt', fontFamily: 'sans-serif' }}>
+                             <thead>
+                               <tr>
+                                  <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'center', width: 44, whiteSpace: 'nowrap' }}>NO</th>
+                                 <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'left', width: 110 }}>REFERENSI / TIPE</th>
+                                 <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'left' }}>KETERANGAN TRANSAKSI</th>
+                                 <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'right', width: 90 }}>NILAI (RP)</th>
+                                 <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'center', width: 100 }}>TGL MUTASI PERBAIKAN</th>
+                                 <th style={{ border: '1px solid #000', padding: '4px 6px', backgroundColor: '#f1f5f9', textAlign: 'center', width: 150 }}>SURAT KOREKSI</th>
+                               </tr>
+                             </thead>
+                             <tbody>
+                               {pClosedRows.map((r: any, i: number) => (
+                                 <tr key={`c2-${i}`}>
+                                   <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center' }}>{i + 1}</td>
+                                   <td style={{ border: '1px solid #000', padding: '4px 6px', textTransform: 'uppercase', verticalAlign: 'top' }}>
+                                     <span style={{ fontWeight: 'bold' }}>{r.tipe}</span>
+                                     <div style={{ marginTop: 2 }}>
+                                       <span style={{ fontSize: '7.5pt', fontFamily: 'monospace', color: '#555' }}>{r.bukti || '-'}</span>
+                                     </div>
+                                     <div style={{ fontSize: '7pt', color: '#666', fontStyle: 'italic' }}>Tgl: {r.tanggal || '-'}</div>
+                                   </td>
+                                   <td style={{ border: '1px solid #000', padding: '4px 6px', verticalAlign: 'top' }}>
+                                     {r.keterangan}
+                                     {r.opd && <div style={{ fontSize: '7pt', color: '#888', fontStyle: 'italic' }}>{r.opd}</div>}
+                                   </td>
+                                   <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'right', fontFamily: 'monospace', verticalAlign: 'top' }}>{formatCurrency(toN(r.nilai))}</td>
+                                   <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', verticalAlign: 'top' }}>{r.perbaikanTanggal || '-'}</td>
+                                   <td style={{ border: '1px solid #000', padding: '4px 6px', textAlign: 'center', verticalAlign: 'top' }}>{r.nomorSurat || '-'}</td>
+                                 </tr>
+                               ))}
+                             </tbody>
+                           </table>
+                         </div>
+                       )}
 
                       {/* D. KESIMPULAN */}
                       <div className="mt-3 shrink-0">
@@ -1002,13 +1272,15 @@ export default function DiscrepancyReportPage() {
                   );
                 })()}
               </div>
-            </div>
+            </main>
           </div>
 
-          <DialogFooter className="p-6 bg-slate-50 border-t border-slate-100 flex gap-4 justify-end shrink-0">
-            <Button variant="ghost" onClick={() => setShowBarModal(false)} className="h-11 px-8 rounded-xl font-black text-xs uppercase">Batal</Button>
+          <DialogFooter className="p-6 bg-fin-page border-t border-fin-border flex gap-4 justify-end shrink-0">
+            <Button variant="ghost" onClick={() => setShowBarModal(false)} className="h-11 px-8 rounded-xl font-black text-xs uppercase text-fin-text-muted hover:bg-fin-surface">Batal</Button>
             <Button onClick={() => {
               localStorage.setItem(getBarKey(year, barConfig.bulanRekon), JSON.stringify(barConfig));
+              // [W3] Mirror global agar fallback lintas-bulan selalu terbaru
+              localStorage.setItem('bar_config_discrepancy', JSON.stringify(barConfig));
               toast.success(`Konfigurasi BAR ${MONTHS[parseInt(barConfig.bulanRekon) - 1]} berhasil disimpan`);
             }} variant="outline" className="h-11 border-indigo-200 text-indigo-700 hover:bg-indigo-50 rounded-xl font-black text-xs uppercase px-8 shadow-sm flex items-center gap-2">
               <Save size={16} /> Simpan

@@ -19,6 +19,7 @@ import {
   User,
   Settings,
   RefreshCw,
+  Upload,
   Layers,
   Banknote,
   Scale,
@@ -29,6 +30,7 @@ import {
   FileSpreadsheet,
   Search,
   BookOpenCheck,
+  Landmark,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -65,8 +67,8 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
       ]},
       { title: 'Rekonsiliasi Bank', items: [
         { href: '/dashboard/rekon/bank' }, { href: '/dashboard/rekon' }, { href: '/dashboard/rekon/discrepancy' },
-        { href: '/dashboard/penyesuaian' }, { href: '/dashboard/rekon/ringkasan' },
-        { href: '/dashboard/rekon/potongan-mengendap' }, { href: '/dashboard/rekon/anomalies' }
+        { href: '/dashboard/penyesuaian' }, { href: '/dashboard/rekon/koreksi-bank' }, { href: '/dashboard/rekon/ringkasan' },
+        { href: '/dashboard/rekon/potongan-mengendap' }, { href: '/dashboard/rekon/anomalies' },
       ]},
       { title: 'Laporan', items: [
         { href: '/dashboard/bku' }, { href: '/dashboard/lra' }, { href: '/dashboard/jurnal' }, { href: '/dashboard/talangan' }
@@ -158,10 +160,12 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
       icon: RefreshCw,
       dotColor: 'bg-ds-primary',
       items: [
+        { name: 'Impor Terpandu', href: '/dashboard/impor', icon: Upload },
         { name: 'Rekening Bank', href: '/dashboard/rekon/bank', icon: Database },
         { name: 'Rekonsiliasi Cerdas', href: '/dashboard/rekon', icon: RefreshCw },
         { name: 'Laporan Selisih', href: '/dashboard/rekon/discrepancy', icon: BarChart3 },
-        { name: 'Penyesuaian & Koreksi', href: '/dashboard/penyesuaian', icon: History },
+        { name: 'Penyesuaian Kas', href: '/dashboard/penyesuaian', icon: History },
+        { name: 'Koreksi Bank', href: '/dashboard/rekon/koreksi-bank', icon: Landmark },
         { name: 'Ringkasan B & C', href: '/dashboard/rekon/ringkasan', icon: BookOpenCheck },
         { name: 'Potongan Mengendap', href: '/dashboard/rekon/potongan-mengendap', icon: FileText },
         { name: 'Integritas Data', href: '/dashboard/rekon/anomalies', icon: ShieldAlert },
